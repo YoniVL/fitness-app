@@ -21,7 +21,11 @@ void _showDetail(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(child: ExerciseAnimation(pattern: ex.pattern, size: 150)),
+          Center(
+              child: ExerciseAnimation(
+                  pattern: ex.pattern,
+                  equipment: ex.equipmentTags,
+                  size: 160)),
           const SizedBox(height: 4),
           Text(ex.name, style: Theme.of(context).textTheme.titleLarge),
           if (ex.pattern != null)
@@ -44,7 +48,7 @@ void _showDetail(
           Text('Materiaal: ${ex.equipmentTags.map(Equipment.label).join(', ')}',
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 4),
-          Text('Animatie op bewegingspatroon-niveau.',
+          Text('Schematische animatie van het bewegingspatroon.',
               style: Theme.of(context).textTheme.labelSmall),
         ],
       ),

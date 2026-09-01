@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../exercises/exercise_animation.dart';
 import '../library/exercise_list_screen.dart';
 import 'state/active_workout_provider.dart';
 import 'state/rest_timer_notifier.dart';
@@ -17,13 +18,42 @@ class ActiveWorkoutScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
-  /// Blocks the user chose to expand manually (besides the current one).
-  final Set<int> _expanded = {};
+  final _pc = PageController();
+  int _page = 0;
+  bool _didInitialJump = false;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  void _jumpTo(int index, {bool animate = true}) {
+    if (!_pc.hasClients) return;
+    final clamped = index.clamp(0, 9999);
+    if (animate) {
+      _pc.animateToPage(clamped,
+          duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    } else {
+      _pc.jumpToPage(clamped);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(activeWorkoutProvider);
     final resting = ref.watch(restTimerProvider).active;
+
+    // When the rest ends, move to the exercise the user should do next.
+    ref.listen(restTimerProvider, (prev, next) {
+      if (prev != null && prev.active && !next.active) {
+        final s = ref.read(activeWorkoutProvider).valueOrNull;
+        final target = s?.currentBlockIndex ?? -1;
+        if (target >= 0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _jumpTo(target));
+        }
+      }
+    });
 
     if (resting) {
       final state = async.valueOrNull;
@@ -33,78 +63,132 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
       return RestFullscreen(
         nextExerciseName: next?.exercise.name,
         nextPattern: next?.exercise.pattern,
+        nextEquipment: next?.exercise.equipmentTags ?? const [],
         nextSetLabel: next == null
             ? null
             : 'Set ${next.completedSets + 1}/${next.targetSets}',
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Training'),
+    return async.when(
+      loading: () => const Scaffold(
+          body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Fout: $e'))),
+      data: (state) {
+        if (state == null) {
+          return const Scaffold(
+              body: Center(child: Text('Geen training bezig')));
+        }
+        if (state.blocks.isEmpty) {
+          return Scaffold(
+            appBar: _appBar(state),
+            body: _EmptyHint(onAdd: _addExercise),
+          );
+        }
+
+        // Jump to the current exercise once, when resuming a session.
+        if (!_didInitialJump) {
+          _didInitialJump = true;
+          final target = state.currentBlockIndex;
+          if (target > 0) {
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => _jumpTo(target, animate: false));
+          }
+        }
+
+        if (state.allComplete) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Training')),
+            body: _DonePage(onFinish: _finish, onAdd: _addExercise),
+          );
+        }
+
+        return Scaffold(
+          appBar: _appBar(state),
+          body: Column(
+            children: [
+              _ProgressDots(state: state, current: _page),
+              Expanded(
+                child: PageView.builder(
+                  controller: _pc,
+                  itemCount: state.blocks.length,
+                  onPageChanged: (i) => setState(() => _page = i),
+                  itemBuilder: (context, i) => _ExercisePage(
+                    blockIndex: i,
+                    isLast: i == state.blocks.length - 1,
+                    onNext: () => _jumpTo(i + 1),
+                    onFinish: _finish,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  PreferredSizeWidget _appBar(ActiveWorkoutState state) => AppBar(
+        titleSpacing: 0,
+        title: Text(state.blocks.isEmpty
+            ? 'Training'
+            : 'Oefening ${_page + 1}/${state.blocks.length}'),
         actions: [
-          if (async.valueOrNull != null && !async.valueOrNull!.allComplete)
-            TextButton(
-              onPressed: () => _finish(),
-              child: const Text('Afronden'),
-            ),
+          IconButton(
+            icon: const Icon(Icons.list),
+            tooltip: 'Overzicht',
+            onPressed: () => _showOverview(state),
+          ),
           PopupMenuButton<String>(
             onSelected: (v) {
+              if (v == 'finish') _finish();
               if (v == 'discard') _discard();
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'discard', child: Text('Training weggooien')),
+            itemBuilder: (context) => [
+              if (!state.allComplete)
+                const PopupMenuItem(
+                    value: 'finish', child: Text('Training afronden')),
+              const PopupMenuItem(
+                  value: 'discard', child: Text('Training weggooien')),
             ],
           ),
         ],
+      );
+
+  Future<void> _showOverview(ActiveWorkoutState state) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < state.blocks.length; i++)
+              ListTile(
+                leading: Icon(state.blocks[i].isComplete
+                    ? Icons.check_circle
+                    : Icons.circle_outlined),
+                title: Text(state.blocks[i].exercise.name),
+                subtitle: Text(
+                    '${state.blocks[i].completedSets}/${state.blocks[i].targetSets} sets'),
+                selected: i == _page,
+                onTap: () {
+                  Navigator.pop(context);
+                  _jumpTo(i);
+                },
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Oefening toevoegen'),
+              onTap: () {
+                Navigator.pop(context);
+                _addExercise();
+              },
+            ),
+          ],
+        ),
       ),
-      body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (state) {
-          if (state == null) {
-            return const Center(child: Text('Geen training bezig'));
-          }
-          if (state.blocks.isEmpty) return const _EmptyHint();
-          final current = state.currentBlockIndex;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
-            children: [
-              for (var i = 0; i < state.blocks.length; i++)
-                _ExerciseCard(
-                  blockIndex: i,
-                  expanded: i == current || _expanded.contains(i),
-                  isCurrent: i == current,
-                  onToggle: () => setState(() {
-                    _expanded.contains(i)
-                        ? _expanded.remove(i)
-                        : _expanded.add(i);
-                  }),
-                ),
-              if (state.allComplete)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                    onPressed: () => _finish(),
-                    icon: const Icon(Icons.check_circle),
-                    label: const Text('Dag afronden'),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton:
-          (async.valueOrNull == null || async.valueOrNull!.allComplete)
-              ? null
-              : FloatingActionButton.extended(
-                  onPressed: _addExercise,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Oefening'),
-                ),
     );
   }
 
@@ -116,6 +200,8 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     );
     if (id != null) {
       await ref.read(activeWorkoutProvider.notifier).addExercise(id);
+      final s = ref.read(activeWorkoutProvider).valueOrNull;
+      if (s != null) _jumpTo(s.blocks.length - 1);
     }
   }
 
@@ -153,38 +239,120 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   }
 }
 
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint();
+class _ProgressDots extends StatelessWidget {
+  const _ProgressDots({required this.state, required this.current});
+  final ActiveWorkoutState state;
+  final int current;
+
   @override
-  Widget build(BuildContext context) => const Center(
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < state.blocks.length; i++)
+            Container(
+              width: i == current ? 22 : 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: state.blocks[i].isComplete
+                    ? scheme.primary
+                    : i == current
+                        ? scheme.primary.withValues(alpha: 0.5)
+                        : scheme.onSurface.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint({required this.onAdd});
+  final VoidCallback onAdd;
+  @override
+  Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Text(
-            'Nog geen oefeningen. Tik op "Oefening" om er een toe te voegen.',
-            textAlign: TextAlign.center,
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Nog geen oefeningen.', textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add),
+                label: const Text('Oefening toevoegen'),
+              ),
+            ],
           ),
         ),
       );
 }
 
-class _ExerciseCard extends ConsumerStatefulWidget {
-  const _ExerciseCard({
+class _DonePage extends StatelessWidget {
+  const _DonePage({required this.onFinish, required this.onAdd});
+  final VoidCallback onFinish;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle,
+                size: 72, color: theme.colorScheme.primary),
+            const SizedBox(height: 16),
+            Text('Alle oefeningen klaar', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                onPressed: onFinish,
+                child: const Text('Dag afronden'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: onAdd,
+              child: const Text('Toch nog een oefening'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExercisePage extends ConsumerStatefulWidget {
+  const _ExercisePage({
     required this.blockIndex,
-    required this.expanded,
-    required this.isCurrent,
-    required this.onToggle,
+    required this.isLast,
+    required this.onNext,
+    required this.onFinish,
   });
 
   final int blockIndex;
-  final bool expanded;
-  final bool isCurrent;
-  final VoidCallback onToggle;
+  final bool isLast;
+  final VoidCallback onNext;
+  final VoidCallback onFinish;
 
   @override
-  ConsumerState<_ExerciseCard> createState() => _ExerciseCardState();
+  ConsumerState<_ExercisePage> createState() => _ExercisePageState();
 }
 
-class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
+class _ExercisePageState extends ConsumerState<_ExercisePage> {
   double? _reps;
   bool _warmup = false;
 
@@ -199,136 +367,119 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final theme = Theme.of(context);
     final reps = _reps ??= block.suggestedReps.toDouble();
 
-    if (!widget.expanded) {
-      return Card(
-        child: ListTile(
-          leading: Icon(
-            block.isComplete ? Icons.check_circle : Icons.circle_outlined,
-            color: block.isComplete ? theme.colorScheme.primary : null,
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 4, 20, 16 + MediaQuery.viewPaddingOf(context).bottom),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(block.exercise.name,
+                    style: theme.textTheme.titleLarge),
+              ),
+              IconButton(
+                icon: const Icon(Icons.tune, size: 20),
+                tooltip: 'Aanpassen',
+                onPressed: () => _editTargets(block),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                onPressed: () => notifier.removeBlock(widget.blockIndex),
+              ),
+            ],
           ),
-          title: Text(block.exercise.name),
-          subtitle: Text('${block.completedSets}/${block.targetSets} sets'),
-          trailing: const Icon(Icons.expand_more),
-          onTap: widget.onToggle,
-        ),
-      );
-    }
-
-    return Card(
-      color: widget.isCurrent
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(block.exercise.name,
-                      style: theme.textTheme.titleMedium),
-                ),
-                Text('${block.targetSets} × ${block.targetReps}',
-                    style: theme.textTheme.bodySmall),
-                IconButton(
-                  icon: const Icon(Icons.tune, size: 20),
-                  tooltip: 'Aanpassen',
-                  onPressed: () => _editTargets(block),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  onPressed: () => notifier.removeBlock(widget.blockIndex),
-                ),
-              ],
+          if (block.exercise.pattern != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(block.exercise.pattern!.label,
+                  style: theme.textTheme.bodySmall),
             ),
-            if (block.sets.isNotEmpty) const SizedBox(height: 4),
-            ...block.sets.asMap().entries.map((e) {
-              final s = e.value;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    SizedBox(width: 26, child: Text('${s.setIndex}')),
-                    Text('${s.reps} reps'),
-                    if (s.isWarmup) ...[
-                      const SizedBox(width: 6),
-                      Text('opwarming', style: theme.textTheme.labelSmall),
-                    ],
-                    const Spacer(),
-                    if (e.key == block.sets.length - 1)
-                      IconButton(
-                        icon: const Icon(Icons.undo, size: 18),
-                        onPressed: () => notifier.undoLastSet(widget.blockIndex),
-                      ),
-                  ],
+          Expanded(
+            child: Center(
+              child: ExerciseAnimation(
+                pattern: block.exercise.pattern,
+                equipment: block.exercise.equipmentTags,
+                size: 200,
+              ),
+            ),
+          ),
+          // Done sets.
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final s in block.sets)
+                Chip(
+                  label: Text('${s.reps}${s.isWarmup ? ' W' : ''}'),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-              );
-            }),
-            if (!block.isComplete) ...[
-              const Divider(),
-              Wrap(
-                spacing: 16,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              if (block.sets.isNotEmpty)
+                ActionChip(
+                  label: const Text('Wis laatste'),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => notifier.undoLastSet(widget.blockIndex),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (!block.isComplete) ...[
+            NumberStepper(
+              label:
+                  'Reps · set ${block.completedSets + 1}/${block.targetSets}',
+              value: reps,
+              min: 1,
+              max: 100,
+              onChanged: (v) => setState(() => _reps = v),
+            ),
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: () => setState(() => _warmup = !_warmup),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  NumberStepper(
-                    label: 'Reps',
-                    value: reps,
-                    min: 1,
-                    max: 100,
-                    onChanged: (v) => setState(() => _reps = v),
+                  Checkbox(
+                    value: _warmup,
+                    onChanged: (v) => setState(() => _warmup = v ?? false),
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Checkbox(
-                        value: _warmup,
-                        onChanged: (v) =>
-                            setState(() => _warmup = v ?? false),
-                      ),
-                      const Text('Opwarming'),
-                    ],
-                  ),
+                  const Text('Opwarmset'),
                 ],
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  onPressed: () {
-                    notifier.logSet(
-                      widget.blockIndex,
-                      reps: reps.round(),
-                      isWarmup: _warmup,
-                    );
-                    setState(() {
-                      _reps = null;
-                      _warmup = false;
-                    });
-                  },
-                  child: Text(
-                    'Klaar — set ${block.completedSets + 1}/${block.targetSets}',
-                  ),
-                ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                onPressed: () {
+                  notifier.logSet(
+                    widget.blockIndex,
+                    reps: reps.round(),
+                    isWarmup: _warmup,
+                  );
+                  setState(() {
+                    _reps = null;
+                    _warmup = false;
+                  });
+                },
+                child: const Text('Klaar'),
               ),
-            ] else
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle,
-                        size: 18, color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    const Text('Klaar'),
-                  ],
-                ),
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                onPressed: widget.isLast ? widget.onFinish : widget.onNext,
+                icon: Icon(widget.isLast ? Icons.check_circle : Icons.arrow_forward),
+                label: Text(widget.isLast ? 'Dag afronden' : 'Volgende oefening'),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }

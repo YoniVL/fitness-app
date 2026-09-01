@@ -13,11 +13,13 @@ class RestFullscreen extends ConsumerWidget {
     this.nextExerciseName,
     this.nextSetLabel,
     this.nextPattern,
+    this.nextEquipment = const [],
   });
 
   final String? nextExerciseName;
   final String? nextSetLabel;
   final MovementPattern? nextPattern;
+  final List<String> nextEquipment;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -78,7 +80,11 @@ class RestFullscreen extends ConsumerWidget {
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium),
                 const SizedBox(height: 8),
-                Center(child: ExerciseAnimation(pattern: nextPattern, size: 128)),
+                Center(
+                    child: ExerciseAnimation(
+                        pattern: nextPattern,
+                        equipment: nextEquipment,
+                        size: 140)),
               ],
               const Spacer(),
               Row(

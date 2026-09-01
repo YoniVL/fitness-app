@@ -32,9 +32,9 @@ ExerciseBlock _block(int id, String name) => ExerciseBlock(
     );
 
 void main() {
-  testWidgets('renders one card per exercise block', (tester) async {
+  testWidgets('shows one fullscreen exercise page at a time', (tester) async {
     // Reproduce a real phone viewport + the real theme: the bug that collapsed
-    // the cards to zero height (Size.fromHeight -> infinite FilledButton width
+    // content to zero height (Size.fromHeight -> infinite FilledButton width
     // inside a Row) only shows under realistic width constraints.
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
@@ -68,16 +68,17 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    // Current (first) exercise is expanded; the rest are collapsed rows.
+    // The pager opens on the first (current) exercise.
     expect(find.text('Bankdrukken'), findsOneWidget);
-    expect(find.text('Dumbbell shoulder press'), findsOneWidget);
-    expect(find.byType(Card), findsNWidgets(3));
-    expect(find.textContaining('Klaar — set 1/3'), findsOneWidget);
+    expect(find.text('Oefening 1/3'), findsOneWidget);
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.textContaining('set 1/3'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Klaar'), findsOneWidget);
 
-    // Regression guard: the current card must actually occupy space.
-    final firstCard = tester.getRect(find.byType(Card).first);
-    expect(firstCard.height, greaterThan(100));
-    expect(firstCard.width, greaterThan(200));
+    // Regression guard: the "Klaar" button must actually occupy space.
+    final btn = tester.getRect(find.widgetWithText(FilledButton, 'Klaar'));
+    expect(btn.height, greaterThan(40));
+    expect(btn.width, greaterThan(200));
   });
 
   testWidgets('shows the empty hint when there are no blocks', (tester) async {
