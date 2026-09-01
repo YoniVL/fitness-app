@@ -43,8 +43,14 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   hernoemen, dag toevoegen/verwijderen. Vast schema → fork ("Opslaan als eigen
   schema"); eigen schema → in-place (`updateProgramContent`). Eigen schema's
   verwijderbaar via `...`-menu.
+- **Voortgang** (`features/progress/progress_screen.dart`, grafiek-icoon in
+  Logboek): sets/week (fl_chart bar), sets/spiergroep 30d, beste set per oefening
+  over tijd (line). Reps/sets-gebaseerd.
+- **Oefening-animaties** (`features/exercises/exercise_animation.dart`): loopende
+  stick-figuur per `MovementPattern` (geen externe content). In de fullscreen
+  rustklok + oefening-detailsheet (oefening aantikken in de database).
 - **Roeien/BLE**: alleen schema + `lib/features/rowing/ble/ftms_rower_service.dart`
-  stub. UI = latere iteratie.
+  stub. UI = latere iteratie — het grootste openstaande stuk.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
 
 ## Valkuilen (echt gebeurd)
