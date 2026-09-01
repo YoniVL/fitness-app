@@ -146,7 +146,13 @@ class _DayCard extends StatelessWidget {
               ),
             if (onStart != null) ...[
               const SizedBox(height: 12),
-              FilledButton(onPressed: onStart, child: const Text('Start deze dag')),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onStart,
+                  child: const Text('Start deze dag'),
+                ),
+              ),
             ],
           ],
         ),

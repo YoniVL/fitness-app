@@ -211,7 +211,10 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               );
             }),
             const Divider(),
-            Row(
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 NumberStepper(
                   label: 'Reps',
@@ -220,7 +223,6 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   min: 1,
                   onChanged: (v) => draft.reps = v,
                 ),
-                const SizedBox(width: 12),
                 NumberStepper(
                   label: 'Gewicht (kg)',
                   value: draft.weight,
@@ -228,29 +230,34 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   decimals: 1,
                   onChanged: (v) => draft.weight = v,
                 ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: () {
-                    notifier.logSet(
-                      widget.blockIndex,
-                      reps: draft.reps.round(),
-                      weight: draft.weight,
-                      isWarmup: draft.isWarmup,
-                    );
-                    setState(() => _draft = null);
-                  },
-                  child: const Text('Log set'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: draft.isWarmup,
+                      onChanged: (v) =>
+                          setState(() => draft.isWarmup = v ?? false),
+                    ),
+                    const Text('Opwarming'),
+                  ],
                 ),
               ],
             ),
-            Row(
-              children: [
-                Checkbox(
-                  value: draft.isWarmup,
-                  onChanged: (v) => setState(() => draft.isWarmup = v ?? false),
-                ),
-                const Text('Opwarmingsset'),
-              ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  notifier.logSet(
+                    widget.blockIndex,
+                    reps: draft.reps.round(),
+                    weight: draft.weight,
+                    isWarmup: draft.isWarmup,
+                  );
+                  setState(() => _draft = null);
+                },
+                child: const Text('Log set'),
+              ),
             ),
           ],
         ),

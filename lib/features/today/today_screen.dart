@@ -118,9 +118,12 @@ class _PlannedCard extends StatelessWidget {
             else ...[
               Text(title!, style: theme.textTheme.headlineSmall),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: onStart,
-                child: const Text('Start deze training'),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onStart,
+                  child: const Text('Start deze training'),
+                ),
               ),
             ],
           ],

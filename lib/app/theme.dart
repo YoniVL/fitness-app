@@ -29,7 +29,10 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          // Height floor only. Do NOT use Size.fromHeight here: that sets the
+          // minimum *width* to infinity, which breaks any FilledButton placed
+          // in a Row. Full-width buttons opt in via a stretched parent.
+          minimumSize: const Size(0, 48),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
