@@ -20,11 +20,33 @@ class SessionSummary {
   final List<String> muscleGroups;
 }
 
-/// One (weekStart, working reps) point for progress charts (charts land later).
-class WeeklyRepsPoint {
-  const WeeklyRepsPoint(this.weekStart, this.reps);
+/// One (weekStart, value) point for a weekly progress chart.
+class WeeklyPoint {
+  const WeeklyPoint(this.weekStart, this.value);
   final DateTime weekStart;
-  final int reps;
+  final int value;
+}
+
+/// A muscle group with its recent working-set count.
+class MuscleGroupLoad {
+  const MuscleGroupLoad(this.name, this.sets);
+  final String name;
+  final int sets;
+}
+
+/// A named exercise that appears in the finished-session history.
+class TrainedExercise {
+  const TrainedExercise(this.id, this.name);
+  final int id;
+  final String name;
+}
+
+/// One finished-session datapoint for a single exercise.
+class ExerciseHistoryPoint {
+  const ExerciseHistoryPoint(this.date, this.bestReps, this.totalSets);
+  final DateTime date;
+  final int bestReps;
+  final int totalSets;
 }
 
 class WorkoutSessionRepository {
@@ -237,15 +259,16 @@ class WorkoutSessionRepository {
     );
   }
 
-  /// Working reps per ISO week (Monday start), oldest first.
-  Future<List<WeeklyRepsPoint>> weeklyReps({int weeks = 12}) async {
+  /// Working sets per ISO week (Monday start), oldest first, most recent [weeks].
+  Future<List<WeeklyPoint>> weeklySets({int weeks = 10}) async {
     final db = await _appDb.database;
     final rows = await db.rawQuery(
       '''
-      SELECT ws.started_at AS started_at, ss.reps AS reps
+      SELECT ws.started_at AS started_at
       FROM strength_sets ss
       JOIN workout_sessions ws ON ws.id = ss.session_id
       WHERE ss.is_warmup = 0 AND ws.discipline = 'strength'
+        AND ws.ended_at IS NOT NULL
       ''',
     );
     final byWeek = <DateTime, int>{};
@@ -253,16 +276,115 @@ class WorkoutSessionRepository {
       final date = DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int);
       final monday = DateTime(date.year, date.month, date.day)
           .subtract(Duration(days: date.weekday - 1));
-      byWeek.update(monday, (v) => v + (r['reps'] as int),
-          ifAbsent: () => r['reps'] as int);
+      byWeek.update(monday, (v) => v + 1, ifAbsent: () => 1);
     }
-    final points = byWeek.entries
-        .map((e) => WeeklyRepsPoint(e.key, e.value))
+    // Fill gaps so the trend line has no holes.
+    if (byWeek.isEmpty) return const [];
+    final now = DateTime.now();
+    final thisMonday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final points = <WeeklyPoint>[];
+    for (var i = weeks - 1; i >= 0; i--) {
+      final wk = thisMonday.subtract(Duration(days: 7 * i));
+      points.add(WeeklyPoint(wk, byWeek[wk] ?? 0));
+    }
+    return points;
+  }
+
+  /// Working-set count per muscle group (primary + secondary) since [since].
+  Future<List<MuscleGroupLoad>> muscleGroupLoad(DateTime since) async {
+    final db = await _appDb.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT ss.exercise_id AS exercise_id
+      FROM strength_sets ss
+      JOIN workout_sessions ws ON ws.id = ss.session_id
+      WHERE ss.is_warmup = 0 AND ws.discipline = 'strength'
+        AND ws.ended_at IS NOT NULL AND ws.started_at >= ?
+      ''',
+      [since.millisecondsSinceEpoch],
+    );
+    if (rows.isEmpty) return const [];
+
+    final exIds = rows.map((r) => r['exercise_id'] as int).toSet().toList();
+    final placeholders = List.filled(exIds.length, '?').join(',');
+    final exRows = await db.query('exercises',
+        columns: ['id', 'primary_muscle_group_id', 'secondary_muscle_groups'],
+        where: 'id IN ($placeholders)',
+        whereArgs: exIds);
+    final names = {
+      for (final g in await db.query('muscle_groups'))
+        g['id'] as int: g['name'] as String
+    };
+    final primary = <int, int>{};
+    final secondary = <int, List<int>>{};
+    for (final e in exRows) {
+      primary[e['id'] as int] = e['primary_muscle_group_id'] as int;
+      secondary[e['id'] as int] = (e['secondary_muscle_groups'] as String)
+          .split(',')
+          .map((s) => int.tryParse(s.trim()))
+          .whereType<int>()
+          .toList();
+    }
+    final counts = <int, int>{};
+    for (final r in rows) {
+      final id = r['exercise_id'] as int;
+      final p = primary[id];
+      if (p != null) counts.update(p, (v) => v + 1, ifAbsent: () => 1);
+      for (final s in secondary[id] ?? const <int>[]) {
+        counts.update(s, (v) => v + 1, ifAbsent: () => 1);
+      }
+    }
+    final out = counts.entries
+        .map((e) => MuscleGroupLoad(names[e.key] ?? '?', e.value))
         .toList()
-      ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
-    return points.length <= weeks
-        ? points
-        : points.sublist(points.length - weeks);
+      ..sort((a, b) => b.sets.compareTo(a.sets));
+    return out;
+  }
+
+  /// Exercises that appear in finished strength sessions, for the picker.
+  Future<List<TrainedExercise>> trainedStrengthExercises() async {
+    final db = await _appDb.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT DISTINCT e.id AS id, e.name AS name
+      FROM strength_sets ss
+      JOIN workout_sessions ws ON ws.id = ss.session_id
+      JOIN exercises e ON e.id = ss.exercise_id
+      WHERE ws.discipline = 'strength' AND ws.ended_at IS NOT NULL
+      ORDER BY e.name COLLATE NOCASE
+      ''',
+    );
+    return rows
+        .map((r) => TrainedExercise(r['id'] as int, r['name'] as String))
+        .toList();
+  }
+
+  /// Per finished session that included [exerciseId]: best (max reps) working
+  /// set and the number of working sets. Oldest first.
+  Future<List<ExerciseHistoryPoint>> exerciseHistory(int exerciseId) async {
+    final db = await _appDb.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT ws.started_at AS started_at,
+             MAX(ss.reps) AS best_reps,
+             COUNT(ss.id) AS total_sets
+      FROM strength_sets ss
+      JOIN workout_sessions ws ON ws.id = ss.session_id
+      WHERE ss.exercise_id = ? AND ss.is_warmup = 0
+        AND ws.discipline = 'strength' AND ws.ended_at IS NOT NULL
+      GROUP BY ws.id
+      ORDER BY ws.started_at
+      ''',
+      [exerciseId],
+    );
+    return rows
+        .map((r) => ExerciseHistoryPoint(
+              DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int),
+              (r['best_reps'] as int?) ?? 0,
+              (r['total_sets'] as int?) ?? 0,
+            ))
+        .toList();
   }
 }
 
@@ -284,4 +406,24 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>(
 final sessionDetailProvider = FutureProvider.family<WorkoutSessionDetail?, int>(
   (ref, sessionId) =>
       ref.watch(workoutSessionRepositoryProvider).sessionDetail(sessionId),
+);
+
+final weeklySetsProvider = FutureProvider<List<WeeklyPoint>>(
+  (ref) => ref.watch(workoutSessionRepositoryProvider).weeklySets(),
+);
+
+final muscleGroupLoadProvider = FutureProvider<List<MuscleGroupLoad>>(
+  (ref) => ref.watch(workoutSessionRepositoryProvider).muscleGroupLoad(
+        DateTime.now().subtract(const Duration(days: 30)),
+      ),
+);
+
+final trainedExercisesProvider = FutureProvider<List<TrainedExercise>>(
+  (ref) => ref.watch(workoutSessionRepositoryProvider).trainedStrengthExercises(),
+);
+
+final exerciseHistoryProvider =
+    FutureProvider.family<List<ExerciseHistoryPoint>, int>(
+  (ref, exerciseId) =>
+      ref.watch(workoutSessionRepositoryProvider).exerciseHistory(exerciseId),
 );

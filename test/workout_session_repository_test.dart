@@ -76,15 +76,37 @@ void main() {
     expect(remaining, isEmpty);
   });
 
-  test('weeklyReps buckets working sets by ISO week', () async {
+  test('weeklySets counts finished working sets, gap-filled to this week',
+      () async {
     final s = await repo.startSession(discipline: Discipline.strength);
     await repo.addSet(sessionId: s.id, exerciseId: 1, reps: 10);
     await repo.addSet(sessionId: s.id, exerciseId: 1, reps: 10);
     await repo.finishSession(s.id);
 
-    final points = await repo.weeklyReps();
-    expect(points, hasLength(1));
-    expect(points.single.reps, 20);
-    expect(points.single.weekStart.weekday, DateTime.monday);
+    final points = await repo.weeklySets(weeks: 4);
+    expect(points, hasLength(4)); // gap-filled window
+    expect(points.every((p) => p.weekStart.weekday == DateTime.monday), isTrue);
+    expect(points.last.value, 2); // current week has the 2 sets
+  });
+
+  test('muscleGroupLoad and exerciseHistory aggregate finished sessions',
+      () async {
+    final s1 = await repo.startSession(discipline: Discipline.strength);
+    await repo.addSet(sessionId: s1.id, exerciseId: 1, reps: 8);
+    await repo.addSet(sessionId: s1.id, exerciseId: 1, reps: 6);
+    await repo.finishSession(s1.id);
+
+    final load = await repo.muscleGroupLoad(
+        DateTime.now().subtract(const Duration(days: 30)));
+    expect(load, isNotEmpty);
+    expect(load.first.sets, greaterThan(0));
+
+    final trained = await repo.trainedStrengthExercises();
+    expect(trained.map((t) => t.id), contains(1));
+
+    final history = await repo.exerciseHistory(1);
+    expect(history, hasLength(1));
+    expect(history.single.bestReps, 8);
+    expect(history.single.totalSets, 2);
   });
 }

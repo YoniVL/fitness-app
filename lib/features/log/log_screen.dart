@@ -14,7 +14,16 @@ class LogScreen extends ConsumerWidget {
     final sessions = ref.watch(recentSessionsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Logboek')),
+      appBar: AppBar(
+        title: const Text('Logboek'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.insights_outlined),
+            tooltip: 'Voortgang',
+            onPressed: () => context.push('/log/progress'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(recentSessionsProvider),
         child: sessions.when(
