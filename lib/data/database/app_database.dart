@@ -1,20 +1,21 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import 'migrations.dart';
 import 'seed_data.dart';
 
 /// Opens and owns the local SQLite database. Single instance for the app.
 ///
 /// - `onConfigure` enables foreign keys.
-/// - `onCreate` builds the full schema (v1) and seeds reference data + templates
-///   so no heavy migration is needed when rowing / charts land later.
+/// - `onCreate` builds the current schema and seeds reference data + programs.
+/// - `onUpgrade` runs the numbered migrations in `migrations.dart`.
 class AppDatabase {
   AppDatabase._();
 
   static final AppDatabase instance = AppDatabase._();
 
   static const _fileName = 'fitnesstracker.db';
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
 
   Database? _db;
 
@@ -30,6 +31,7 @@ class AppDatabase {
         version: schemaVersion,
         onConfigure: _onConfigure,
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
       ),
     );
     return _db!;
@@ -48,6 +50,7 @@ class AppDatabase {
       version: schemaVersion,
       onConfigure: _onConfigure,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -62,6 +65,15 @@ class AppDatabase {
     }
     await batch.commit(noResult: true);
     await seedDatabase(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    for (var v = oldVersion + 1; v <= newVersion; v++) {
+      switch (v) {
+        case 2:
+          await migrateV1toV2(db);
+      }
+    }
   }
 
   static const List<String> _schema = [
@@ -79,6 +91,7 @@ class AppDatabase {
       primary_muscle_group_id  INTEGER NOT NULL REFERENCES muscle_groups(id),
       secondary_muscle_groups  TEXT NOT NULL DEFAULT '',
       equipment                TEXT NOT NULL DEFAULT 'bodyweight',
+      pattern                  TEXT,
       media_key                TEXT,
       is_custom                INTEGER NOT NULL DEFAULT 0,
       notes                    TEXT
@@ -91,7 +104,10 @@ class AppDatabase {
       category           TEXT NOT NULL,
       discipline         TEXT NOT NULL,
       is_template        INTEGER NOT NULL DEFAULT 1,
-      source_template_id INTEGER REFERENCES programs(id)
+      source_template_id INTEGER REFERENCES programs(id),
+      level              TEXT,
+      days_per_week      INTEGER,
+      equipment_profile  TEXT NOT NULL DEFAULT ''
     )
     ''',
     '''
@@ -104,14 +120,15 @@ class AppDatabase {
     ''',
     '''
     CREATE TABLE program_exercises (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      program_day_id INTEGER NOT NULL REFERENCES program_days(id) ON DELETE CASCADE,
-      exercise_id    INTEGER NOT NULL REFERENCES exercises(id),
-      order_index    INTEGER NOT NULL,
-      target_sets    INTEGER NOT NULL,
-      target_reps    INTEGER NOT NULL,
-      target_weight  REAL,
-      rest_seconds   INTEGER NOT NULL DEFAULT 120
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      program_day_id      INTEGER NOT NULL REFERENCES program_days(id) ON DELETE CASCADE,
+      exercise_id         INTEGER NOT NULL REFERENCES exercises(id),
+      order_index         INTEGER NOT NULL,
+      target_sets         INTEGER NOT NULL,
+      target_reps         INTEGER NOT NULL,
+      target_weight       REAL,
+      rest_seconds        INTEGER NOT NULL DEFAULT 30,
+      rest_after_exercise INTEGER
     )
     ''',
     '''
@@ -123,6 +140,14 @@ class AppDatabase {
       target_stroke_rate INTEGER,
       intensity_label    TEXT NOT NULL,
       is_rest            INTEGER NOT NULL DEFAULT 0
+    )
+    ''',
+    '''
+    CREATE TABLE program_progress (
+      program_id        INTEGER PRIMARY KEY REFERENCES programs(id) ON DELETE CASCADE,
+      current_day_index INTEGER NOT NULL DEFAULT 0,
+      round             INTEGER NOT NULL DEFAULT 1,
+      last_completed_at INTEGER
     )
     ''',
     '''

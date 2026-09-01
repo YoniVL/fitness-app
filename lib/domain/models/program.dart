@@ -1,10 +1,47 @@
+import '../taxonomy.dart';
+
 /// Training discipline for a program or session.
 enum Discipline {
   strength,
   rowing;
 
-  static Discipline fromName(String value) =>
-      Discipline.values.firstWhere((d) => d.name == value, orElse: () => Discipline.strength);
+  static Discipline fromName(String value) => Discipline.values
+      .firstWhere((d) => d.name == value, orElse: () => Discipline.strength);
+}
+
+/// Difficulty / volume level of a strength program.
+enum ProgramLevel {
+  beginner,
+  medium,
+  advanced;
+
+  static ProgramLevel? fromName(String? value) {
+    if (value == null) return null;
+    for (final l in values) {
+      if (l.name == value) return l;
+    }
+    return null;
+  }
+
+  String get label => switch (this) {
+        ProgramLevel.beginner => 'Beginner',
+        ProgramLevel.medium => 'Medium',
+        ProgramLevel.advanced => 'Gevorderd',
+      };
+
+  /// Exercises per training day.
+  int get exercisesPerDay => switch (this) {
+        ProgramLevel.beginner => 4,
+        ProgramLevel.medium => 5,
+        ProgramLevel.advanced => 6,
+      };
+
+  /// Working sets per exercise.
+  int get setsPerExercise => switch (this) {
+        ProgramLevel.beginner => 3,
+        ProgramLevel.medium => 3,
+        ProgramLevel.advanced => 4,
+      };
 }
 
 /// Category / variation of a program. Kept as a plain string in the DB so new
@@ -12,15 +49,14 @@ enum Discipline {
 class ProgramCategory {
   static const strengthFullbody = 'strength_fullbody';
   static const strengthPpl = 'strength_ppl';
+  static const strengthGenerated = 'strength_generated';
   static const rowSteady = 'row_steady';
   static const rowInterval = 'row_interval';
   static const rowPyramid = 'row_pyramid';
 }
 
 /// A training program. Templates ([isTemplate] == true) are read-only starting
-/// points; a per-session copy can override reps/sets/weight/rest without
-/// touching the template (handled in the strength feature, not persisted as a
-/// new program in iteratie 1).
+/// points; generated / duplicated programs are user-owned ([isTemplate] false).
 class Program {
   const Program({
     required this.id,
@@ -29,6 +65,9 @@ class Program {
     required this.discipline,
     this.isTemplate = true,
     this.sourceTemplateId,
+    this.level,
+    this.daysPerWeek,
+    this.equipmentProfile = const [],
   });
 
   final int id;
@@ -37,6 +76,15 @@ class Program {
   final Discipline discipline;
   final bool isTemplate;
   final int? sourceTemplateId;
+  final ProgramLevel? level;
+  final int? daysPerWeek;
+
+  /// Equipment tags this program assumes (see [Equipment]). A template is only
+  /// shown in the library when the user owns all of these.
+  final List<String> equipmentProfile;
+
+  bool fitsEquipment(Set<String> owned) =>
+      equipmentProfile.where((t) => t != Equipment.bodyweight).every(owned.contains);
 
   factory Program.fromMap(Map<String, Object?> map) => Program(
         id: map['id'] as int,
@@ -45,6 +93,9 @@ class Program {
         discipline: Discipline.fromName(map['discipline'] as String),
         isTemplate: (map['is_template'] as int? ?? 1) == 1,
         sourceTemplateId: map['source_template_id'] as int?,
+        level: ProgramLevel.fromName(map['level'] as String?),
+        daysPerWeek: map['days_per_week'] as int?,
+        equipmentProfile: Equipment.parse(map['equipment_profile'] as String?),
       );
 
   Map<String, Object?> toMap() => {
@@ -54,6 +105,9 @@ class Program {
         'discipline': discipline.name,
         'is_template': isTemplate ? 1 : 0,
         'source_template_id': sourceTemplateId,
+        'level': level?.name,
+        'days_per_week': daysPerWeek,
+        'equipment_profile': equipmentProfile.join(','),
       };
 }
 
@@ -95,8 +149,8 @@ class ProgramExercise {
     required this.orderIndex,
     required this.targetSets,
     required this.targetReps,
-    this.targetWeight,
-    required this.restSeconds,
+    required this.restBetweenSets,
+    this.restAfterExercise,
   });
 
   final int id;
@@ -105,8 +159,13 @@ class ProgramExercise {
   final int orderIndex;
   final int targetSets;
   final int targetReps;
-  final double? targetWeight;
-  final int restSeconds;
+
+  /// Rest after a non-final set of this exercise, in seconds.
+  final int restBetweenSets;
+
+  /// Rest after the last set before moving on. Null → fall back to the global
+  /// default.
+  final int? restAfterExercise;
 
   factory ProgramExercise.fromMap(Map<String, Object?> map) => ProgramExercise(
         id: map['id'] as int,
@@ -115,8 +174,8 @@ class ProgramExercise {
         orderIndex: map['order_index'] as int,
         targetSets: map['target_sets'] as int,
         targetReps: map['target_reps'] as int,
-        targetWeight: (map['target_weight'] as num?)?.toDouble(),
-        restSeconds: map['rest_seconds'] as int,
+        restBetweenSets: map['rest_seconds'] as int,
+        restAfterExercise: map['rest_after_exercise'] as int?,
       );
 
   Map<String, Object?> toMap() => {
@@ -126,13 +185,13 @@ class ProgramExercise {
         'order_index': orderIndex,
         'target_sets': targetSets,
         'target_reps': targetReps,
-        'target_weight': targetWeight,
-        'rest_seconds': restSeconds,
+        'target_weight': null,
+        'rest_seconds': restBetweenSets,
+        'rest_after_exercise': restAfterExercise,
       };
 }
 
-/// A rowing segment within a [ProgramDay] (pace changes / intervals). Data is
-/// seeded now; the rowing UI arrives in a later iteratie.
+/// A rowing segment within a [ProgramDay] (pace changes / intervals).
 class ProgramRowSegment {
   const ProgramRowSegment({
     required this.id,
@@ -173,13 +232,20 @@ class ProgramRowSegment {
       };
 }
 
-/// A program day together with its prescribed exercises, resolved for display.
-class ProgramDayDetail {
-  const ProgramDayDetail({
-    required this.day,
-    required this.exercises,
+/// The active program plus where the user is in it.
+class ActiveProgram {
+  const ActiveProgram({
+    required this.program,
+    required this.days,
+    required this.currentDayIndex,
+    required this.round,
   });
 
-  final ProgramDay day;
-  final List<ProgramExercise> exercises;
+  final Program program;
+  final List<ProgramDay> days;
+  final int currentDayIndex;
+  final int round;
+
+  ProgramDay get currentDay => days[currentDayIndex.clamp(0, days.length - 1)];
+  int get dayCount => days.length;
 }

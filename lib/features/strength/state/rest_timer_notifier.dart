@@ -73,12 +73,19 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     }
   }
 
+  /// Adjust the running timer by [delta] seconds (may be negative). If the
+  /// remaining time drops to zero or less, the rest ends immediately.
   void addSeconds(int delta) {
     if (!state.active) return;
-    state = state.copyWith(
-      totalSeconds: state.totalSeconds + delta,
-      remainingSeconds: state.remainingSeconds + delta,
-    );
+    final total = (state.totalSeconds + delta).clamp(5, 3600);
+    final remaining = state.remainingSeconds + delta;
+    if (remaining <= 0) {
+      _ticker?.cancel();
+      _persistRest(state.elapsedSeconds);
+      state = RestTimerState.idle;
+      return;
+    }
+    state = state.copyWith(totalSeconds: total, remainingSeconds: remaining);
   }
 
   void skip() {

@@ -53,20 +53,32 @@ class WorkoutSession {
       );
 }
 
-/// A finished session with its sets resolved, for the log detail screen.
+/// A finished session with its sets resolved, for the summary / log detail
+/// screen.
 class WorkoutSessionDetail {
   const WorkoutSessionDetail({
     required this.session,
     required this.sets,
+    this.muscleGroupSetCount = const {},
   });
 
   final WorkoutSession session;
   final List<StrengthSet> sets;
 
-  /// Total lifted volume across all working sets: Σ reps × weight.
-  double get totalVolume => sets
-      .where((s) => !s.isWarmup)
-      .fold(0, (sum, s) => sum + s.reps * s.weight);
+  /// Muscle group id -> number of working sets that hit it (primary + secondary).
+  final Map<int, int> muscleGroupSetCount;
+
+  int get workingSetCount => sets.where((s) => !s.isWarmup).length;
+
+  int get totalReps =>
+      sets.where((s) => !s.isWarmup).fold(0, (sum, s) => sum + s.reps);
 
   int get exerciseCount => sets.map((s) => s.exerciseId).toSet().length;
+
+  WorkoutSessionDetail withMuscleGroups(Map<int, int> counts) =>
+      WorkoutSessionDetail(
+        session: session,
+        sets: sets,
+        muscleGroupSetCount: counts,
+      );
 }

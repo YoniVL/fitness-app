@@ -10,9 +10,10 @@ import '../../domain/models/strength_set.dart';
 import '../../domain/models/workout_session.dart';
 
 class _SessionView {
-  _SessionView(this.detail, this.exerciseNames);
+  _SessionView(this.detail, this.exerciseNames, this.muscleNames);
   final WorkoutSessionDetail detail;
   final Map<int, Exercise> exerciseNames;
+  final Map<int, String> muscleNames;
 }
 
 final _sessionViewProvider =
@@ -20,10 +21,10 @@ final _sessionViewProvider =
   final detail =
       await ref.watch(workoutSessionRepositoryProvider).sessionDetail(sessionId);
   if (detail == null) return null;
-  final names = await ref
-      .read(exerciseRepositoryProvider)
-      .byIds(detail.sets.map((s) => s.exerciseId));
-  return _SessionView(detail, names);
+  final exRepo = ref.read(exerciseRepositoryProvider);
+  final names = await exRepo.byIds(detail.sets.map((s) => s.exerciseId));
+  final muscleNames = await exRepo.muscleGroupNames();
+  return _SessionView(detail, names, muscleNames);
 });
 
 class SessionDetailScreen extends ConsumerWidget {
@@ -37,7 +38,7 @@ class SessionDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sessie'),
+        title: const Text('Samenvatting'),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
@@ -54,6 +55,16 @@ class SessionDetailScreen extends ConsumerWidget {
           }
           return _Body(view: data);
         },
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            onPressed: () => context.go('/today'),
+            child: const Text('Klaar'),
+          ),
+        ),
       ),
     );
   }
@@ -98,21 +109,42 @@ class _Body extends StatelessWidget {
       byExercise.putIfAbsent(s.exerciseId, () => []).add(s);
     }
 
+    final muscles = view.detail.muscleGroupSetCount.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(dateFmt.format(session.startedAt), style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
+        Text(dateFmt.format(session.startedAt),
+            style: theme.textTheme.titleMedium),
+        const SizedBox(height: 12),
         Wrap(
-          spacing: 16,
+          spacing: 20,
+          runSpacing: 8,
           children: [
-            _Stat(label: 'Volume', value: '${view.detail.totalVolume.toStringAsFixed(0)} kg'),
-            _Stat(label: 'Sets', value: '${view.detail.sets.length}'),
-            _Stat(label: 'Oefeningen', value: '${view.detail.exerciseCount}'),
             if (session.duration != null)
               _Stat(label: 'Duur', value: _fmtDuration(session.duration!)),
+            _Stat(label: 'Sets', value: '${view.detail.workingSetCount}'),
+            _Stat(label: 'Oefeningen', value: '${view.detail.exerciseCount}'),
+            _Stat(label: 'Reps', value: '${view.detail.totalReps}'),
           ],
         ),
+        if (muscles.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Getrainde spieren', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final m in muscles)
+                Chip(
+                  label: Text(
+                      '${view.muscleNames[m.key] ?? '?'} · ${m.value}'),
+                ),
+            ],
+          ),
+        ],
         const Divider(height: 32),
         for (final entry in byExercise.entries) ...[
           Text(
@@ -126,14 +158,11 @@ class _Body extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(width: 28, child: Text('${s.setIndex}')),
-                  Text('${s.reps} reps × ${s.weight.toStringAsFixed(1)} kg'),
+                  Text('${s.reps} reps'),
                   if (s.isWarmup) ...[
                     const SizedBox(width: 8),
                     Text('opwarming', style: theme.textTheme.labelSmall),
                   ],
-                  const Spacer(),
-                  Text('${s.volume.toStringAsFixed(0)} kg',
-                      style: theme.textTheme.bodySmall),
                 ],
               ),
             ),

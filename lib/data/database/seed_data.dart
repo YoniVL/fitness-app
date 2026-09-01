@@ -1,30 +1,32 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
+import '../../domain/taxonomy.dart';
 
 /// Seeds reference data (muscle groups, exercises), default settings, and the
-/// starter templates. Runs once, inside `onCreate`.
+/// starter programs. Runs on fresh install and again from the v1->v2 migration,
+/// so every write is idempotent-friendly.
 Future<void> seedDatabase(DatabaseExecutor db) async {
   final muscleGroupIds = await _seedMuscleGroups(db);
   final exerciseIds = await _seedExercises(db, muscleGroupIds);
   await _seedSettings(db);
-  await _seedStrengthTemplates(db, exerciseIds);
+  await _seedHomePrograms(db, exerciseIds);
+  await _seedGymPrograms(db, exerciseIds);
   await _seedRowingTemplates(db);
 }
 
-// --- Muscle groups ----------------------------------------------------------
+// --- Muscle groups ---------------------------------------------------------
 
-/// name -> icon key (UI maps the key to a Material icon).
 const _muscleGroups = <String, String>{
-  'Borst': 'chest',
-  'Rug': 'back',
-  'Benen': 'legs',
-  'Schouders': 'shoulders',
-  'Biceps': 'biceps',
-  'Triceps': 'triceps',
-  'Core': 'core',
-  'Bilspieren': 'glutes',
-  'Kuiten': 'calves',
+  MuscleGroups.borst: 'chest',
+  MuscleGroups.rug: 'back',
+  MuscleGroups.benen: 'legs',
+  MuscleGroups.schouders: 'shoulders',
+  MuscleGroups.biceps: 'biceps',
+  MuscleGroups.triceps: 'triceps',
+  MuscleGroups.core: 'core',
+  MuscleGroups.bilspieren: 'glutes',
+  MuscleGroups.kuiten: 'calves',
 };
 
 Future<Map<String, int>> _seedMuscleGroups(DatabaseExecutor db) async {
@@ -38,62 +40,168 @@ Future<Map<String, int>> _seedMuscleGroups(DatabaseExecutor db) async {
   return ids;
 }
 
-// --- Exercises -------------------------------------------------------------
+// --- Exercises -----------------------------------------------------------
 
 class _Ex {
-  const _Ex(this.name, this.primary, this.equipment, {this.secondary = const []});
+  const _Ex(this.name, this.primary, this.equipment, this.pattern,
+      {this.secondary = const []});
   final String name;
   final String primary;
-  final String equipment;
+  final List<String> equipment;
+  final MovementPattern pattern;
   final List<String> secondary;
 }
 
+const _db = Equipment.dumbbell;
+const _bench = Equipment.bench;
+const _incl = Equipment.benchIncline;
+const _bw = Equipment.bodyweight;
+const _bar = Equipment.barbell;
+const _mach = Equipment.machine;
+const _cable = Equipment.cable;
+const _pull = Equipment.pullupBar;
+
 const _exercises = <_Ex>[
-  // Borst
-  _Ex('Bankdrukken', 'Borst', 'barbell', secondary: ['Triceps', 'Schouders']),
-  _Ex('Halter bankdruk', 'Borst', 'dumbbell', secondary: ['Triceps', 'Schouders']),
-  _Ex('Incline bankdruk', 'Borst', 'barbell', secondary: ['Schouders', 'Triceps']),
-  _Ex('Dips', 'Borst', 'bodyweight', secondary: ['Triceps']),
-  _Ex('Push-up', 'Borst', 'bodyweight', secondary: ['Triceps', 'Core']),
-  _Ex('Kabel fly', 'Borst', 'cable'),
-  // Rug
-  _Ex('Deadlift', 'Rug', 'barbell', secondary: ['Benen', 'Bilspieren']),
-  _Ex('Barbell row', 'Rug', 'barbell', secondary: ['Biceps']),
-  _Ex('Pull-up', 'Rug', 'bodyweight', secondary: ['Biceps']),
-  _Ex('Lat pulldown', 'Rug', 'cable', secondary: ['Biceps']),
-  _Ex('Seated cable row', 'Rug', 'cable', secondary: ['Biceps']),
-  _Ex('Face pull', 'Schouders', 'cable', secondary: ['Rug']),
-  // Benen
-  _Ex('Squat', 'Benen', 'barbell', secondary: ['Bilspieren', 'Core']),
-  _Ex('Front squat', 'Benen', 'barbell', secondary: ['Core']),
-  _Ex('Leg press', 'Benen', 'machine', secondary: ['Bilspieren']),
-  _Ex('Lunges', 'Benen', 'dumbbell', secondary: ['Bilspieren']),
-  _Ex('Romanian deadlift', 'Benen', 'barbell', secondary: ['Bilspieren', 'Rug']),
-  _Ex('Leg extension', 'Benen', 'machine'),
-  _Ex('Leg curl', 'Benen', 'machine'),
-  // Schouders
-  _Ex('Overhead press', 'Schouders', 'barbell', secondary: ['Triceps']),
-  _Ex('Dumbbell shoulder press', 'Schouders', 'dumbbell', secondary: ['Triceps']),
-  _Ex('Lateral raise', 'Schouders', 'dumbbell'),
-  _Ex('Reverse fly', 'Schouders', 'dumbbell', secondary: ['Rug']),
-  // Biceps
-  _Ex('Barbell curl', 'Biceps', 'barbell'),
-  _Ex('Dumbbell curl', 'Biceps', 'dumbbell'),
-  _Ex('Hammer curl', 'Biceps', 'dumbbell'),
-  // Triceps
-  _Ex('Triceps pushdown', 'Triceps', 'cable'),
-  _Ex('Skull crusher', 'Triceps', 'barbell'),
-  _Ex('Overhead triceps extension', 'Triceps', 'dumbbell'),
+  // Horizontal push
+  _Ex('Bankdrukken', MuscleGroups.borst, [_bar, _bench],
+      MovementPattern.horizontalPush,
+      secondary: [MuscleGroups.triceps, MuscleGroups.schouders]),
+  _Ex('Halter bankdruk', MuscleGroups.borst, [_db, _bench],
+      MovementPattern.horizontalPush,
+      secondary: [MuscleGroups.triceps, MuscleGroups.schouders]),
+  _Ex('Incline dumbbell press', MuscleGroups.borst, [_db, _incl],
+      MovementPattern.horizontalPush,
+      secondary: [MuscleGroups.schouders, MuscleGroups.triceps]),
+  _Ex('Incline bankdruk', MuscleGroups.borst, [_bar, _incl],
+      MovementPattern.horizontalPush,
+      secondary: [MuscleGroups.schouders, MuscleGroups.triceps]),
+  _Ex('Dumbbell floor press', MuscleGroups.borst, [_db],
+      MovementPattern.horizontalPush, secondary: [MuscleGroups.triceps]),
+  _Ex('Push-up', MuscleGroups.borst, [_bw], MovementPattern.horizontalPush,
+      secondary: [MuscleGroups.triceps, MuscleGroups.core]),
+  _Ex('Dips', MuscleGroups.borst, [_bw], MovementPattern.horizontalPush,
+      secondary: [MuscleGroups.triceps]),
+  _Ex('Dumbbell fly', MuscleGroups.borst, [_db, _bench],
+      MovementPattern.horizontalPush),
+  _Ex('Kabel fly', MuscleGroups.borst, [_cable], MovementPattern.horizontalPush),
+
+  // Horizontal pull
+  _Ex('Barbell row', MuscleGroups.rug, [_bar], MovementPattern.horizontalPull,
+      secondary: [MuscleGroups.biceps]),
+  _Ex('One-arm dumbbell row', MuscleGroups.rug, [_db, _bench],
+      MovementPattern.horizontalPull, secondary: [MuscleGroups.biceps]),
+  _Ex('Chest-supported dumbbell row', MuscleGroups.rug, [_db, _incl],
+      MovementPattern.horizontalPull, secondary: [MuscleGroups.biceps]),
+  _Ex('Seated cable row', MuscleGroups.rug, [_cable],
+      MovementPattern.horizontalPull, secondary: [MuscleGroups.biceps]),
+  _Ex('Reverse fly', MuscleGroups.schouders, [_db],
+      MovementPattern.horizontalPull, secondary: [MuscleGroups.rug]),
+  _Ex('Face pull', MuscleGroups.schouders, [_cable],
+      MovementPattern.horizontalPull, secondary: [MuscleGroups.rug]),
+
+  // Vertical pull
+  _Ex('Pull-up', MuscleGroups.rug, [_pull], MovementPattern.verticalPull,
+      secondary: [MuscleGroups.biceps]),
+  _Ex('Lat pulldown', MuscleGroups.rug, [_cable], MovementPattern.verticalPull,
+      secondary: [MuscleGroups.biceps]),
+  _Ex('Dumbbell pullover', MuscleGroups.rug, [_db, _bench],
+      MovementPattern.verticalPull),
+  _Ex('Dumbbell high-incline row', MuscleGroups.rug, [_db, _incl],
+      MovementPattern.verticalPull, secondary: [MuscleGroups.biceps]),
+
+  // Vertical push
+  _Ex('Overhead press', MuscleGroups.schouders, [_bar],
+      MovementPattern.verticalPush, secondary: [MuscleGroups.triceps]),
+  _Ex('Dumbbell shoulder press', MuscleGroups.schouders, [_db],
+      MovementPattern.verticalPush, secondary: [MuscleGroups.triceps]),
+  _Ex('Arnold press', MuscleGroups.schouders, [_db],
+      MovementPattern.verticalPush, secondary: [MuscleGroups.triceps]),
+
+  // Squat
+  _Ex('Squat', MuscleGroups.benen, [_bar], MovementPattern.squat,
+      secondary: [MuscleGroups.bilspieren, MuscleGroups.core]),
+  _Ex('Front squat', MuscleGroups.benen, [_bar], MovementPattern.squat,
+      secondary: [MuscleGroups.core]),
+  _Ex('Goblet squat', MuscleGroups.benen, [_db], MovementPattern.squat,
+      secondary: [MuscleGroups.bilspieren, MuscleGroups.core]),
+  _Ex('Leg press', MuscleGroups.benen, [_mach], MovementPattern.squat,
+      secondary: [MuscleGroups.bilspieren]),
+  _Ex('Leg extension', MuscleGroups.benen, [_mach], MovementPattern.squat),
+
+  // Lunge
+  _Ex('Dumbbell split squat', MuscleGroups.benen, [_db],
+      MovementPattern.lunge, secondary: [MuscleGroups.bilspieren]),
+  _Ex('Bulgarian split squat', MuscleGroups.benen, [_db, _bench],
+      MovementPattern.lunge, secondary: [MuscleGroups.bilspieren]),
+  _Ex('Walking lunge', MuscleGroups.benen, [_db], MovementPattern.lunge,
+      secondary: [MuscleGroups.bilspieren]),
+  _Ex('Dumbbell step-up', MuscleGroups.benen, [_db, _bench],
+      MovementPattern.lunge, secondary: [MuscleGroups.bilspieren]),
+
+  // Hinge
+  _Ex('Deadlift', MuscleGroups.rug, [_bar], MovementPattern.hinge,
+      secondary: [MuscleGroups.benen, MuscleGroups.bilspieren]),
+  _Ex('Romanian deadlift', MuscleGroups.benen, [_bar], MovementPattern.hinge,
+      secondary: [MuscleGroups.bilspieren, MuscleGroups.rug]),
+  _Ex('Dumbbell Romanian deadlift', MuscleGroups.benen, [_db],
+      MovementPattern.hinge,
+      secondary: [MuscleGroups.bilspieren, MuscleGroups.rug]),
+  _Ex('Dumbbell single-leg RDL', MuscleGroups.bilspieren, [_db],
+      MovementPattern.hinge, secondary: [MuscleGroups.benen]),
+  _Ex('Leg curl', MuscleGroups.benen, [_mach], MovementPattern.hinge),
+  _Ex('Hip thrust', MuscleGroups.bilspieren, [_bar, _bench],
+      MovementPattern.hinge, secondary: [MuscleGroups.benen]),
+  _Ex('Dumbbell hip thrust', MuscleGroups.bilspieren, [_db, _bench],
+      MovementPattern.hinge, secondary: [MuscleGroups.benen]),
+  _Ex('Glute bridge', MuscleGroups.bilspieren, [_bw], MovementPattern.hinge),
+  _Ex('Dumbbell swing', MuscleGroups.bilspieren, [_db], MovementPattern.hinge,
+      secondary: [MuscleGroups.benen]),
+
+  // Biceps isolation
+  _Ex('Barbell curl', MuscleGroups.biceps, [_bar], MovementPattern.bicepsIso),
+  _Ex('Dumbbell curl', MuscleGroups.biceps, [_db], MovementPattern.bicepsIso),
+  _Ex('Hammer curl', MuscleGroups.biceps, [_db], MovementPattern.bicepsIso),
+  _Ex('Incline dumbbell curl', MuscleGroups.biceps, [_db, _incl],
+      MovementPattern.bicepsIso),
+  _Ex('Concentration curl', MuscleGroups.biceps, [_db, _bench],
+      MovementPattern.bicepsIso),
+
+  // Triceps isolation
+  _Ex('Triceps pushdown', MuscleGroups.triceps, [_cable],
+      MovementPattern.tricepsIso),
+  _Ex('Skull crusher', MuscleGroups.triceps, [_bar, _bench],
+      MovementPattern.tricepsIso),
+  _Ex('Overhead dumbbell triceps extension', MuscleGroups.triceps, [_db],
+      MovementPattern.tricepsIso),
+  _Ex('Dumbbell kickback', MuscleGroups.triceps, [_db],
+      MovementPattern.tricepsIso),
+  _Ex('Close-grip dumbbell press', MuscleGroups.triceps, [_db, _bench],
+      MovementPattern.tricepsIso, secondary: [MuscleGroups.borst]),
+
+  // Side / front delt isolation
+  _Ex('Lateral raise', MuscleGroups.schouders, [_db],
+      MovementPattern.sideDeltIso),
+  _Ex('Front raise', MuscleGroups.schouders, [_db],
+      MovementPattern.sideDeltIso),
+
   // Core
-  _Ex('Plank', 'Core', 'bodyweight'),
-  _Ex('Hanging leg raise', 'Core', 'bodyweight'),
-  _Ex('Cable crunch', 'Core', 'cable'),
-  // Bilspieren
-  _Ex('Hip thrust', 'Bilspieren', 'barbell', secondary: ['Benen']),
-  _Ex('Glute bridge', 'Bilspieren', 'bodyweight'),
-  // Kuiten
-  _Ex('Standing calf raise', 'Kuiten', 'machine'),
-  _Ex('Seated calf raise', 'Kuiten', 'machine'),
+  _Ex('Plank', MuscleGroups.core, [_bw], MovementPattern.core),
+  _Ex('Hanging leg raise', MuscleGroups.core, [_pull], MovementPattern.core),
+  _Ex('Lying leg raise', MuscleGroups.core, [_bw], MovementPattern.core),
+  _Ex('Dead bug', MuscleGroups.core, [_bw], MovementPattern.core),
+  _Ex('Dumbbell Russian twist', MuscleGroups.core, [_db], MovementPattern.core),
+  _Ex('Cable crunch', MuscleGroups.core, [_cable], MovementPattern.core),
+  _Ex('Dumbbell side bend', MuscleGroups.core, [_db], MovementPattern.core),
+
+  // Calves
+  _Ex('Standing calf raise', MuscleGroups.kuiten, [_mach],
+      MovementPattern.calfIso),
+  _Ex('Seated calf raise', MuscleGroups.kuiten, [_mach],
+      MovementPattern.calfIso),
+  _Ex('Dumbbell standing calf raise', MuscleGroups.kuiten, [_db],
+      MovementPattern.calfIso),
+  _Ex('Dumbbell seated calf raise', MuscleGroups.kuiten, [_db, _bench],
+      MovementPattern.calfIso),
 ];
 
 Future<Map<String, int>> _seedExercises(
@@ -110,7 +218,8 @@ Future<Map<String, int>> _seedExercises(
       'name': ex.name,
       'primary_muscle_group_id': muscleGroupIds[ex.primary],
       'secondary_muscle_groups': secondary,
-      'equipment': ex.equipment,
+      'equipment': ex.equipment.join(','),
+      'pattern': ex.pattern.name,
       'media_key': null,
       'is_custom': 0,
     });
@@ -118,41 +227,65 @@ Future<Map<String, int>> _seedExercises(
   return ids;
 }
 
-// --- Settings -------------------------------------------------------------
+// --- Settings -----------------------------------------------------------
 
 Future<void> _seedSettings(DatabaseExecutor db) async {
   const defaults = <String, String>{
-    'default_rest_seconds': '120',
+    'owned_equipment': 'dumbbell,bench,bench_incline',
+    'default_rest_between_sets': '30',
+    'default_rest_after_exercise': '60',
     'rest_timer_sound': 'true',
-    'weekly_schedule': '{}', // JSON: weekday index -> program_day_id
   };
   for (final entry in defaults.entries) {
-    await db.insert('app_settings', {'key': entry.key, 'value': entry.value});
+    await db.insert(
+      'app_settings',
+      {'key': entry.key, 'value': entry.value},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
   }
 }
 
-// --- Strength templates --------------------------------------------------
+// --- Programs ----------------------------------------------------------
 
 class _PE {
-  const _PE(this.exercise, this.sets, this.reps, {this.rest = 120});
+  const _PE(this.exercise, this.sets, this.reps,
+      {this.restBetween = 30, this.restAfter = 60});
   final String exercise;
   final int sets;
   final int reps;
-  final int rest;
+  final int restBetween;
+  final int restAfter;
 }
 
-Future<void> _seedStrengthTemplates(
+Future<void> _insertProgram(
   DatabaseExecutor db,
-  Map<String, int> exerciseIds,
-) async {
-  Future<void> insertDay(int programId, int dayIndex, String label, List<_PE> items) async {
+  Map<String, int> exerciseIds, {
+  required String name,
+  required String category,
+  required List<String> equipmentProfile,
+  ProgramLevel? level,
+  int? daysPerWeek,
+  bool isTemplate = true,
+  required List<({String label, List<_PE> items})> days,
+}) async {
+  final programId = await db.insert('programs', {
+    'name': name,
+    'category': category,
+    'discipline': Discipline.strength.name,
+    'is_template': isTemplate ? 1 : 0,
+    'level': level?.name,
+    'days_per_week': daysPerWeek,
+    'equipment_profile': equipmentProfile.join(','),
+  });
+  for (var d = 0; d < days.length; d++) {
+    final day = days[d];
     final dayId = await db.insert('program_days', {
       'program_id': programId,
-      'day_index': dayIndex,
-      'label': label,
+      'day_index': d,
+      'label': day.label,
     });
-    for (var i = 0; i < items.length; i++) {
-      final pe = items[i];
+    for (var i = 0; i < day.items.length; i++) {
+      final pe = day.items[i];
       await db.insert('program_exercises', {
         'program_day_id': dayId,
         'exercise_id': exerciseIds[pe.exercise],
@@ -160,68 +293,217 @@ Future<void> _seedStrengthTemplates(
         'target_sets': pe.sets,
         'target_reps': pe.reps,
         'target_weight': null,
-        'rest_seconds': pe.rest,
+        'rest_seconds': pe.restBetween,
+        'rest_after_exercise': pe.restAfter,
       });
     }
   }
-
-  // Full-body A/B
-  final fullBodyId = await db.insert('programs', {
-    'name': 'Full-body A/B',
-    'category': ProgramCategory.strengthFullbody,
-    'discipline': Discipline.strength.name,
-    'is_template': 1,
-  });
-  await insertDay(fullBodyId, 0, 'Full-body A', const [
-    _PE('Squat', 3, 5, rest: 180),
-    _PE('Bankdrukken', 3, 5, rest: 180),
-    _PE('Barbell row', 3, 8, rest: 120),
-    _PE('Overhead press', 3, 8, rest: 120),
-    _PE('Barbell curl', 3, 12, rest: 60),
-  ]);
-  await insertDay(fullBodyId, 1, 'Full-body B', const [
-    _PE('Deadlift', 3, 5, rest: 210),
-    _PE('Overhead press', 3, 5, rest: 180),
-    _PE('Lat pulldown', 3, 10, rest: 120),
-    _PE('Halter bankdruk', 3, 10, rest: 120),
-    _PE('Triceps pushdown', 3, 12, rest: 60),
-  ]);
-
-  // Push / Pull / Legs
-  final pplId = await db.insert('programs', {
-    'name': 'Push / Pull / Legs',
-    'category': ProgramCategory.strengthPpl,
-    'discipline': Discipline.strength.name,
-    'is_template': 1,
-  });
-  await insertDay(pplId, 0, 'Push', const [
-    _PE('Bankdrukken', 4, 6, rest: 180),
-    _PE('Dumbbell shoulder press', 3, 10, rest: 120),
-    _PE('Incline bankdruk', 3, 10, rest: 120),
-    _PE('Lateral raise', 3, 15, rest: 60),
-    _PE('Triceps pushdown', 3, 12, rest: 60),
-    _PE('Overhead triceps extension', 3, 12, rest: 60),
-  ]);
-  await insertDay(pplId, 1, 'Pull', const [
-    _PE('Deadlift', 3, 5, rest: 210),
-    _PE('Pull-up', 3, 8, rest: 120),
-    _PE('Barbell row', 3, 10, rest: 120),
-    _PE('Seated cable row', 3, 12, rest: 90),
-    _PE('Face pull', 3, 15, rest: 60),
-    _PE('Barbell curl', 3, 12, rest: 60),
-    _PE('Hammer curl', 3, 12, rest: 60),
-  ]);
-  await insertDay(pplId, 2, 'Legs', const [
-    _PE('Squat', 4, 6, rest: 180),
-    _PE('Romanian deadlift', 3, 10, rest: 150),
-    _PE('Leg press', 3, 12, rest: 120),
-    _PE('Leg curl', 3, 12, rest: 90),
-    _PE('Standing calf raise', 4, 15, rest: 60),
-    _PE('Hanging leg raise', 3, 12, rest: 60),
-  ]);
 }
 
-// --- Rowing templates --------------------------------------------------
+const _homeProfile = [
+  Equipment.dumbbell,
+  Equipment.bench,
+  Equipment.benchIncline,
+];
+
+Future<void> _seedHomePrograms(
+    DatabaseExecutor db, Map<String, int> exerciseIds) async {
+  // Beginner — 3 days, 5 exercises, 3 sets.
+  await _insertProgram(
+    db,
+    exerciseIds,
+    name: 'Full-body Beginner',
+    category: ProgramCategory.strengthFullbody,
+    level: ProgramLevel.beginner,
+    daysPerWeek: 3,
+    equipmentProfile: _homeProfile,
+    days: const [
+      (label: 'Dag 1', items: [
+        _PE('Goblet squat', 3, 10),
+        _PE('Halter bankdruk', 3, 10),
+        _PE('One-arm dumbbell row', 3, 10),
+        _PE('Dumbbell shoulder press', 3, 10),
+        _PE('Dead bug', 3, 10),
+      ]),
+      (label: 'Dag 2', items: [
+        _PE('Dumbbell Romanian deadlift', 3, 10),
+        _PE('Incline dumbbell press', 3, 10),
+        _PE('Chest-supported dumbbell row', 3, 10),
+        _PE('Lateral raise', 3, 13),
+        _PE('Lying leg raise', 3, 12),
+      ]),
+      (label: 'Dag 3', items: [
+        _PE('Dumbbell split squat', 3, 10),
+        _PE('Push-up', 3, 12),
+        _PE('Dumbbell pullover', 3, 12),
+        _PE('Hammer curl', 3, 12),
+        _PE('Dumbbell Russian twist', 3, 14),
+      ]),
+    ],
+  );
+
+  // Medium — 4 days, 6 exercises, 3 sets.
+  await _insertProgram(
+    db,
+    exerciseIds,
+    name: 'Full-body Medium',
+    category: ProgramCategory.strengthFullbody,
+    level: ProgramLevel.medium,
+    daysPerWeek: 4,
+    equipmentProfile: _homeProfile,
+    days: const [
+      (label: 'Dag 1 · Duwen', items: [
+        _PE('Halter bankdruk', 3, 9),
+        _PE('Dumbbell shoulder press', 3, 10),
+        _PE('Incline dumbbell press', 3, 10),
+        _PE('Lateral raise', 3, 14),
+        _PE('Overhead dumbbell triceps extension', 3, 12),
+        _PE('Dead bug', 3, 10),
+      ]),
+      (label: 'Dag 2 · Trekken', items: [
+        _PE('One-arm dumbbell row', 3, 10),
+        _PE('Chest-supported dumbbell row', 3, 10),
+        _PE('Dumbbell high-incline row', 3, 12),
+        _PE('Dumbbell curl', 3, 12),
+        _PE('Hammer curl', 3, 12),
+        _PE('Lying leg raise', 3, 12),
+      ]),
+      (label: 'Dag 3 · Benen', items: [
+        _PE('Goblet squat', 3, 10),
+        _PE('Dumbbell Romanian deadlift', 3, 10),
+        _PE('Bulgarian split squat', 3, 10),
+        _PE('Dumbbell hip thrust', 3, 12),
+        _PE('Dumbbell standing calf raise', 3, 15),
+        _PE('Dumbbell Russian twist', 3, 14),
+      ]),
+      (label: 'Dag 4 · Full-body', items: [
+        _PE('Incline dumbbell press', 3, 10),
+        _PE('One-arm dumbbell row', 3, 10),
+        _PE('Dumbbell split squat', 3, 10),
+        _PE('Arnold press', 3, 11),
+        _PE('Incline dumbbell curl', 3, 12),
+        _PE('Dumbbell kickback', 3, 13),
+      ]),
+    ],
+  );
+
+  // Gevorderd — 4 days, 6 exercises, 4 sets.
+  await _insertProgram(
+    db,
+    exerciseIds,
+    name: 'Full-body Gevorderd',
+    category: ProgramCategory.strengthFullbody,
+    level: ProgramLevel.advanced,
+    daysPerWeek: 4,
+    equipmentProfile: _homeProfile,
+    days: const [
+      (label: 'Dag 1 · Duwen', items: [
+        _PE('Halter bankdruk', 4, 8),
+        _PE('Incline dumbbell press', 4, 9),
+        _PE('Dumbbell shoulder press', 4, 10),
+        _PE('Lateral raise', 4, 15),
+        _PE('Close-grip dumbbell press', 4, 10),
+        _PE('Overhead dumbbell triceps extension', 3, 12),
+      ]),
+      (label: 'Dag 2 · Trekken', items: [
+        _PE('One-arm dumbbell row', 4, 9),
+        _PE('Chest-supported dumbbell row', 4, 10),
+        _PE('Dumbbell high-incline row', 4, 11),
+        _PE('Reverse fly', 3, 14),
+        _PE('Incline dumbbell curl', 4, 11),
+        _PE('Hammer curl', 3, 12),
+      ]),
+      (label: 'Dag 3 · Benen', items: [
+        _PE('Goblet squat', 4, 9),
+        _PE('Dumbbell Romanian deadlift', 4, 9),
+        _PE('Bulgarian split squat', 3, 10),
+        _PE('Dumbbell hip thrust', 4, 12),
+        _PE('Dumbbell single-leg RDL', 3, 12),
+        _PE('Dumbbell standing calf raise', 4, 15),
+      ]),
+      (label: 'Dag 4 · Full-body', items: [
+        _PE('Dumbbell floor press', 4, 9),
+        _PE('Dumbbell pullover', 4, 11),
+        _PE('Walking lunge', 3, 12),
+        _PE('Arnold press', 4, 10),
+        _PE('Concentration curl', 3, 12),
+        _PE('Dumbbell Russian twist', 3, 16),
+      ]),
+    ],
+  );
+}
+
+Future<void> _seedGymPrograms(
+    DatabaseExecutor db, Map<String, int> exerciseIds) async {
+  await _insertProgram(
+    db,
+    exerciseIds,
+    name: 'Full-body A/B',
+    category: ProgramCategory.strengthFullbody,
+    level: ProgramLevel.beginner,
+    daysPerWeek: 3,
+    equipmentProfile: const [Equipment.barbell],
+    days: const [
+      (label: 'Full-body A', items: [
+        _PE('Squat', 3, 5, restBetween: 120, restAfter: 120),
+        _PE('Bankdrukken', 3, 5, restBetween: 120, restAfter: 120),
+        _PE('Barbell row', 3, 8, restBetween: 90, restAfter: 90),
+        _PE('Overhead press', 3, 8, restBetween: 90, restAfter: 90),
+        _PE('Barbell curl', 3, 12, restBetween: 60, restAfter: 60),
+      ]),
+      (label: 'Full-body B', items: [
+        _PE('Deadlift', 3, 5, restBetween: 150, restAfter: 150),
+        _PE('Overhead press', 3, 5, restBetween: 120, restAfter: 120),
+        _PE('Barbell row', 3, 10, restBetween: 90, restAfter: 90),
+        _PE('Halter bankdruk', 3, 10, restBetween: 90, restAfter: 90),
+        _PE('Skull crusher', 3, 12, restBetween: 60, restAfter: 60),
+      ]),
+    ],
+  );
+
+  await _insertProgram(
+    db,
+    exerciseIds,
+    name: 'Push / Pull / Legs',
+    category: ProgramCategory.strengthPpl,
+    level: ProgramLevel.medium,
+    daysPerWeek: 3,
+    equipmentProfile: const [
+      Equipment.barbell,
+      Equipment.pullupBar,
+      Equipment.cable,
+      Equipment.machine,
+    ],
+    days: const [
+      (label: 'Push', items: [
+        _PE('Bankdrukken', 4, 6, restBetween: 120, restAfter: 120),
+        _PE('Dumbbell shoulder press', 3, 10, restBetween: 90, restAfter: 90),
+        _PE('Incline bankdruk', 3, 10, restBetween: 90, restAfter: 90),
+        _PE('Lateral raise', 3, 15),
+        _PE('Triceps pushdown', 3, 12),
+        _PE('Overhead dumbbell triceps extension', 3, 12),
+      ]),
+      (label: 'Pull', items: [
+        _PE('Deadlift', 3, 5, restBetween: 150, restAfter: 150),
+        _PE('Pull-up', 3, 8, restBetween: 90, restAfter: 90),
+        _PE('Barbell row', 3, 10, restBetween: 90, restAfter: 90),
+        _PE('Seated cable row', 3, 12, restBetween: 75, restAfter: 75),
+        _PE('Face pull', 3, 15),
+        _PE('Barbell curl', 3, 12),
+      ]),
+      (label: 'Legs', items: [
+        _PE('Squat', 4, 6, restBetween: 120, restAfter: 120),
+        _PE('Romanian deadlift', 3, 10, restBetween: 100, restAfter: 100),
+        _PE('Leg press', 3, 12, restBetween: 90, restAfter: 90),
+        _PE('Leg curl', 3, 12, restBetween: 75, restAfter: 75),
+        _PE('Standing calf raise', 4, 15),
+        _PE('Hanging leg raise', 3, 12),
+      ]),
+    ],
+  );
+}
+
+// --- Rowing templates -------------------------------------------------
 
 class _Seg {
   const _Seg(this.duration, this.label, {this.spm, this.rest = false});
@@ -243,6 +525,7 @@ Future<void> _seedRowingTemplates(DatabaseExecutor db) async {
       'category': category,
       'discipline': Discipline.rowing.name,
       'is_template': 1,
+      'equipment_profile': '',
     });
     final dayId = await db.insert('program_days', {
       'program_id': programId,

@@ -52,13 +52,14 @@ class _SessionTile extends StatelessWidget {
     final isRowing = s.discipline == Discipline.rowing;
     final duration = s.duration;
 
+    final muscles = summary.muscleGroups.take(3).join(', ');
     return ListTile(
       leading: Icon(isRowing ? Icons.rowing : Icons.fitness_center),
       title: Text(dateFmt.format(s.startedAt)),
       subtitle: Text([
-        if (!isRowing) '${summary.exerciseCount} oefeningen · ${summary.setCount} sets',
-        if (!isRowing && summary.totalVolume > 0)
-          '${summary.totalVolume.toStringAsFixed(0)} kg volume',
+        if (!isRowing)
+          '${summary.exerciseCount} oefeningen · ${summary.setCount} sets',
+        if (!isRowing && muscles.isNotEmpty) muscles,
         if (duration != null) _fmtDuration(duration),
         if (!s.isFinished) 'niet afgerond',
       ].join(' · ')),

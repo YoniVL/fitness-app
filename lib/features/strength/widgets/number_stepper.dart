@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Compact number field with -/+ buttons. Works for reps (step 1) and weight
-/// (step 2.5). Keeps an internal controller in sync with [value].
+/// Number field with big -/+ tap targets. Works for reps, sets and rest seconds.
 class NumberStepper extends StatefulWidget {
   const NumberStepper({
     super.key,
@@ -11,6 +10,7 @@ class NumberStepper extends StatefulWidget {
     required this.onChanged,
     this.step = 1,
     this.min = 0,
+    this.max = 999,
     this.decimals = 0,
   });
 
@@ -19,6 +19,7 @@ class NumberStepper extends StatefulWidget {
   final ValueChanged<double> onChanged;
   final double step;
   final double min;
+  final double max;
   final int decimals;
 
   @override
@@ -29,8 +30,9 @@ class _NumberStepperState extends State<NumberStepper> {
   late final TextEditingController _controller =
       TextEditingController(text: _format(widget.value));
 
-  String _format(double v) =>
-      widget.decimals == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(widget.decimals);
+  String _format(double v) => widget.decimals == 0
+      ? v.toStringAsFixed(0)
+      : v.toStringAsFixed(widget.decimals);
 
   @override
   void didUpdateWidget(NumberStepper old) {
@@ -43,9 +45,9 @@ class _NumberStepperState extends State<NumberStepper> {
   double? _parse(String text) => double.tryParse(text.replaceAll(',', '.'));
 
   void _bump(double delta) {
-    final next = (widget.value + delta).clamp(widget.min, double.infinity);
-    widget.onChanged(next.toDouble());
-    _controller.text = _format(next.toDouble());
+    final next = (widget.value + delta).clamp(widget.min, widget.max).toDouble();
+    widget.onChanged(next);
+    _controller.text = _format(next);
   }
 
   @override
@@ -58,24 +60,28 @@ class _NumberStepperState extends State<NumberStepper> {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(widget.label, style: Theme.of(context).textTheme.labelSmall),
-        const SizedBox(height: 2),
+        Text(widget.label, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 4),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton.filledTonal(
-              visualDensity: VisualDensity.compact,
-              onPressed: () => _bump(-widget.step),
-              icon: const Icon(Icons.remove),
+            _StepButton(
+              icon: Icons.remove,
+              onTap: widget.value > widget.min ? () => _bump(-widget.step) : null,
             ),
             SizedBox(
-              width: 64,
+              width: 72,
               child: TextField(
                 controller: _controller,
                 textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
                 keyboardType: TextInputType.numberWithOptions(
                   decimal: widget.decimals > 0,
+                ),
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.symmetric(vertical: 8),
                 ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
@@ -86,14 +92,45 @@ class _NumberStepperState extends State<NumberStepper> {
                 },
               ),
             ),
-            IconButton.filledTonal(
-              visualDensity: VisualDensity.compact,
-              onPressed: () => _bump(widget.step),
-              icon: const Icon(Icons.add),
+            _StepButton(
+              icon: Icons.add,
+              onTap: widget.value < widget.max ? () => _bump(widget.step) : null,
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  const _StepButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: onTap == null
+            ? scheme.surfaceContainerHighest.withValues(alpha: 0.4)
+            : scheme.secondaryContainer,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 52,
+            height: 52,
+            child: Icon(icon,
+                color: onTap == null
+                    ? scheme.onSurface.withValues(alpha: 0.3)
+                    : scheme.onSecondaryContainer),
+          ),
+        ),
+      ),
     );
   }
 }

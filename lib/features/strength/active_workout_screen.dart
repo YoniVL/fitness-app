@@ -2,32 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/repositories/workout_session_repository.dart';
 import '../library/exercise_list_screen.dart';
 import 'state/active_workout_provider.dart';
 import 'widgets/number_stepper.dart';
 import 'widgets/rest_timer_bar.dart';
 
-class ActiveWorkoutScreen extends ConsumerWidget {
+class ActiveWorkoutScreen extends ConsumerStatefulWidget {
   const ActiveWorkoutScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActiveWorkoutScreen> createState() =>
+      _ActiveWorkoutScreenState();
+}
+
+class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
+  /// Blocks the user chose to expand manually (besides the current one).
+  final Set<int> _expanded = {};
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(activeWorkoutProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Training'),
         actions: [
-          if (async.valueOrNull != null)
-            TextButton.icon(
-              onPressed: () => _finish(context, ref),
-              icon: const Icon(Icons.check),
-              label: const Text('Klaar'),
+          if (async.valueOrNull != null && !async.valueOrNull!.allComplete)
+            TextButton(
+              onPressed: () => _finish(),
+              child: const Text('Afronden'),
             ),
           PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'discard') _discard(context, ref);
+            onSelected: (v) {
+              if (v == 'discard') _discard();
             },
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'discard', child: Text('Training weggooien')),
@@ -42,42 +49,64 @@ class ActiveWorkoutScreen extends ConsumerWidget {
           if (state == null) {
             return const Center(child: Text('Geen training bezig'));
           }
-          if (state.blocks.isEmpty) {
-            return const _EmptyHint();
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-            itemCount: state.blocks.length,
-            itemBuilder: (context, index) => _ExerciseCard(blockIndex: index),
+          if (state.blocks.isEmpty) return const _EmptyHint();
+          final current = state.currentBlockIndex;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
+            children: [
+              for (var i = 0; i < state.blocks.length; i++)
+                _ExerciseCard(
+                  blockIndex: i,
+                  expanded: i == current || _expanded.contains(i),
+                  isCurrent: i == current,
+                  onToggle: () => setState(() {
+                    _expanded.contains(i)
+                        ? _expanded.remove(i)
+                        : _expanded.add(i);
+                  }),
+                ),
+              if (state.allComplete)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    onPressed: () => _finish(),
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text('Dag afronden'),
+                  ),
+                ),
+            ],
           );
         },
       ),
       bottomNavigationBar: const RestTimerBar(),
-      floatingActionButton: async.valueOrNull == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _addExercise(context, ref),
-              icon: const Icon(Icons.add),
-              label: const Text('Oefening'),
-            ),
+      floatingActionButton:
+          (async.valueOrNull == null || async.valueOrNull!.allComplete)
+              ? null
+              : FloatingActionButton.extended(
+                  onPressed: _addExercise,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Oefening'),
+                ),
     );
   }
 
-  Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
-    final exerciseId = await Navigator.of(context).push<int>(
+  Future<void> _addExercise() async {
+    final id = await Navigator.of(context).push<int>(
       MaterialPageRoute(
         builder: (_) => const ExerciseListScreen(pickMode: true),
       ),
     );
-    if (exerciseId != null) {
-      await ref.read(activeWorkoutProvider.notifier).addExercise(exerciseId);
+    if (id != null) {
+      await ref.read(activeWorkoutProvider.notifier).addExercise(id);
     }
   }
 
-  Future<void> _finish(BuildContext context, WidgetRef ref) async {
+  Future<void> _finish() async {
     final id = await ref.read(activeWorkoutProvider.notifier).finish();
-    ref.invalidate(recentSessionsProvider);
-    if (!context.mounted) return;
+    if (!mounted) return;
     if (id != null) {
       context.pushReplacement('/log/session/$id');
     } else {
@@ -85,7 +114,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _discard(BuildContext context, WidgetRef ref) async {
+  Future<void> _discard() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -105,7 +134,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
     );
     if (ok != true) return;
     await ref.read(activeWorkoutProvider.notifier).discard();
-    if (context.mounted) context.go('/today');
+    if (mounted) context.go('/today');
   }
 }
 
@@ -123,24 +152,26 @@ class _EmptyHint extends StatelessWidget {
       );
 }
 
-/// Draft reps/weight for the next set of one exercise block.
-class _DraftEntry {
-  _DraftEntry(this.reps, this.weight);
-  double reps;
-  double weight;
-  bool isWarmup = false;
-}
-
 class _ExerciseCard extends ConsumerStatefulWidget {
-  const _ExerciseCard({required this.blockIndex});
+  const _ExerciseCard({
+    required this.blockIndex,
+    required this.expanded,
+    required this.isCurrent,
+    required this.onToggle,
+  });
+
   final int blockIndex;
+  final bool expanded;
+  final bool isCurrent;
+  final VoidCallback onToggle;
 
   @override
   ConsumerState<_ExerciseCard> createState() => _ExerciseCardState();
 }
 
 class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
-  _DraftEntry? _draft;
+  double? _reps;
+  bool _warmup = false;
 
   @override
   Widget build(BuildContext context) {
@@ -151,18 +182,27 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final block = state.blocks[widget.blockIndex];
     final notifier = ref.read(activeWorkoutProvider.notifier);
     final theme = Theme.of(context);
+    final reps = _reps ??= block.suggestedReps.toDouble();
 
-    final draft = _draft ??= _DraftEntry(
-      block.suggestedReps.toDouble(),
-      block.suggestedWeight,
-    );
-
-    final targetText = StringBuffer('${block.targetSets} × ${block.targetReps}');
-    if (block.targetWeight != null) {
-      targetText.write(' @ ${block.targetWeight!.toStringAsFixed(1)} kg');
+    if (!widget.expanded) {
+      return Card(
+        child: ListTile(
+          leading: Icon(
+            block.isComplete ? Icons.check_circle : Icons.circle_outlined,
+            color: block.isComplete ? theme.colorScheme.primary : null,
+          ),
+          title: Text(block.exercise.name),
+          subtitle: Text('${block.completedSets}/${block.targetSets} sets'),
+          trailing: const Icon(Icons.expand_more),
+          onTap: widget.onToggle,
+        ),
+      );
     }
 
     return Card(
+      color: widget.isCurrent
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+          : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -174,10 +214,11 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   child: Text(block.exercise.name,
                       style: theme.textTheme.titleMedium),
                 ),
-                Text(targetText.toString(), style: theme.textTheme.bodySmall),
+                Text('${block.targetSets} × ${block.targetReps}',
+                    style: theme.textTheme.bodySmall),
                 IconButton(
                   icon: const Icon(Icons.tune, size: 20),
-                  tooltip: 'Doelen aanpassen',
+                  tooltip: 'Aanpassen',
                   onPressed: () => _editTargets(block),
                 ),
                 IconButton(
@@ -186,101 +227,119 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 ),
               ],
             ),
-            if (block.sets.isNotEmpty) const SizedBox(height: 8),
+            if (block.sets.isNotEmpty) const SizedBox(height: 4),
             ...block.sets.asMap().entries.map((e) {
               final s = e.value;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
-                    SizedBox(width: 24, child: Text('${s.setIndex}')),
-                    Text('${s.reps} × ${s.weight.toStringAsFixed(1)} kg'),
+                    SizedBox(width: 26, child: Text('${s.setIndex}')),
+                    Text('${s.reps} reps'),
                     if (s.isWarmup) ...[
                       const SizedBox(width: 6),
-                      Text('W', style: theme.textTheme.labelSmall),
+                      Text('opwarming', style: theme.textTheme.labelSmall),
                     ],
                     const Spacer(),
                     if (e.key == block.sets.length - 1)
                       IconButton(
                         icon: const Icon(Icons.undo, size: 18),
-                        onPressed: () =>
-                            notifier.undoLastSet(widget.blockIndex),
+                        onPressed: () => notifier.undoLastSet(widget.blockIndex),
                       ),
                   ],
                 ),
               );
             }),
-            const Divider(),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                NumberStepper(
-                  label: 'Reps',
-                  value: draft.reps,
-                  step: 1,
-                  min: 1,
-                  onChanged: (v) => draft.reps = v,
+            if (!block.isComplete) ...[
+              const Divider(),
+              Wrap(
+                spacing: 16,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  NumberStepper(
+                    label: 'Reps',
+                    value: reps,
+                    min: 1,
+                    max: 100,
+                    onChanged: (v) => setState(() => _reps = v),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Checkbox(
+                        value: _warmup,
+                        onChanged: (v) =>
+                            setState(() => _warmup = v ?? false),
+                      ),
+                      const Text('Opwarming'),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  onPressed: () {
+                    notifier.logSet(
+                      widget.blockIndex,
+                      reps: reps.round(),
+                      isWarmup: _warmup,
+                    );
+                    setState(() {
+                      _reps = null;
+                      _warmup = false;
+                    });
+                  },
+                  child: Text(
+                    'Klaar — set ${block.completedSets + 1}/${block.targetSets}',
+                  ),
                 ),
-                NumberStepper(
-                  label: 'Gewicht (kg)',
-                  value: draft.weight,
-                  step: 2.5,
-                  decimals: 1,
-                  onChanged: (v) => draft.weight = v,
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
                   children: [
-                    Checkbox(
-                      value: draft.isWarmup,
-                      onChanged: (v) =>
-                          setState(() => draft.isWarmup = v ?? false),
-                    ),
-                    const Text('Opwarming'),
+                    Icon(Icons.check_circle,
+                        size: 18, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    const Text('Klaar'),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  notifier.logSet(
-                    widget.blockIndex,
-                    reps: draft.reps.round(),
-                    weight: draft.weight,
-                    isWarmup: draft.isWarmup,
-                  );
-                  setState(() => _draft = null);
-                },
-                child: const Text('Log set'),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _editTargets(dynamic block) async {
+  Future<void> _editTargets(ExerciseBlock block) async {
     final sets = ValueNotifier<double>(block.targetSets.toDouble());
     final reps = ValueNotifier<double>(block.targetReps.toDouble());
-    final rest = ValueNotifier<double>(block.restSeconds.toDouble());
+    final restSet = ValueNotifier<double>(block.restBetweenSets.toDouble());
+    final restEx = ValueNotifier<double>(block.restAfterExercise.toDouble());
 
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(block.exercise.name),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _dialogRow('Sets', sets, step: 1, min: 1),
-            _dialogRow('Reps', reps, step: 1, min: 1),
-            _dialogRow('Rust (s)', rest, step: 15, min: 0),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _dialogRow('Sets', sets, step: 1, min: 1, max: 10),
+              _dialogRow('Reps', reps, step: 1, min: 1, max: 50),
+              _dialogRow('Rust tussen sets (s)', restSet,
+                  step: 15, min: 0, max: 300),
+              _dialogRow('Rust na oefening (s)', restEx,
+                  step: 15, min: 0, max: 300),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -293,7 +352,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                     widget.blockIndex,
                     targetSets: sets.value.round(),
                     targetReps: reps.value.round(),
-                    restSeconds: rest.value.round(),
+                    restBetweenSets: restSet.value.round(),
+                    restAfterExercise: restEx.value.round(),
                   );
               Navigator.pop(context);
             },
@@ -305,7 +365,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   }
 
   Widget _dialogRow(String label, ValueNotifier<double> notifier,
-      {required double step, required double min}) {
+      {required double step, required double min, required double max}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ValueListenableBuilder<double>(
@@ -315,6 +375,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           value: value,
           step: step,
           min: min,
+          max: max,
           onChanged: (v) => notifier.value = v,
         ),
       ),

@@ -11,20 +11,20 @@ class SessionSummary {
     required this.session,
     required this.setCount,
     required this.exerciseCount,
-    required this.totalVolume,
+    this.muscleGroups = const [],
   });
 
   final WorkoutSession session;
   final int setCount;
   final int exerciseCount;
-  final double totalVolume;
+  final List<String> muscleGroups;
 }
 
-/// One (weekStart, volume) point for progress charts.
-class WeeklyVolumePoint {
-  const WeeklyVolumePoint(this.weekStart, this.volume);
+/// One (weekStart, working reps) point for progress charts (charts land later).
+class WeeklyRepsPoint {
+  const WeeklyRepsPoint(this.weekStart, this.reps);
   final DateTime weekStart;
-  final double volume;
+  final int reps;
 }
 
 class WorkoutSessionRepository {
@@ -32,7 +32,7 @@ class WorkoutSessionRepository {
 
   final AppDatabase _appDb;
 
-  // --- Session lifecycle --------------------------------------------------
+  // --- Session lifecycle -------------------------------------------------
 
   Future<WorkoutSession> startSession({
     required Discipline discipline,
@@ -69,20 +69,15 @@ class WorkoutSessionRepository {
     await db.delete('workout_sessions', where: 'id = ?', whereArgs: [sessionId]);
   }
 
-  /// The most recent session that was never finished (crash / app kill), so the
-  /// UI can offer to resume it.
+  /// The most recent session that was never finished (crash / app kill).
   Future<WorkoutSession?> activeSession() async {
     final db = await _appDb.database;
-    final rows = await db.query(
-      'workout_sessions',
-      where: 'ended_at IS NULL',
-      orderBy: 'started_at DESC',
-      limit: 1,
-    );
+    final rows = await db.query('workout_sessions',
+        where: 'ended_at IS NULL', orderBy: 'started_at DESC', limit: 1);
     return rows.isEmpty ? null : WorkoutSession.fromMap(rows.first);
   }
 
-  // --- Sets -------------------------------------------------------------
+  // --- Sets -----------------------------------------------------------
 
   /// Appends a set, auto-assigning its 1-based [StrengthSet.setIndex] within the
   /// exercise for this session. Returns the row id.
@@ -90,7 +85,6 @@ class WorkoutSessionRepository {
     required int sessionId,
     required int exerciseId,
     required int reps,
-    required double weight,
     bool isWarmup = false,
   }) async {
     final db = await _appDb.database;
@@ -107,7 +101,7 @@ class WorkoutSessionRepository {
       'exercise_id': exerciseId,
       'set_index': existing + 1,
       'reps': reps,
-      'weight': weight,
+      'weight': 0,
       'is_warmup': isWarmup ? 1 : 0,
       'completed_at': DateTime.now().millisecondsSinceEpoch,
     });
@@ -127,12 +121,14 @@ class WorkoutSessionRepository {
   Future<List<StrengthSet>> setsForSession(int sessionId) async {
     final db = await _appDb.database;
     final rows = await db.query('strength_sets',
-        where: 'session_id = ?', whereArgs: [sessionId], orderBy: 'completed_at, id');
+        where: 'session_id = ?',
+        whereArgs: [sessionId],
+        orderBy: 'completed_at, id');
     return rows.map(StrengthSet.fromMap).toList();
   }
 
-  /// The sets of the last finished session that included [exerciseId] — used to
-  /// pre-fill reps/weight when the user adds that exercise again.
+  /// Sets of the last finished session that included [exerciseId] — used to
+  /// pre-fill reps when the exercise is added again.
   Future<List<StrengthSet>> lastPerformance(int exerciseId) async {
     final db = await _appDb.database;
     final lastSession = await db.rawQuery(
@@ -146,16 +142,14 @@ class WorkoutSessionRepository {
     );
     if (lastSession.isEmpty) return [];
     final sessionId = lastSession.first['id'] as int;
-    final rows = await db.query(
-      'strength_sets',
-      where: 'session_id = ? AND exercise_id = ?',
-      whereArgs: [sessionId, exerciseId],
-      orderBy: 'set_index',
-    );
+    final rows = await db.query('strength_sets',
+        where: 'session_id = ? AND exercise_id = ?',
+        whereArgs: [sessionId, exerciseId],
+        orderBy: 'set_index');
     return rows.map(StrengthSet.fromMap).toList();
   }
 
-  // --- Log / reporting -------------------------------------------------
+  // --- Log / reporting ----------------------------------------------
 
   Future<List<SessionSummary>> recentSessions({int limit = 50}) async {
     final db = await _appDb.database;
@@ -163,8 +157,7 @@ class WorkoutSessionRepository {
       '''
       SELECT ws.*,
              COUNT(ss.id) AS set_count,
-             COUNT(DISTINCT ss.exercise_id) AS exercise_count,
-             COALESCE(SUM(CASE WHEN ss.is_warmup = 0 THEN ss.reps * ss.weight ELSE 0 END), 0) AS total_volume
+             COUNT(DISTINCT ss.exercise_id) AS exercise_count
       FROM workout_sessions ws
       LEFT JOIN strength_sets ss ON ss.session_id = ws.id
       GROUP BY ws.id
@@ -173,14 +166,33 @@ class WorkoutSessionRepository {
       ''',
       [limit],
     );
-    return rows
-        .map((r) => SessionSummary(
-              session: WorkoutSession.fromMap(r),
-              setCount: (r['set_count'] as int?) ?? 0,
-              exerciseCount: (r['exercise_count'] as int?) ?? 0,
-              totalVolume: ((r['total_volume'] as num?) ?? 0).toDouble(),
-            ))
-        .toList();
+
+    // Primary muscle groups per session (small extra query, list is short).
+    final muscleRows = await db.rawQuery(
+      '''
+      SELECT ss.session_id AS session_id, mg.name AS name
+      FROM strength_sets ss
+      JOIN exercises e ON e.id = ss.exercise_id
+      JOIN muscle_groups mg ON mg.id = e.primary_muscle_group_id
+      GROUP BY ss.session_id, mg.name
+      ''',
+    );
+    final musclesBySession = <int, List<String>>{};
+    for (final r in muscleRows) {
+      musclesBySession
+          .putIfAbsent(r['session_id'] as int, () => [])
+          .add(r['name'] as String);
+    }
+
+    return rows.map((r) {
+      final session = WorkoutSession.fromMap(r);
+      return SessionSummary(
+        session: session,
+        setCount: (r['set_count'] as int?) ?? 0,
+        exerciseCount: (r['exercise_count'] as int?) ?? 0,
+        muscleGroups: musclesBySession[session.id] ?? const [],
+      );
+    }).toList();
   }
 
   Future<WorkoutSessionDetail?> sessionDetail(int sessionId) async {
@@ -189,33 +201,63 @@ class WorkoutSessionRepository {
         where: 'id = ?', whereArgs: [sessionId], limit: 1);
     if (rows.isEmpty) return null;
     final sets = await setsForSession(sessionId);
+
+    // Working-set count per muscle group (primary counts full, secondary too).
+    final mg = <int, int>{};
+    final ids = sets.where((s) => !s.isWarmup).map((s) => s.exerciseId).toSet();
+    if (ids.isNotEmpty) {
+      final placeholders = List.filled(ids.length, '?').join(',');
+      final exRows = await db.query('exercises',
+          columns: ['id', 'primary_muscle_group_id', 'secondary_muscle_groups'],
+          where: 'id IN ($placeholders)',
+          whereArgs: ids.toList());
+      final primary = <int, int>{};
+      final secondary = <int, List<int>>{};
+      for (final e in exRows) {
+        primary[e['id'] as int] = e['primary_muscle_group_id'] as int;
+        secondary[e['id'] as int] = (e['secondary_muscle_groups'] as String)
+            .split(',')
+            .map((s) => int.tryParse(s.trim()))
+            .whereType<int>()
+            .toList();
+      }
+      for (final s in sets.where((s) => !s.isWarmup)) {
+        final p = primary[s.exerciseId];
+        if (p != null) mg.update(p, (v) => v + 1, ifAbsent: () => 1);
+        for (final sec in secondary[s.exerciseId] ?? const <int>[]) {
+          mg.update(sec, (v) => v + 1, ifAbsent: () => 1);
+        }
+      }
+    }
+
     return WorkoutSessionDetail(
       session: WorkoutSession.fromMap(rows.first),
       sets: sets,
+      muscleGroupSetCount: mg,
     );
   }
 
-  /// Total working-set volume per ISO week (Monday start), oldest first.
-  Future<List<WeeklyVolumePoint>> weeklyVolume({int weeks = 12}) async {
+  /// Working reps per ISO week (Monday start), oldest first.
+  Future<List<WeeklyRepsPoint>> weeklyReps({int weeks = 12}) async {
     final db = await _appDb.database;
     final rows = await db.rawQuery(
       '''
-      SELECT ws.started_at AS started_at, ss.reps AS reps, ss.weight AS weight
+      SELECT ws.started_at AS started_at, ss.reps AS reps
       FROM strength_sets ss
       JOIN workout_sessions ws ON ws.id = ss.session_id
       WHERE ss.is_warmup = 0 AND ws.discipline = 'strength'
       ''',
     );
-    final byWeek = <DateTime, double>{};
+    final byWeek = <DateTime, int>{};
     for (final r in rows) {
       final date = DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int);
       final monday = DateTime(date.year, date.month, date.day)
           .subtract(Duration(days: date.weekday - 1));
-      final vol = (r['reps'] as int) * (r['weight'] as num).toDouble();
-      byWeek.update(monday, (v) => v + vol, ifAbsent: () => vol);
+      byWeek.update(monday, (v) => v + (r['reps'] as int),
+          ifAbsent: () => r['reps'] as int);
     }
     final points = byWeek.entries
-        .map((e) => WeeklyVolumePoint(e.key, e.value))
+        .map((e) => WeeklyRepsPoint(e.key, e.value))
         .toList()
       ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
     return points.length <= weeks
@@ -239,8 +281,7 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>(
   (ref) => ref.watch(workoutSessionRepositoryProvider).recentSessions(),
 );
 
-final sessionDetailProvider =
-    FutureProvider.family<WorkoutSessionDetail?, int>(
+final sessionDetailProvider = FutureProvider.family<WorkoutSessionDetail?, int>(
   (ref, sessionId) =>
       ref.watch(workoutSessionRepositoryProvider).sessionDetail(sessionId),
 );

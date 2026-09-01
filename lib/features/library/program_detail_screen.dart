@@ -53,38 +53,72 @@ class ProgramDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(_programDetailProvider(programId));
+    final activeProgram = ref.watch(activeProgramProvider).valueOrNull;
+    final isActive = activeProgram?.program.id == programId;
 
     return Scaffold(
-      appBar: AppBar(title: Text(detail.valueOrNull?.program.name ?? 'Programma')),
+      appBar:
+          AppBar(title: Text(detail.valueOrNull?.program.name ?? 'Programma')),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (view) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            for (final dayView in view.days) ...[
-              _DayCard(
-                dayView: dayView,
-                isStrength: view.program.discipline == Discipline.strength,
-                onStart: view.program.discipline == Discipline.strength
-                    ? () async {
-                        await ref
-                            .read(activeWorkoutProvider.notifier)
-                            .startFromDay(dayView.day);
-                        if (context.mounted) context.push('/workout/active');
-                      }
-                    : null,
-              ),
-              const SizedBox(height: 12),
+        data: (view) {
+          final isStrength =
+              view.program.discipline == Discipline.strength;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (isStrength)
+                SizedBox(
+                  width: double.infinity,
+                  child: isActive
+                      ? OutlinedButton.icon(
+                          onPressed: null,
+                          icon: const Icon(Icons.check),
+                          label: const Text('Dit is je actieve programma'),
+                        )
+                      : FilledButton.icon(
+                          onPressed: () async {
+                            await ref
+                                .read(programRepositoryProvider)
+                                .setActiveProgram(programId);
+                            ref.invalidate(activeProgramProvider);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Ingesteld als je programma')),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.event_available),
+                          label: const Text('Kies als mijn programma'),
+                        ),
+                ),
+              if (isStrength) const SizedBox(height: 12),
+              for (final dayView in view.days) ...[
+                _DayCard(
+                  dayView: dayView,
+                  isStrength: isStrength,
+                  onStart: isStrength
+                      ? () async {
+                          await ref
+                              .read(activeWorkoutProvider.notifier)
+                              .startFromDay(dayView.day);
+                          if (context.mounted) context.push('/workout/active');
+                        }
+                      : null,
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (!isStrength)
+                Text(
+                  'De live roeisessie met Bluetooth-koppeling komt in een '
+                  'volgende versie. Dit programma staat al klaar.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
             ],
-            if (view.program.discipline == Discipline.rowing)
-              Text(
-                'De live roeisessie met Bluetooth-koppeling komt in een volgende versie. '
-                'Dit programma staat al klaar.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -120,8 +154,7 @@ class _DayCard extends StatelessWidget {
                     children: [
                       Expanded(child: Text(row.exercise.name)),
                       Text(
-                        '${row.prescription.targetSets} × ${row.prescription.targetReps}'
-                        '${row.prescription.targetWeight != null ? ' @ ${row.prescription.targetWeight!.toStringAsFixed(1)} kg' : ''}',
+                        '${row.prescription.targetSets} × ${row.prescription.targetReps}',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],
@@ -148,9 +181,9 @@ class _DayCard extends StatelessWidget {
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
+                child: OutlinedButton(
                   onPressed: onStart,
-                  child: const Text('Start deze dag'),
+                  child: const Text('Start deze dag los'),
                 ),
               ),
             ],

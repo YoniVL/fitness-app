@@ -28,8 +28,18 @@ void main() {
         'rowing_sessions',
         'rowing_samples',
         'app_settings',
+        'program_progress',
       ]),
     );
+
+    final exCols = (await db.rawQuery('PRAGMA table_info(exercises)'))
+        .map((r) => r['name'] as String)
+        .toSet();
+    expect(exCols, containsAll(['equipment', 'pattern']));
+    final peCols = (await db.rawQuery('PRAGMA table_info(program_exercises)'))
+        .map((r) => r['name'] as String)
+        .toSet();
+    expect(peCols, containsAll(['rest_seconds', 'rest_after_exercise']));
   });
 
   test('seed data is present and coherent', () async {
@@ -39,15 +49,29 @@ void main() {
         Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM $table')) ?? 0;
 
     expect(await count('muscle_groups'), 9);
-    expect(await count('exercises'), greaterThanOrEqualTo(30));
+    expect(await count('exercises'), greaterThanOrEqualTo(40));
     expect(await count('app_settings'), greaterThanOrEqualTo(3));
 
-    // 2 strength templates + 3 rowing templates.
-    expect(await count('programs'), 5);
+    // Every strength exercise has a movement pattern.
+    final noPattern = await count('exercises');
+    final withPattern = Sqflite.firstIntValue(await db.rawQuery(
+        'SELECT COUNT(*) FROM exercises WHERE pattern IS NOT NULL'));
+    expect(withPattern, noPattern);
+
+    // 3 home programs + 2 gym programs + 3 rowing templates.
     final strength = Sqflite.firstIntValue(await db.rawQuery(
       "SELECT COUNT(*) FROM programs WHERE discipline = 'strength'",
     ));
-    expect(strength, 2);
+    expect(strength, 5);
+    final rowing = Sqflite.firstIntValue(await db.rawQuery(
+      "SELECT COUNT(*) FROM programs WHERE discipline = 'rowing'",
+    ));
+    expect(rowing, 3);
+
+    // Home programs are dumbbell-only.
+    final home = await db.query('programs',
+        where: "name LIKE 'Full-body %' AND equipment_profile LIKE '%dumbbell%'");
+    expect(home.length, 3);
 
     // Push/Pull/Legs has three days, each with prescribed exercises.
     final ppl = await db.query('programs',

@@ -5,8 +5,9 @@ import '../features/library/library_screen.dart';
 import '../features/library/program_detail_screen.dart';
 import '../features/log/log_screen.dart';
 import '../features/log/session_detail_screen.dart';
+import '../features/program_builder/builder_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/strength/active_workout_screen.dart';
-import '../features/strength/start_session_screen.dart';
 import '../features/today/today_screen.dart';
 import 'home_shell.dart';
 
@@ -64,8 +65,12 @@ final appRouter = GoRouter(
       ],
     ),
     GoRoute(
-      path: '/workout/start',
-      builder: (context, state) => const StartSessionScreen(),
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/program/builder',
+      builder: (context, state) => const BuilderScreen(),
     ),
     GoRoute(
       path: '/workout/active',

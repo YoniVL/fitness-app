@@ -19,11 +19,19 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
 - `lib/features/<feature>/` — schermen + `state/` notifiers.
 
 ## Status
-- **Iteratie 1 klaar**: krachtsessie loggen (template of leeg, per-sessie doelen
-  overschrijven, sets/reps/gewicht, pauzetimer, logboek + sessiedetail).
-  Elke set direct gepersisteerd; sessie hervat na herstart.
+- **Iteratie 1 klaar**: krachtsessie loggen, pauzetimer, logboek. Elke set direct
+  gepersisteerd; sessie hervat na herstart.
+- **Iteratie 2a klaar** (schema v2): equipment-tags + bewegingspatronen op
+  oefeningen; niveaus + materiaal-filter op programma's; **generator**
+  (`lib/features/program_builder/program_generator.dart`, pure logica);
+  **actief programma + dag-cursor** (`program_progress`); geen gewicht meer in de
+  UI; **dubbele rusttijd** (tussen sets / na oefening, ±15s); geleide
+  stap-voor-stap flow + **dagsamenvatting** met spierchips; instellingenscherm.
+  v1→v2 migratie doet een **volledige data-reset** behalve `app_settings`.
+- **Iteratie 2b** (nog te doen): programma-editor (oefeningen toevoegen/
+  verwijderen/herschikken, rusttijden per oefening in UI).
 - **Roeien/BLE**: alleen schema + `lib/features/rowing/ble/ftms_rower_service.dart`
-  stub met de bevestigde FTMS-specs. UI = volgende iteratie.
+  stub. UI = latere iteratie.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
 
 ## Valkuilen (echt gebeurd)

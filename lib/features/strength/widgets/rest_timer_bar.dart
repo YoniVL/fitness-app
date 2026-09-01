@@ -37,9 +37,15 @@ class RestTimerBar extends ConsumerWidget {
                   value: timer.progress.clamp(0.0, 1.0),
                 ),
               ),
-              TextButton(
-                onPressed: () => notifier.addSeconds(30),
-                child: const Text('+30s'),
+              IconButton(
+                onPressed: () => notifier.addSeconds(-15),
+                icon: const Icon(Icons.remove),
+                tooltip: '-15s',
+              ),
+              IconButton(
+                onPressed: () => notifier.addSeconds(15),
+                icon: const Icon(Icons.add),
+                tooltip: '+15s',
               ),
               TextButton(
                 onPressed: notifier.skip,

@@ -57,6 +57,20 @@ class ExerciseRepository {
     return {for (final r in rows) r['id'] as int: Exercise.fromMap(r)};
   }
 
+  /// The full strength catalogue with a `pattern` set — the generator's input.
+  Future<List<Exercise>> strengthCatalogue() async {
+    final db = await _appDb.database;
+    final rows = await db.query('exercises',
+        where: 'pattern IS NOT NULL', orderBy: 'name COLLATE NOCASE');
+    return rows.map(Exercise.fromMap).toList();
+  }
+
+  /// muscle group id -> name, for aggregation / display.
+  Future<Map<int, String>> muscleGroupNames() async {
+    final groups = await muscleGroups();
+    return {for (final g in groups) g.id: g.name};
+  }
+
   Future<int> addCustom(Exercise exercise) async {
     final db = await _appDb.database;
     return db.insert('exercises', exercise.toMap()..['is_custom'] = 1);

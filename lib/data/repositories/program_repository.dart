@@ -1,121 +1,259 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
 import '../database/app_database.dart';
+import 'settings_repository.dart';
+
+/// Plain description of a program to persist (used by the generator UI).
+class NewProgramDraft {
+  const NewProgramDraft({
+    required this.name,
+    required this.category,
+    required this.equipmentProfile,
+    this.level,
+    this.daysPerWeek,
+    required this.days,
+  });
+
+  final String name;
+  final String category;
+  final List<String> equipmentProfile;
+  final ProgramLevel? level;
+  final int? daysPerWeek;
+  final List<NewProgramDayDraft> days;
+}
+
+class NewProgramDayDraft {
+  const NewProgramDayDraft({required this.label, required this.exercises});
+  final String label;
+  final List<NewProgramExerciseDraft> exercises;
+}
+
+class NewProgramExerciseDraft {
+  const NewProgramExerciseDraft({
+    required this.exerciseId,
+    required this.sets,
+    required this.reps,
+    required this.restBetweenSets,
+    required this.restAfterExercise,
+  });
+  final int exerciseId;
+  final int sets;
+  final int reps;
+  final int restBetweenSets;
+  final int restAfterExercise;
+}
 
 class ProgramRepository {
-  ProgramRepository(this._appDb);
+  ProgramRepository(this._appDb, this._settings);
 
   final AppDatabase _appDb;
+  final SettingsRepository _settings;
 
-  Future<List<Program>> templates({Discipline? discipline}) async {
+  // --- Reading programs ----------------------------------------------
+
+  Future<List<Program>> allStrengthPrograms() async {
     final db = await _appDb.database;
-    final rows = await db.query(
-      'programs',
-      where: discipline == null
-          ? 'is_template = 1'
-          : 'is_template = 1 AND discipline = ?',
-      whereArgs: discipline == null ? null : [discipline.name],
-      orderBy: 'discipline, name',
-    );
+    final rows = await db.query('programs',
+        where: 'discipline = ?', whereArgs: ['strength'], orderBy: 'name');
     return rows.map(Program.fromMap).toList();
+  }
+
+  Future<List<Program>> rowingTemplates() async {
+    final db = await _appDb.database;
+    final rows = await db.query('programs',
+        where: "discipline = 'rowing' AND is_template = 1", orderBy: 'name');
+    return rows.map(Program.fromMap).toList();
+  }
+
+  /// Strength programs to show in the library: the user's own programs, plus
+  /// templates whose equipment profile is covered by [owned].
+  Future<List<Program>> visibleStrengthPrograms(Set<String> owned) async {
+    final all = await allStrengthPrograms();
+    return all
+        .where((p) => !p.isTemplate || p.fitsEquipment(owned))
+        .toList();
+  }
+
+  /// Persists a user-owned program (`is_template = 0`). Returns the new id.
+  Future<int> createProgram(NewProgramDraft draft) async {
+    final db = await _appDb.database;
+    return db.transaction((txn) async {
+      final programId = await txn.insert('programs', {
+        'name': draft.name,
+        'category': draft.category,
+        'discipline': Discipline.strength.name,
+        'is_template': 0,
+        'level': draft.level?.name,
+        'days_per_week': draft.daysPerWeek,
+        'equipment_profile': draft.equipmentProfile.join(','),
+      });
+      for (var d = 0; d < draft.days.length; d++) {
+        final day = draft.days[d];
+        final dayId = await txn.insert('program_days', {
+          'program_id': programId,
+          'day_index': d,
+          'label': day.label,
+        });
+        for (var i = 0; i < day.exercises.length; i++) {
+          final e = day.exercises[i];
+          await txn.insert('program_exercises', {
+            'program_day_id': dayId,
+            'exercise_id': e.exerciseId,
+            'order_index': i,
+            'target_sets': e.sets,
+            'target_reps': e.reps,
+            'target_weight': null,
+            'rest_seconds': e.restBetweenSets,
+            'rest_after_exercise': e.restAfterExercise,
+          });
+        }
+      }
+      return programId;
+    });
+  }
+
+  Future<void> deleteProgram(int programId) async {
+    final db = await _appDb.database;
+    await db.delete('programs', where: 'id = ?', whereArgs: [programId]);
+    final activeId = await _settings.activeProgramId();
+    if (activeId == programId) await _settings.setActiveProgramId(null);
   }
 
   Future<Program?> programById(int id) async {
     final db = await _appDb.database;
-    final rows = await db.query('programs', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows =
+        await db.query('programs', where: 'id = ?', whereArgs: [id], limit: 1);
     return rows.isEmpty ? null : Program.fromMap(rows.first);
   }
 
   Future<List<ProgramDay>> daysForProgram(int programId) async {
     final db = await _appDb.database;
-    final rows = await db.query(
-      'program_days',
-      where: 'program_id = ?',
-      whereArgs: [programId],
-      orderBy: 'day_index',
-    );
+    final rows = await db.query('program_days',
+        where: 'program_id = ?', whereArgs: [programId], orderBy: 'day_index');
     return rows.map(ProgramDay.fromMap).toList();
   }
 
   Future<ProgramDay?> dayById(int id) async {
     final db = await _appDb.database;
-    final rows = await db.query('program_days', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db
+        .query('program_days', where: 'id = ?', whereArgs: [id], limit: 1);
     return rows.isEmpty ? null : ProgramDay.fromMap(rows.first);
   }
 
   Future<List<ProgramExercise>> exercisesForDay(int programDayId) async {
     final db = await _appDb.database;
-    final rows = await db.query(
-      'program_exercises',
-      where: 'program_day_id = ?',
-      whereArgs: [programDayId],
-      orderBy: 'order_index',
-    );
+    final rows = await db.query('program_exercises',
+        where: 'program_day_id = ?',
+        whereArgs: [programDayId],
+        orderBy: 'order_index');
     return rows.map(ProgramExercise.fromMap).toList();
   }
 
   Future<List<ProgramRowSegment>> rowSegmentsForDay(int programDayId) async {
     final db = await _appDb.database;
-    final rows = await db.query(
-      'program_row_segments',
-      where: 'program_day_id = ?',
-      whereArgs: [programDayId],
-      orderBy: 'order_index',
-    );
+    final rows = await db.query('program_row_segments',
+        where: 'program_day_id = ?',
+        whereArgs: [programDayId],
+        orderBy: 'order_index');
     return rows.map(ProgramRowSegment.fromMap).toList();
   }
 
-  /// The program day scheduled for [weekday] (`DateTime.monday`..`sunday`),
-  /// based on the `weekly_schedule` setting, or null if nothing is planned.
-  Future<ProgramDay?> scheduledDayFor(DateTime date) async {
-    final db = await _appDb.database;
-    final rows = await db.query('app_settings',
-        where: 'key = ?', whereArgs: ['weekly_schedule'], limit: 1);
-    if (rows.isEmpty) return null;
-    final raw = rows.first['value'] as String;
-    final Map<String, dynamic> schedule =
-        (jsonDecode(raw) as Map).cast<String, dynamic>();
-    final dayId = schedule['${date.weekday}'];
-    if (dayId is! int) return null;
-    return dayById(dayId);
-  }
+  // --- Active program + progression cursor --------------------------
 
-  Future<void> setScheduledDay(int weekday, int? programDayId) async {
+  Future<void> setActiveProgram(int programId) async {
     final db = await _appDb.database;
-    final rows = await db.query('app_settings',
-        where: 'key = ?', whereArgs: ['weekly_schedule'], limit: 1);
-    final Map<String, dynamic> schedule = rows.isEmpty
-        ? {}
-        : (jsonDecode(rows.first['value'] as String) as Map).cast<String, dynamic>();
-    if (programDayId == null) {
-      schedule.remove('$weekday');
-    } else {
-      schedule['$weekday'] = programDayId;
-    }
+    // Reset the cursor whenever a program is (re)chosen.
     await db.insert(
-      'app_settings',
-      {'key': 'weekly_schedule', 'value': jsonEncode(schedule)},
+      'program_progress',
+      {'program_id': programId, 'current_day_index': 0, 'round': 1},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    await _settings.setActiveProgramId(programId);
+  }
+
+  Future<void> clearActiveProgram() => _settings.setActiveProgramId(null);
+
+  Future<ActiveProgram?> activeProgram() async {
+    final id = await _settings.activeProgramId();
+    if (id == null) return null;
+    final program = await programById(id);
+    if (program == null) return null;
+    final days = await daysForProgram(id);
+    if (days.isEmpty) return null;
+
+    final db = await _appDb.database;
+    final rows = await db.query('program_progress',
+        where: 'program_id = ?', whereArgs: [id], limit: 1);
+    final cursor = rows.isEmpty ? 0 : (rows.first['current_day_index'] as int);
+    final round = rows.isEmpty ? 1 : (rows.first['round'] as int);
+    return ActiveProgram(
+      program: program,
+      days: days,
+      currentDayIndex: cursor % days.length,
+      round: round,
+    );
+  }
+
+  /// Advances the cursor of the active program if [finishedProgramDayId] is its
+  /// current day. Wrapping past the last day bumps the round counter.
+  Future<void> advanceIfCurrentDay(int finishedProgramDayId) async {
+    final active = await activeProgram();
+    if (active == null) return;
+    if (active.currentDay.id != finishedProgramDayId) return;
+
+    final next = (active.currentDayIndex + 1) % active.dayCount;
+    final round = next == 0 ? active.round + 1 : active.round;
+    final db = await _appDb.database;
+    await db.update(
+      'program_progress',
+      {
+        'current_day_index': next,
+        'round': round,
+        'last_completed_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'program_id = ?',
+      whereArgs: [active.program.id],
+    );
+  }
+
+  Future<void> setCursor(int programId, int dayIndex) async {
+    final db = await _appDb.database;
+    final updated = await db.update(
+      'program_progress',
+      {'current_day_index': dayIndex},
+      where: 'program_id = ?',
+      whereArgs: [programId],
+    );
+    if (updated == 0) {
+      await db.insert('program_progress', {
+        'program_id': programId,
+        'current_day_index': dayIndex,
+        'round': 1,
+      });
+    }
   }
 }
 
 final programRepositoryProvider = Provider<ProgramRepository>(
-  (ref) => ProgramRepository(AppDatabase.instance),
-);
-
-final strengthTemplatesProvider = FutureProvider<List<Program>>(
-  (ref) => ref.watch(programRepositoryProvider).templates(discipline: Discipline.strength),
+  (ref) => ProgramRepository(
+    AppDatabase.instance,
+    ref.watch(settingsRepositoryProvider),
+  ),
 );
 
 final rowingTemplatesProvider = FutureProvider<List<Program>>(
-  (ref) => ref.watch(programRepositoryProvider).templates(discipline: Discipline.rowing),
+  (ref) => ref.watch(programRepositoryProvider).rowingTemplates(),
 );
 
-final scheduledDayTodayProvider = FutureProvider<ProgramDay?>(
-  (ref) => ref.watch(programRepositoryProvider).scheduledDayFor(DateTime.now()),
+final visibleStrengthProgramsProvider = FutureProvider<List<Program>>(
+  (ref) async {
+    final owned = await ref.watch(ownedEquipmentProvider.future);
+    return ref.watch(programRepositoryProvider).visibleStrengthPrograms(owned);
+  },
+);
+
+final activeProgramProvider = FutureProvider<ActiveProgram?>(
+  (ref) => ref.watch(programRepositoryProvider).activeProgram(),
 );

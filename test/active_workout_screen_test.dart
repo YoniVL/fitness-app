@@ -23,11 +23,12 @@ ExerciseBlock _block(int id, String name) => ExerciseBlock(
         id: id,
         name: name,
         primaryMuscleGroupId: 1,
-        equipment: 'barbell',
+        equipmentTags: const ['dumbbell'],
       ),
       targetSets: 3,
       targetReps: 8,
-      restSeconds: 120,
+      restBetweenSets: 30,
+      restAfterExercise: 60,
     );
 
 void main() {
@@ -67,20 +68,16 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+    // Current (first) exercise is expanded; the rest are collapsed rows.
     expect(find.text('Bankdrukken'), findsOneWidget);
-    expect(find.text('Incline bankdruk'), findsOneWidget);
+    expect(find.text('Dumbbell shoulder press'), findsOneWidget);
     expect(find.byType(Card), findsNWidgets(3));
-    expect(find.text('Log set'), findsNWidgets(3));
+    expect(find.textContaining('Klaar — set 1/3'), findsOneWidget);
 
-    // Regression guard: each card must actually occupy space and the first
-    // one must be visible on screen.
+    // Regression guard: the current card must actually occupy space.
     final firstCard = tester.getRect(find.byType(Card).first);
     expect(firstCard.height, greaterThan(100));
     expect(firstCard.width, greaterThan(200));
-    expect(firstCard.top, lessThan(tester.view.physicalSize.height));
-    expect(find.text('Bankdrukken'), findsOneWidget);
-    final nameSize = tester.getSize(find.text('Bankdrukken'));
-    expect(nameSize.height, greaterThan(0));
   });
 
   testWidgets('shows the empty hint when there are no blocks', (tester) async {

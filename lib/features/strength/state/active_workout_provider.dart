@@ -18,49 +18,40 @@ class ExerciseBlock {
     required this.exercise,
     required this.targetSets,
     required this.targetReps,
-    this.targetWeight,
-    required this.restSeconds,
+    required this.restBetweenSets,
+    required this.restAfterExercise,
     this.sets = const [],
   });
 
   final Exercise exercise;
   final int targetSets;
   final int targetReps;
-  final double? targetWeight;
-  final int restSeconds;
+  final int restBetweenSets;
+  final int restAfterExercise;
   final List<StrengthSet> sets;
 
   int get completedSets => sets.length;
   bool get isComplete => completedSets >= targetSets;
 
-  double get volume =>
-      sets.where((s) => !s.isWarmup).fold(0, (sum, s) => sum + s.volume);
-
-  /// Suggested reps/weight for the next set: mirror the last logged set,
-  /// otherwise fall back to the target.
+  /// Suggested reps for the next set: mirror the last logged set, else the
+  /// target.
   int get suggestedReps => sets.isNotEmpty ? sets.last.reps : targetReps;
-  double get suggestedWeight =>
-      sets.isNotEmpty ? sets.last.weight : (targetWeight ?? 0);
 
   ExerciseBlock copyWith({
     int? targetSets,
     int? targetReps,
-    Object? targetWeight = _sentinel,
-    int? restSeconds,
+    int? restBetweenSets,
+    int? restAfterExercise,
     List<StrengthSet>? sets,
   }) =>
       ExerciseBlock(
         exercise: exercise,
         targetSets: targetSets ?? this.targetSets,
         targetReps: targetReps ?? this.targetReps,
-        targetWeight: identical(targetWeight, _sentinel)
-            ? this.targetWeight
-            : targetWeight as double?,
-        restSeconds: restSeconds ?? this.restSeconds,
+        restBetweenSets: restBetweenSets ?? this.restBetweenSets,
+        restAfterExercise: restAfterExercise ?? this.restAfterExercise,
         sets: sets ?? this.sets,
       );
-
-  static const _sentinel = Object();
 }
 
 class ActiveWorkoutState {
@@ -69,9 +60,14 @@ class ActiveWorkoutState {
   final WorkoutSession session;
   final List<ExerciseBlock> blocks;
 
-  double get totalVolume => blocks.fold(0, (sum, b) => sum + b.volume);
   int get totalSets => blocks.fold(0, (sum, b) => sum + b.completedSets);
   bool get hasAnySet => totalSets > 0;
+  bool get allComplete =>
+      blocks.isNotEmpty && blocks.every((b) => b.isComplete);
+
+  /// Index of the exercise the user should be doing now (first not complete),
+  /// or -1 when everything is done.
+  int get currentBlockIndex => blocks.indexWhere((b) => !b.isComplete);
 
   ActiveWorkoutState copyWith({List<ExerciseBlock>? blocks}) =>
       ActiveWorkoutState(session: session, blocks: blocks ?? this.blocks);
@@ -85,6 +81,7 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       ref.read(workoutSessionRepositoryProvider);
   ExerciseRepository get _exercises => ref.read(exerciseRepositoryProvider);
   ProgramRepository get _programs => ref.read(programRepositoryProvider);
+  SettingsRepository get _settings => ref.read(settingsRepositoryProvider);
 
   @override
   Future<ActiveWorkoutState?> build() async {
@@ -95,6 +92,11 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     return _rehydrate(existing);
   }
 
+  Future<({int between, int after})> _defaultRests() async => (
+        between: await _settings.restBetweenSets(),
+        after: await _settings.restAfterExercise(),
+      );
+
   Future<ActiveWorkoutState> _rehydrate(WorkoutSession session) async {
     final sets = await _sessions.setsForSession(session.id);
     final byExercise = <int, List<StrengthSet>>{};
@@ -102,23 +104,23 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       byExercise.putIfAbsent(s.exerciseId, () => []).add(s);
     }
 
-    // Prescribed targets, if the session was started from a program day.
     final targets = <int, ProgramExercise>{};
-    var restDefault = await ref.read(settingsRepositoryProvider).getInt(
-          SettingsKeys.defaultRestSeconds,
-          120,
-        );
+    final order = <int>[];
     if (session.programDayId != null) {
       for (final pe in await _programs.exercisesForDay(session.programDayId!)) {
         targets[pe.exerciseId] = pe;
+        order.add(pe.exerciseId);
       }
     }
+    for (final id in byExercise.keys) {
+      if (!order.contains(id)) order.add(id);
+    }
 
-    final exerciseIds = {...byExercise.keys, ...targets.keys};
-    final exercises = await _exercises.byIds(exerciseIds);
+    final rests = await _defaultRests();
+    final exercises = await _exercises.byIds(order);
 
     final blocks = <ExerciseBlock>[];
-    for (final id in exerciseIds) {
+    for (final id in order) {
       final ex = exercises[id];
       if (ex == null) continue;
       final logged = byExercise[id] ?? const <StrengthSet>[];
@@ -127,22 +129,21 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
         exercise: ex,
         targetSets: t?.targetSets ?? (logged.isEmpty ? 3 : logged.length),
         targetReps: t?.targetReps ?? (logged.isNotEmpty ? logged.last.reps : 10),
-        targetWeight: t?.targetWeight ?? (logged.isNotEmpty ? logged.last.weight : null),
-        restSeconds: t?.restSeconds ?? restDefault,
+        restBetweenSets: t?.restBetweenSets ?? rests.between,
+        restAfterExercise: t?.restAfterExercise ?? rests.after,
         sets: logged,
       ));
     }
     return ActiveWorkoutState(session: session, blocks: blocks);
   }
 
-  bool get hasActiveSession => state.valueOrNull != null;
-
-  // --- Starting -------------------------------------------------------
+  // --- Starting -----------------------------------------------------
 
   Future<void> startEmpty() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final session = await _sessions.startSession(discipline: Discipline.strength);
+      final session =
+          await _sessions.startSession(discipline: Discipline.strength);
       return ActiveWorkoutState(session: session, blocks: const []);
     });
   }
@@ -155,7 +156,9 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
         programDayId: day.id,
       );
       final prescribed = await _programs.exercisesForDay(day.id);
-      final exercises = await _exercises.byIds(prescribed.map((e) => e.exerciseId));
+      final rests = await _defaultRests();
+      final exercises =
+          await _exercises.byIds(prescribed.map((e) => e.exerciseId));
       final blocks = <ExerciseBlock>[];
       for (final pe in prescribed) {
         final ex = exercises[pe.exerciseId];
@@ -164,15 +167,15 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
           exercise: ex,
           targetSets: pe.targetSets,
           targetReps: pe.targetReps,
-          targetWeight: pe.targetWeight,
-          restSeconds: pe.restSeconds,
+          restBetweenSets: pe.restBetweenSets,
+          restAfterExercise: pe.restAfterExercise ?? rests.after,
         ));
       }
       return ActiveWorkoutState(session: session, blocks: blocks);
     });
   }
 
-  // --- Editing -------------------------------------------------------
+  // --- Editing -----------------------------------------------------
 
   Future<void> addExercise(int exerciseId) async {
     final current = state.valueOrNull;
@@ -180,16 +183,14 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     if (current.blocks.any((b) => b.exercise.id == exerciseId)) return;
     final ex = await _exercises.byId(exerciseId);
     if (ex == null) return;
-    final restDefault = await ref
-        .read(settingsRepositoryProvider)
-        .getInt(SettingsKeys.defaultRestSeconds, 120);
+    final rests = await _defaultRests();
     final last = await _sessions.lastPerformance(exerciseId);
     final block = ExerciseBlock(
       exercise: ex,
       targetSets: last.isNotEmpty ? last.length : 3,
       targetReps: last.isNotEmpty ? last.first.reps : 10,
-      targetWeight: last.isNotEmpty ? last.first.weight : null,
-      restSeconds: restDefault,
+      restBetweenSets: rests.between,
+      restAfterExercise: rests.after,
     );
     state = AsyncData(current.copyWith(blocks: [...current.blocks, block]));
   }
@@ -198,8 +199,8 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     int blockIndex, {
     int? targetSets,
     int? targetReps,
-    double? targetWeight,
-    int? restSeconds,
+    int? restBetweenSets,
+    int? restAfterExercise,
   }) {
     final current = state.valueOrNull;
     if (current == null) return;
@@ -207,8 +208,8 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     blocks[blockIndex] = blocks[blockIndex].copyWith(
       targetSets: targetSets,
       targetReps: targetReps,
-      targetWeight: targetWeight,
-      restSeconds: restSeconds,
+      restBetweenSets: restBetweenSets,
+      restAfterExercise: restAfterExercise,
     );
     state = AsyncData(current.copyWith(blocks: blocks));
   }
@@ -224,12 +225,11 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     state = AsyncData(current.copyWith(blocks: blocks));
   }
 
-  // --- Logging sets --------------------------------------------------
+  // --- Logging sets -----------------------------------------------
 
   Future<void> logSet(
     int blockIndex, {
     required int reps,
-    required double weight,
     bool isWarmup = false,
   }) async {
     final current = state.valueOrNull;
@@ -240,7 +240,6 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       sessionId: current.session.id,
       exerciseId: block.exercise.id,
       reps: reps,
-      weight: weight,
       isWarmup: isWarmup,
     );
     final newSet = StrengthSet(
@@ -249,17 +248,24 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       exerciseId: block.exercise.id,
       setIndex: block.completedSets + 1,
       reps: reps,
-      weight: weight,
       isWarmup: isWarmup,
       completedAt: DateTime.now(),
     );
     final blocks = [...current.blocks];
-    blocks[blockIndex] = block.copyWith(sets: [...block.sets, newSet]);
-    state = AsyncData(current.copyWith(blocks: blocks));
+    final updatedBlock = block.copyWith(sets: [...block.sets, newSet]);
+    blocks[blockIndex] = updatedBlock;
+    final next = current.copyWith(blocks: blocks);
+    state = AsyncData(next);
 
-    if (!isWarmup) {
-      ref.read(restTimerProvider.notifier).start(block.restSeconds, forSetId: id);
-    }
+    if (isWarmup) return;
+
+    final wasLastSet = updatedBlock.isComplete;
+    final everythingDone = next.allComplete;
+    if (everythingDone) return; // no timer — surface "Dag afronden"
+
+    final seconds =
+        wasLastSet ? block.restAfterExercise : block.restBetweenSets;
+    ref.read(restTimerProvider.notifier).start(seconds, forSetId: id);
   }
 
   Future<void> undoLastSet(int blockIndex) async {
@@ -275,7 +281,7 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     state = AsyncData(current.copyWith(blocks: blocks));
   }
 
-  // --- Finishing ----------------------------------------------------
+  // --- Finishing --------------------------------------------------
 
   /// Ends the session. Returns the session id, or null if it was discarded
   /// (no sets logged → the empty session row is deleted).
@@ -289,6 +295,12 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       return null;
     }
     await _sessions.finishSession(current.session.id, notes: notes);
+    final dayId = current.session.programDayId;
+    if (dayId != null) {
+      await _programs.advanceIfCurrentDay(dayId);
+      ref.invalidate(activeProgramProvider);
+    }
+    ref.invalidate(recentSessionsProvider);
     state = const AsyncData(null);
     return current.session.id;
   }

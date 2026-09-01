@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../data/repositories/exercise_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/muscle_group.dart';
+import '../../domain/taxonomy.dart';
 
 /// (muscleGroupId?, search) filter for the exercise list.
 typedef ExerciseFilter = ({int? muscleGroupId, String search});
@@ -121,7 +122,7 @@ class _ExerciseList extends StatelessWidget {
             child: Icon(muscleGroupIcon(iconByGroup[ex.primaryMuscleGroupId] ?? '')),
           ),
           title: Text(ex.name),
-          subtitle: Text(ex.equipment),
+          subtitle: Text(ex.equipmentTags.map(Equipment.label).join(' · ')),
           trailing: onTap == null ? null : const Icon(Icons.add),
           onTap: onTap == null ? null : () => onTap!(ex),
         );
