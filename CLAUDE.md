@@ -35,8 +35,13 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   herschikken, sets/reps, oefening verwijderen/vervangen/toevoegen (nog vóór
   opslaan). Rusttijden per oefening bewerken = nog niet (iteratie 2b).
 - Rust = fullscreen (`rest_fullscreen.dart`) voor elke rust, met aftel-piep de
-  laatste 5s (`assets/audio/beep*.wav`, audioplayers, key `rest_timer_sound`);
-  hier komen later de oefening-animaties.
+  laatste 5s (`assets/audio/beep*.wav`, audioplayers, key `rest_timer_sound`) +
+  animatie van de volgende oefening.
+- **Trainingsflow = pager** (`active_workout_screen.dart`): één oefening per
+  (bijna) fullscreen `PageView`-pagina (naam, animatie, gedane sets, reps-stepper,
+  "Klaar"). Set gedaan → fullscreen rustklok → na de rust springt de pager auto
+  naar de eerstvolgende onafgewerkte oefening (`ref.listen(restTimerProvider)`).
+  Lijst-icoon = overzicht/springen/oefening toevoegen. Alles klaar → "Dag afronden".
 - **Iteratie 2b klaar**: programma-editor (`program_editor_screen.dart` +
   `program_editor_widgets.dart`, gedeeld met de builder). Potlood op elk
   krachtprogramma → dagen/oefeningen/sets/reps/rust bewerken, herschikken,
@@ -47,8 +52,9 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   Logboek): sets/week (fl_chart bar), sets/spiergroep 30d, beste set per oefening
   over tijd (line). Reps/sets-gebaseerd.
 - **Oefening-animaties** (`features/exercises/exercise_animation.dart`): loopende
-  stick-figuur per `MovementPattern` (geen externe content). In de fullscreen
-  rustklok + oefening-detailsheet (oefening aantikken in de database).
+  stick-figuur per `MovementPattern` + `equipment` (geen externe content). Toont
+  bank (vlak/incline), barbell vs dumbbells. In de trainingspager, de fullscreen
+  rustklok + oefening-detailsheet.
 - **Roeien/BLE**: alleen schema + `lib/features/rowing/ble/ftms_rower_service.dart`
   stub. UI = latere iteratie — het grootste openstaande stuk.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
