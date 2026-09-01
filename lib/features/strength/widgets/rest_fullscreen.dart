@@ -76,7 +76,7 @@ class RestFullscreen extends ConsumerWidget {
                       style: theme.textTheme.bodyMedium),
                 if (hasExercisePhoto(nextExerciseName)) ...[
                   const SizedBox(height: 10),
-                  ExerciseDemo(exerciseName: nextExerciseName, height: 150),
+                  ExerciseDemo(exerciseName: nextExerciseName, maxHeight: 160),
                 ],
               ],
               const Spacer(),

@@ -22,7 +22,7 @@ void _showDetail(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hasExercisePhoto(ex.name)) ...[
-            ExerciseDemo(exerciseName: ex.name, height: 200),
+            ExerciseDemo(exerciseName: ex.name, maxHeight: 230),
             const SizedBox(height: 12),
           ],
           Text(ex.name, style: Theme.of(context).textTheme.titleLarge),

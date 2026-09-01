@@ -99,12 +99,14 @@ class ExerciseDemo extends StatefulWidget {
   const ExerciseDemo({
     super.key,
     required this.exerciseName,
-    this.height = 190,
+    this.maxHeight = 210,
     this.borderRadius = 16,
   });
 
   final String? exerciseName;
-  final double height;
+
+  /// The demo is a fixed 3:2 panel sized to the available width, capped here.
+  final double maxHeight;
   final double borderRadius;
 
   @override
@@ -169,26 +171,42 @@ class _ExerciseDemoState extends State<ExerciseDemo>
     if (assets == null) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(widget.borderRadius),
-      child: Container(
-        height: widget.height,
-        width: double.infinity,
-        color: scheme.surfaceContainerHighest,
-        child: AnimatedBuilder(
-          animation: _fade,
-          builder: (context, _) => Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.asset(assets[0], fit: BoxFit.contain),
-              Opacity(
-                opacity: _fade.value,
-                child: Image.asset(assets[1], fit: BoxFit.contain),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availW = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : widget.maxHeight * 1.5;
+        var h = availW * 2 / 3;
+        if (h > widget.maxHeight) h = widget.maxHeight;
+        if (constraints.maxHeight.isFinite && h > constraints.maxHeight) {
+          h = constraints.maxHeight;
+        }
+        final w = h * 1.5;
+
+        return Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: AnimatedBuilder(
+                animation: _fade,
+                builder: (context, _) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(color: scheme.surfaceContainerHighest),
+                    Image.asset(assets[0], fit: BoxFit.cover),
+                    Opacity(
+                      opacity: _fade.value,
+                      child: Image.asset(assets[1], fit: BoxFit.cover),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

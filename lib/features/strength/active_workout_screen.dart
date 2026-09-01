@@ -397,7 +397,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
             child: Center(
               child: hasExercisePhoto(block.exercise.name)
                   ? ExerciseDemo(
-                      exerciseName: block.exercise.name, height: 210)
+                      exerciseName: block.exercise.name, maxHeight: 260)
                   : Icon(Icons.fitness_center,
                       size: 64,
                       color: theme.colorScheme.onSurface
