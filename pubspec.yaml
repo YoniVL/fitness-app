@@ -72,6 +72,9 @@ flutter:
   assets:
     - assets/audio/beep.wav
     - assets/audio/beep_final.wav
+    # Exercise demo photos: everkinetic via github.com/yuhonas/free-exercise-db,
+    # CC BY-SA 3.0. See lib/features/exercises/exercise_media.dart.
+    - assets/exercise_media/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

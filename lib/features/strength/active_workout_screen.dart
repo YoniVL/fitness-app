@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../exercises/exercise_animation.dart';
+import '../exercises/exercise_media.dart';
 import '../library/exercise_list_screen.dart';
 import 'state/active_workout_provider.dart';
 import 'state/rest_timer_notifier.dart';
@@ -62,8 +62,6 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           : state.blocks[state.currentBlockIndex];
       return RestFullscreen(
         nextExerciseName: next?.exercise.name,
-        nextPattern: next?.exercise.pattern,
-        nextEquipment: next?.exercise.equipmentTags ?? const [],
         nextSetLabel: next == null
             ? null
             : 'Set ${next.completedSets + 1}/${next.targetSets}',
@@ -397,11 +395,13 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
             ),
           Expanded(
             child: Center(
-              child: ExerciseAnimation(
-                pattern: block.exercise.pattern,
-                equipment: block.exercise.equipmentTags,
-                size: 200,
-              ),
+              child: hasExercisePhoto(block.exercise.name)
+                  ? ExerciseDemo(
+                      exerciseName: block.exercise.name, height: 210)
+                  : Icon(Icons.fitness_center,
+                      size: 64,
+                      color: theme.colorScheme.onSurface
+                          .withValues(alpha: 0.25)),
             ),
           ),
           // Done sets.

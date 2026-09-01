@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/taxonomy.dart';
+import '../exercises/exercise_media.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -94,6 +95,30 @@ class SettingsScreen extends ConsumerWidget {
                     .setBool(SettingsKeys.restTimerSound, v);
                 ref.invalidate(restTimerSoundProvider);
               },
+            ),
+          ),
+          const Divider(),
+          _sectionHeader(context, 'Credits'),
+          ListTile(
+            title: const Text('Oefeningfoto’s'),
+            subtitle: const Text('everkinetic · CC BY-SA 3.0'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Oefeningfoto’s'),
+                content: const Text(
+                  '$exercisePhotoCredit\n\n'
+                  'Bron: github.com/yuhonas/free-exercise-db\n'
+                  'Licentie: creativecommons.org/licenses/by-sa/3.0',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Sluiten'),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),

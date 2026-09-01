@@ -1,25 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../domain/taxonomy.dart';
-import '../../exercises/exercise_animation.dart';
+import '../../exercises/exercise_media.dart';
 import '../state/rest_timer_notifier.dart';
 
 /// Full-screen rest view shown between sets and after an exercise: big countdown,
-/// the same controls, and a looping animation of the next exercise's movement.
+/// the same controls, and a demo of the next exercise.
 class RestFullscreen extends ConsumerWidget {
   const RestFullscreen({
     super.key,
     this.nextExerciseName,
     this.nextSetLabel,
-    this.nextPattern,
-    this.nextEquipment = const [],
   });
 
   final String? nextExerciseName;
   final String? nextSetLabel;
-  final MovementPattern? nextPattern;
-  final List<String> nextEquipment;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,12 +74,10 @@ class RestFullscreen extends ConsumerWidget {
                   Text(nextSetLabel!,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 8),
-                Center(
-                    child: ExerciseAnimation(
-                        pattern: nextPattern,
-                        equipment: nextEquipment,
-                        size: 140)),
+                if (hasExercisePhoto(nextExerciseName)) ...[
+                  const SizedBox(height: 10),
+                  ExerciseDemo(exerciseName: nextExerciseName, height: 150),
+                ],
               ],
               const Spacer(),
               Row(

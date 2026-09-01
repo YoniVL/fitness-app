@@ -6,7 +6,7 @@ import '../../data/repositories/exercise_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/muscle_group.dart';
 import '../../domain/taxonomy.dart';
-import '../exercises/exercise_animation.dart';
+import '../exercises/exercise_media.dart';
 
 void _showDetail(
     BuildContext context, Exercise ex, List<MuscleGroup> groups) {
@@ -21,12 +21,10 @@ void _showDetail(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-              child: ExerciseAnimation(
-                  pattern: ex.pattern,
-                  equipment: ex.equipmentTags,
-                  size: 160)),
-          const SizedBox(height: 4),
+          if (hasExercisePhoto(ex.name)) ...[
+            ExerciseDemo(exerciseName: ex.name, height: 200),
+            const SizedBox(height: 12),
+          ],
           Text(ex.name, style: Theme.of(context).textTheme.titleLarge),
           if (ex.pattern != null)
             Text(ex.pattern!.label,
@@ -47,9 +45,11 @@ void _showDetail(
           const SizedBox(height: 8),
           Text('Materiaal: ${ex.equipmentTags.map(Equipment.label).join(', ')}',
               style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 4),
-          Text('Schematische animatie van het bewegingspatroon.',
-              style: Theme.of(context).textTheme.labelSmall),
+          if (hasExercisePhoto(ex.name)) ...[
+            const SizedBox(height: 4),
+            Text('Foto: everkinetic (CC BY-SA 3.0) — zie Instellingen › Credits.',
+                style: Theme.of(context).textTheme.labelSmall),
+          ],
         ],
       ),
     ),

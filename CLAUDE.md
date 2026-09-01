@@ -36,9 +36,9 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   opslaan). Rusttijden per oefening bewerken = nog niet (iteratie 2b).
 - Rust = fullscreen (`rest_fullscreen.dart`) voor elke rust, met aftel-piep de
   laatste 5s (`assets/audio/beep*.wav`, audioplayers, key `rest_timer_sound`) +
-  animatie van de volgende oefening.
+  demofoto van de volgende oefening.
 - **Trainingsflow = pager** (`active_workout_screen.dart`): één oefening per
-  (bijna) fullscreen `PageView`-pagina (naam, animatie, gedane sets, reps-stepper,
+  (bijna) fullscreen `PageView`-pagina (naam, demofoto, gedane sets, reps-stepper,
   "Klaar"). Set gedaan → fullscreen rustklok → na de rust springt de pager auto
   naar de eerstvolgende onafgewerkte oefening (`ref.listen(restTimerProvider)`).
   Lijst-icoon = overzicht/springen/oefening toevoegen. Alles klaar → "Dag afronden".
@@ -51,10 +51,14 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
 - **Voortgang** (`features/progress/progress_screen.dart`, grafiek-icoon in
   Logboek): sets/week (fl_chart bar), sets/spiergroep 30d, beste set per oefening
   over tijd (line). Reps/sets-gebaseerd.
-- **Oefening-animaties** (`features/exercises/exercise_animation.dart`): loopende
-  stick-figuur per `MovementPattern` + `equipment` (geen externe content). Toont
-  bank (vlak/incline), barbell vs dumbbells. In de trainingspager, de fullscreen
-  rustklok + oefening-detailsheet.
+- **Oefening-demo's** (`features/exercises/exercise_media.dart`): 2 gebundelde
+  foto's per oefening (start/eind), langzame cross-fade = de beweging
+  (`ExerciseDemo`). ~63 oefeningen gemapt in `_photoSlugs`; assets in
+  `assets/exercise_media/<slug>_{0,1}.jpg` (~3,8 MB, downscaled naar 560px).
+  Bron: everkinetic via github.com/yuhonas/free-exercise-db, **CC BY-SA 3.0** —
+  bronvermelding staat in Instellingen › Credits (moet blijven staan). Oefeningen
+  zonder foto: geen demo (fallback = dumbbell-icoon in de pager). Eerdere
+  zelf-getekende stick-figuur/silhouet-pogingen zijn verworpen en verwijderd.
 - **Roeien/BLE**: alleen schema + `lib/features/rowing/ble/ftms_rower_service.dart`
   stub. UI = latere iteratie — het grootste openstaande stuk.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
