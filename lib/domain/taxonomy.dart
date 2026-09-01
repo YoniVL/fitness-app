@@ -34,13 +34,18 @@ class Equipment {
     dumbbell: 'Verstelbare dumbbells',
     bench: 'Vlakke bank',
     benchIncline: 'Incline-bank',
-    barbell: 'Barbell',
-    machine: 'Machines',
-    cable: 'Kabel',
+    barbell: 'Barbell (gym)',
+    machine: 'Fitnesstoestellen (gym)',
+    cable: 'Kabelmachine (gym)',
     pullupBar: 'Optrekstang',
     bands: 'Weerstandsbanden',
     kettlebell: 'Kettlebell',
   };
+
+  /// One-line hint shown under the checklist.
+  static const machineHint =
+      'Fitnesstoestellen = geleide gewichtsmachines uit een fitnesszaal '
+      '(lat pulldown, leg press, leg curl/extension, cable row).';
 
   static String label(String tag) => _labels[tag] ?? tag;
 

@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _fileName = 'fitnesstracker.db';
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
 
   Database? _db;
 
@@ -72,6 +72,8 @@ class AppDatabase {
       switch (v) {
         case 2:
           await migrateV1toV2(db);
+        case 3:
+          await migrateV2toV3(db);
       }
     }
   }
@@ -92,6 +94,7 @@ class AppDatabase {
       secondary_muscle_groups  TEXT NOT NULL DEFAULT '',
       equipment                TEXT NOT NULL DEFAULT 'bodyweight',
       pattern                  TEXT,
+      is_unilateral            INTEGER NOT NULL DEFAULT 0,
       media_key                TEXT,
       is_custom                INTEGER NOT NULL DEFAULT 0,
       notes                    TEXT

@@ -52,6 +52,19 @@ class _Ex {
   final List<String> secondary;
 }
 
+/// Exercises trained one side at a time — the generator keeps their set count
+/// even so both sides get the same volume.
+const unilateralExerciseNames = <String>[
+  'One-arm dumbbell row',
+  'Dumbbell split squat',
+  'Bulgarian split squat',
+  'Dumbbell step-up',
+  'Dumbbell single-leg RDL',
+  'Concentration curl',
+  'Dumbbell kickback',
+  'Dumbbell side bend',
+];
+
 const _db = Equipment.dumbbell;
 const _bench = Equipment.bench;
 const _incl = Equipment.benchIncline;
@@ -220,6 +233,7 @@ Future<Map<String, int>> _seedExercises(
       'secondary_muscle_groups': secondary,
       'equipment': ex.equipment.join(','),
       'pattern': ex.pattern.name,
+      'is_unilateral': unilateralExerciseNames.contains(ex.name) ? 1 : 0,
       'media_key': null,
       'is_custom': 0,
     });

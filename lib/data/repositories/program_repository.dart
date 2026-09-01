@@ -68,12 +68,19 @@ class ProgramRepository {
   }
 
   /// Strength programs to show in the library: the user's own programs, plus
-  /// templates whose equipment profile is covered by [owned].
+  /// templates whose equipment profile is covered by [owned]. Sorted by level
+  /// (beginner -> medium -> advanced), then name.
   Future<List<Program>> visibleStrengthPrograms(Set<String> owned) async {
     final all = await allStrengthPrograms();
-    return all
-        .where((p) => !p.isTemplate || p.fitsEquipment(owned))
-        .toList();
+    final visible =
+        all.where((p) => !p.isTemplate || p.fitsEquipment(owned)).toList();
+    visible.sort((a, b) {
+      final la = a.level?.index ?? 99;
+      final lb = b.level?.index ?? 99;
+      if (la != lb) return la.compareTo(lb);
+      return a.name.compareTo(b.name);
+    });
+    return visible;
   }
 
   /// Persists a user-owned program (`is_template = 0`). Returns the new id.

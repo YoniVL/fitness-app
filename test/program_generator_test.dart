@@ -99,6 +99,42 @@ void main() {
     expect(program.days, isNotEmpty);
   });
 
+  test('keeps unilateral exercises on an even number of sets', () {
+    final program = generator.generate(GeneratorInput(
+      daysPerWeek: 4,
+      level: ProgramLevel.medium, // 3 sets by default -> odd
+      muscleGroups: {...MuscleGroups.all},
+      equipment: home,
+    ));
+    for (final day in program.days) {
+      for (final ge in day.exercises) {
+        if (ge.exercise.isUnilateral) {
+          expect(ge.sets.isEven, isTrue,
+              reason: '${ge.exercise.name} has ${ge.sets} sets');
+        }
+      }
+    }
+  });
+
+  test('time budget drives the exercise count', () {
+    final short = generator.generate(GeneratorInput(
+      daysPerWeek: 3,
+      level: ProgramLevel.medium,
+      muscleGroups: {...MuscleGroups.all},
+      equipment: home,
+      minutesPerSession: 20,
+    ));
+    final long = generator.generate(GeneratorInput(
+      daysPerWeek: 3,
+      level: ProgramLevel.medium,
+      muscleGroups: {...MuscleGroups.all},
+      equipment: home,
+      minutesPerSession: 60,
+    ));
+    expect(short.days.first.exercises.length,
+        lessThan(long.days.first.exercises.length));
+  });
+
   test('rejects an empty muscle group selection', () {
     expect(
       () => generator.generate(GeneratorInput(

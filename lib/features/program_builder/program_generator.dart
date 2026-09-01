@@ -54,6 +54,7 @@ class GeneratorInput {
     required this.muscleGroups,
     required this.equipment,
     this.name,
+    this.minutesPerSession,
     this.restBetweenSets = 30,
     this.restAfterExercise = 60,
   });
@@ -63,6 +64,10 @@ class GeneratorInput {
   final Set<String> muscleGroups;
   final Set<String> equipment;
   final String? name;
+
+  /// If set, the time budget per training day drives the number of exercises;
+  /// otherwise the level's default is used.
+  final int? minutesPerSession;
   final int restBetweenSets;
   final int restAfterExercise;
 }
@@ -124,8 +129,15 @@ class ProgramGenerator {
     final isos = options.keys.where((p) => p.isIsolation).toList()
       ..sort((a, b) => a.index.compareTo(b.index));
 
-    final exPerDay = input.level.exercisesPerDay;
     final sets = input.level.setsPerExercise;
+    // Time budget (if given) drives the exercise count: roughly
+    // 3 min setup + sets * (~40s work + rest) per exercise.
+    final exPerDay = input.minutesPerSession == null
+        ? input.level.exercisesPerDay
+        : (input.minutesPerSession! /
+                (3 + sets * (40 + input.restBetweenSets) / 60))
+            .round()
+            .clamp(3, 9);
 
     // Day composition: mostly compounds, then core, then isolation.
     final coreSlots = cores.isEmpty ? 0 : (exPerDay >= 4 ? 1 : 0);
@@ -159,6 +171,18 @@ class ProgramGenerator {
       return list[start % list.length];
     }
 
+    GeneratedExercise slot(MovementPattern pattern, Exercise ex) {
+      // One-arm / single-leg work: keep the set count even so both sides match.
+      final s = ex.isUnilateral && sets.isOdd ? sets + 1 : sets;
+      return GeneratedExercise(
+        exercise: ex,
+        sets: s,
+        reps: defaultRepsFor(pattern),
+        restBetweenSets: input.restBetweenSets,
+        restAfterExercise: input.restAfterExercise,
+      );
+    }
+
     final generatedDays = <GeneratedDay>[];
     for (var d = 0; d < days; d++) {
       final usedToday = <int>{};
@@ -173,13 +197,7 @@ class ProgramGenerator {
           c++;
           final ex = pick(pattern, usedToday);
           usedToday.add(ex.id);
-          slots.add(GeneratedExercise(
-            exercise: ex,
-            sets: sets,
-            reps: defaultRepsFor(pattern),
-            restBetweenSets: input.restBetweenSets,
-            restAfterExercise: input.restAfterExercise,
-          ));
+          slots.add(slot(pattern, ex));
         }
         bump(c);
       }
@@ -201,13 +219,7 @@ class ProgramGenerator {
         final ex = pick(pattern, usedToday);
         if (usedToday.contains(ex.id)) break; // nothing new to add
         usedToday.add(ex.id);
-        slots.add(GeneratedExercise(
-          exercise: ex,
-          sets: sets,
-          reps: defaultRepsFor(pattern),
-          restBetweenSets: input.restBetweenSets,
-          restAfterExercise: input.restAfterExercise,
-        ));
+        slots.add(slot(pattern, ex));
       }
 
       generatedDays.add(GeneratedDay(label: 'Dag ${d + 1}', exercises: slots));

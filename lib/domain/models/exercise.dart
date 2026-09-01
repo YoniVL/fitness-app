@@ -12,6 +12,7 @@ class Exercise {
     this.secondaryMuscleGroupIds = const [],
     this.equipmentTags = const [Equipment.bodyweight],
     this.pattern,
+    this.isUnilateral = false,
     this.mediaKey,
     this.isCustom = false,
     this.notes,
@@ -25,6 +26,10 @@ class Exercise {
   /// Equipment required to perform this exercise (see [Equipment]).
   final List<String> equipmentTags;
   final MovementPattern? pattern;
+
+  /// True when the exercise is done one side at a time (one-arm row, split
+  /// squat, …). The generator keeps such exercises on an even number of sets.
+  final bool isUnilateral;
   final String? mediaKey;
   final bool isCustom;
   final String? notes;
@@ -43,6 +48,7 @@ class Exercise {
             _parseCsvInts(map['secondary_muscle_groups'] as String?),
         equipmentTags: _parseEquipment(map['equipment'] as String?),
         pattern: MovementPattern.fromName(map['pattern'] as String?),
+        isUnilateral: (map['is_unilateral'] as int? ?? 0) == 1,
         mediaKey: map['media_key'] as String?,
         isCustom: (map['is_custom'] as int? ?? 0) == 1,
         notes: map['notes'] as String?,
@@ -55,6 +61,7 @@ class Exercise {
         'secondary_muscle_groups': secondaryMuscleGroupIds.join(','),
         'equipment': equipmentTags.join(','),
         'pattern': pattern?.name,
+        'is_unilateral': isUnilateral ? 1 : 0,
         'media_key': mediaKey,
         'is_custom': isCustom ? 1 : 0,
         'notes': notes,

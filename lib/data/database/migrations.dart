@@ -168,3 +168,15 @@ Future<void> migrateV1toV2(Database db) async {
 
   await seedDatabase(db);
 }
+
+/// v2 -> v3: flag exercises done one side at a time, so the generator can keep
+/// their set count even.
+Future<void> migrateV2toV3(Database db) async {
+  await db.execute(
+      'ALTER TABLE exercises ADD COLUMN is_unilateral INTEGER NOT NULL DEFAULT 0');
+  final placeholders = List.filled(unilateralExerciseNames.length, '?').join(',');
+  await db.rawUpdate(
+    'UPDATE exercises SET is_unilateral = 1 WHERE name IN ($placeholders)',
+    unilateralExerciseNames,
+  );
+}

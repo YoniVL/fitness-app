@@ -30,6 +30,9 @@ class SettingsScreen extends ConsumerWidget {
                 for (final tag in Equipment.all)
                   CheckboxListTile(
                     title: Text(Equipment.label(tag)),
+                    subtitle: tag == Equipment.machine
+                        ? const Text(Equipment.machineHint)
+                        : null,
                     value: tags.contains(tag),
                     onChanged: (checked) async {
                       final next = {...tags};

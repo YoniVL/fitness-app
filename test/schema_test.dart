@@ -35,7 +35,7 @@ void main() {
     final exCols = (await db.rawQuery('PRAGMA table_info(exercises)'))
         .map((r) => r['name'] as String)
         .toSet();
-    expect(exCols, containsAll(['equipment', 'pattern']));
+    expect(exCols, containsAll(['equipment', 'pattern', 'is_unilateral']));
     final peCols = (await db.rawQuery('PRAGMA table_info(program_exercises)'))
         .map((r) => r['name'] as String)
         .toSet();
@@ -72,6 +72,11 @@ void main() {
     final home = await db.query('programs',
         where: "name LIKE 'Full-body %' AND equipment_profile LIKE '%dumbbell%'");
     expect(home.length, 3);
+
+    // Some exercises are flagged unilateral (one-arm row, split squat, ...).
+    final unilateral = Sqflite.firstIntValue(await db
+        .rawQuery('SELECT COUNT(*) FROM exercises WHERE is_unilateral = 1'));
+    expect(unilateral, greaterThanOrEqualTo(5));
 
     // Push/Pull/Legs has three days, each with prescribed exercises.
     final ppl = await db.query('programs',
