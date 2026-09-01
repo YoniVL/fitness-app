@@ -121,6 +121,65 @@ class ProgramRepository {
     });
   }
 
+  /// Replaces every day/exercise of an existing (user-owned) program in place.
+  /// Logged sessions that pointed at the old days keep their sets but lose the
+  /// program-day link (their `program_day_id` becomes null); the progress
+  /// cursor resets to day 1 since day meanings changed.
+  Future<void> updateProgramContent(
+    int programId, {
+    String? name,
+    required List<NewProgramDayDraft> days,
+  }) async {
+    final db = await _appDb.database;
+    await db.transaction((txn) async {
+      if (name != null) {
+        await txn.update('programs', {'name': name},
+            where: 'id = ?', whereArgs: [programId]);
+      }
+
+      final oldDayRows = await txn.query('program_days',
+          columns: ['id'], where: 'program_id = ?', whereArgs: [programId]);
+      final oldDayIds = oldDayRows.map((r) => r['id'] as int).toList();
+      if (oldDayIds.isNotEmpty) {
+        final placeholders = List.filled(oldDayIds.length, '?').join(',');
+        await txn.update('workout_sessions', {'program_day_id': null},
+            where: 'program_day_id IN ($placeholders)', whereArgs: oldDayIds);
+        await txn.update('rowing_sessions', {'program_day_id': null},
+            where: 'program_day_id IN ($placeholders)', whereArgs: oldDayIds);
+      }
+      // Cascades to program_exercises / program_row_segments.
+      await txn.delete('program_days',
+          where: 'program_id = ?', whereArgs: [programId]);
+
+      for (var d = 0; d < days.length; d++) {
+        final day = days[d];
+        final dayId = await txn.insert('program_days', {
+          'program_id': programId,
+          'day_index': d,
+          'label': day.label,
+        });
+        for (var i = 0; i < day.exercises.length; i++) {
+          final e = day.exercises[i];
+          await txn.insert('program_exercises', {
+            'program_day_id': dayId,
+            'exercise_id': e.exerciseId,
+            'order_index': i,
+            'target_sets': e.sets,
+            'target_reps': e.reps,
+            'target_weight': null,
+            'rest_seconds': e.restBetweenSets,
+            'rest_after_exercise': e.restAfterExercise,
+          });
+        }
+      }
+
+      await txn.delete('program_progress',
+          where: 'program_id = ?', whereArgs: [programId]);
+      await txn.update('programs', {'days_per_week': days.length},
+          where: 'id = ?', whereArgs: [programId]);
+    });
+  }
+
   Future<void> deleteProgram(int programId) async {
     final db = await _appDb.database;
     await db.delete('programs', where: 'id = ?', whereArgs: [programId]);

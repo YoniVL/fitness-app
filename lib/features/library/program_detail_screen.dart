@@ -56,9 +56,29 @@ class ProgramDetailScreen extends ConsumerWidget {
     final activeProgram = ref.watch(activeProgramProvider).valueOrNull;
     final isActive = activeProgram?.program.id == programId;
 
+    final program = detail.valueOrNull?.program;
     return Scaffold(
-      appBar:
-          AppBar(title: Text(detail.valueOrNull?.program.name ?? 'Programma')),
+      appBar: AppBar(
+        title: Text(program?.name ?? 'Programma'),
+        actions: [
+          if (program != null && program.discipline == Discipline.strength) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Aanpassen',
+              onPressed: () => context.push('/library/program/$programId/edit'),
+            ),
+            if (!program.isTemplate)
+              PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'delete') _confirmDelete(context, ref, program);
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'delete', child: Text('Verwijderen')),
+                ],
+              ),
+          ],
+        ],
+      ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Fout: $e')),
@@ -121,6 +141,32 @@ class ProgramDetailScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, WidgetRef ref, Program program) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Schema verwijderen?'),
+        content: Text('"${program.name}" wordt definitief verwijderd.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuleren'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Verwijderen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(programRepositoryProvider).deleteProgram(program.id);
+    ref.invalidate(visibleStrengthProgramsProvider);
+    ref.invalidate(activeProgramProvider);
+    if (context.mounted) context.pop();
   }
 }
 

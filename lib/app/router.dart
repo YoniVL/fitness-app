@@ -6,6 +6,7 @@ import '../features/library/program_detail_screen.dart';
 import '../features/log/log_screen.dart';
 import '../features/log/session_detail_screen.dart';
 import '../features/program_builder/builder_screen.dart';
+import '../features/program_builder/program_editor_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/strength/active_workout_screen.dart';
 import '../features/today/today_screen.dart';
@@ -41,6 +42,14 @@ final appRouter = GoRouter(
                   builder: (context, state) => ProgramDetailScreen(
                     programId: int.parse(state.pathParameters['id']!),
                   ),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) => ProgramEditorScreen(
+                        programId: int.parse(state.pathParameters['id']!),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
