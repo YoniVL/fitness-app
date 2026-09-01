@@ -32,6 +32,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           : state.blocks[state.currentBlockIndex];
       return RestFullscreen(
         nextExerciseName: next?.exercise.name,
+        nextPattern: next?.exercise.pattern,
         nextSetLabel: next == null
             ? null
             : 'Set ${next.completedSets + 1}/${next.targetSets}',

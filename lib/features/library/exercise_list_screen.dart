@@ -6,6 +6,51 @@ import '../../data/repositories/exercise_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/muscle_group.dart';
 import '../../domain/taxonomy.dart';
+import '../exercises/exercise_animation.dart';
+
+void _showDetail(
+    BuildContext context, Exercise ex, List<MuscleGroup> groups) {
+  final names = {for (final g in groups) g.id: g.name};
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+          24, 0, 24, 24 + MediaQuery.viewPaddingOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: ExerciseAnimation(pattern: ex.pattern, size: 150)),
+          const SizedBox(height: 4),
+          Text(ex.name, style: Theme.of(context).textTheme.titleLarge),
+          if (ex.pattern != null)
+            Text(ex.pattern!.label,
+                style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Chip(label: Text(names[ex.primaryMuscleGroupId] ?? '?')),
+              for (final id in ex.secondaryMuscleGroupIds)
+                Chip(
+                  label: Text(names[id] ?? '?'),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Materiaal: ${ex.equipmentTags.map(Equipment.label).join(', ')}',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Text('Animatie op bewegingspatroon-niveau.',
+              style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+    ),
+  );
+}
 
 /// (muscleGroupId?, search) filter for the exercise list.
 typedef ExerciseFilter = ({int? muscleGroupId, String search});
@@ -88,9 +133,11 @@ class ExerciseListScreen extends ConsumerWidget {
               data: (list) => _ExerciseList(
                 list: list,
                 groups: muscleGroups.valueOrNull ?? const [],
+                pickMode: pickMode,
                 onTap: pickMode
                     ? (ex) => Navigator.of(context).pop(ex.id)
-                    : null,
+                    : (ex) => _showDetail(
+                        context, ex, muscleGroups.valueOrNull ?? const []),
               ),
             ),
           ),
@@ -101,11 +148,16 @@ class ExerciseListScreen extends ConsumerWidget {
 }
 
 class _ExerciseList extends StatelessWidget {
-  const _ExerciseList({required this.list, required this.groups, this.onTap});
+  const _ExerciseList(
+      {required this.list,
+      required this.groups,
+      this.onTap,
+      this.pickMode = false});
 
   final List<Exercise> list;
   final List<MuscleGroup> groups;
   final void Function(Exercise)? onTap;
+  final bool pickMode;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +175,9 @@ class _ExerciseList extends StatelessWidget {
           ),
           title: Text(ex.name),
           subtitle: Text(ex.equipmentTags.map(Equipment.label).join(' · ')),
-          trailing: onTap == null ? null : const Icon(Icons.add),
+          trailing: onTap == null
+              ? null
+              : Icon(pickMode ? Icons.add : Icons.chevron_right),
           onTap: onTap == null ? null : () => onTap!(ex),
         );
       },
