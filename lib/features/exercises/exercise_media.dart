@@ -185,43 +185,9 @@ class _ExerciseDemoState extends State<ExerciseDemo>
                 opacity: _fade.value,
                 child: Image.asset(assets[1], fit: BoxFit.contain),
               ),
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: _FrameDots(t: _fade.value),
-              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FrameDots extends StatelessWidget {
-  const _FrameDots({required this.t});
-  final double t;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget dot(bool on) => Container(
-          width: 6,
-          height: 6,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: on ? 0.9 : 0.35),
-          ),
-        );
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [dot(t < 0.5), dot(t >= 0.5)],
       ),
     );
   }
