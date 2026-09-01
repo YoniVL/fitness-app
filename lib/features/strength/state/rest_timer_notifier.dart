@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -55,13 +56,10 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   AudioPlayer? _beep;
   AudioPlayer? _beepFinal;
 
-  AudioPlayer _player(String asset) {
-    final p = AudioPlayer();
-    p.setReleaseMode(ReleaseMode.stop).catchError((_) {});
-    p.setPlayerMode(PlayerMode.lowLatency).catchError((_) {});
-    p.setSource(AssetSource(asset)).catchError((_) {});
-    return p;
-  }
+  AudioPlayer _player() => AudioPlayer()
+    ..setReleaseMode(ReleaseMode.stop).catchError((e) {
+      debugPrint('[RestTimer] setReleaseMode failed: $e');
+    });
 
   void start(int seconds, {int? forSetId}) {
     _ticker?.cancel();
@@ -86,9 +84,10 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     }
     if (!_soundOn || !_bindingReady) return;
     try {
-      _beep ??= _player('audio/beep.wav');
-      _beepFinal ??= _player('audio/beep_final.wav');
-    } catch (_) {
+      _beep ??= _player();
+      _beepFinal ??= _player();
+    } catch (e) {
+      debugPrint('[RestTimer] could not create audio players: $e');
       _soundOn = false;
     }
   }
@@ -142,15 +141,18 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
         .setRestForSet(setId, seconds);
   }
 
-  void _playBeep() => _play(_beep);
-  void _playFinal() => _play(_beepFinal);
+  void _playBeep() => _play(_beep, 'audio/beep.wav');
+  void _playFinal() => _play(_beepFinal, 'audio/beep_final.wav');
 
-  void _play(AudioPlayer? p) {
+  void _play(AudioPlayer? p, String asset) {
     if (!_soundOn || p == null) return;
     try {
-      p.stop().catchError((_) {});
-      p.resume().catchError((_) {});
-    } catch (_) {}
+      p.play(AssetSource(asset)).catchError((e) {
+        debugPrint('[RestTimer] play($asset) failed: $e');
+      });
+    } catch (e) {
+      debugPrint('[RestTimer] play($asset) threw: $e');
+    }
   }
 
   void _cue() {
