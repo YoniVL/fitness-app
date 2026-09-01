@@ -28,8 +28,16 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   UI; **dubbele rusttijd** (tussen sets / na oefening, ±15s); geleide
   stap-voor-stap flow + **dagsamenvatting** met spierchips; instellingenscherm.
   v1→v2 migratie doet een **volledige data-reset** behalve `app_settings`.
-- **Iteratie 2b** (nog te doen): programma-editor (oefeningen toevoegen/
-  verwijderen/herschikken, rusttijden per oefening in UI).
+- Schema v3: `exercises.is_unilateral`. Schema v4: oefeningen hernoemd naar
+  canoniek Engels (`Barbell bench press`, `Dumbbell incline press`, …); rename-map
+  in `seed_data.dart` (`exerciseRenamesV3toV4`).
+- Builder-editor: gegenereerde dagen zijn tikbaar → sheet met slepen om te
+  herschikken, sets/reps, oefening verwijderen/vervangen/toevoegen (nog vóór
+  opslaan). Rusttijden per oefening bewerken = nog niet (iteratie 2b).
+- Rust = fullscreen (`rest_fullscreen.dart`) voor elke rust; hier komen later de
+  oefening-animaties.
+- **Iteratie 2b** (nog te doen): bestaande programma's bewerken buiten de builder
+  ("Aanpassen"-knop op programmadetail), rusttijden per oefening in de editor.
 - **Roeien/BLE**: alleen schema + `lib/features/rowing/ble/ftms_rower_service.dart`
   stub. UI = latere iteratie.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.

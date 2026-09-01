@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _fileName = 'fitnesstracker.db';
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
 
   Database? _db;
 
@@ -74,6 +74,8 @@ class AppDatabase {
           await migrateV1toV2(db);
         case 3:
           await migrateV2toV3(db);
+        case 4:
+          await migrateV3toV4(db);
       }
     }
   }

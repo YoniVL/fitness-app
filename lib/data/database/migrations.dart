@@ -174,7 +174,38 @@ Future<void> migrateV1toV2(Database db) async {
 Future<void> migrateV2toV3(Database db) async {
   await db.execute(
       'ALTER TABLE exercises ADD COLUMN is_unilateral INTEGER NOT NULL DEFAULT 0');
-  final placeholders = List.filled(unilateralExerciseNames.length, '?').join(',');
+  // v3 names — post-v4 renames are applied by migrateV3toV4.
+  const v3Unilateral = [
+    'One-arm dumbbell row',
+    'Dumbbell split squat',
+    'Bulgarian split squat',
+    'Dumbbell step-up',
+    'Dumbbell single-leg RDL',
+    'Concentration curl',
+    'Dumbbell kickback',
+    'Dumbbell side bend',
+  ];
+  final placeholders = List.filled(v3Unilateral.length, '?').join(',');
+  await db.rawUpdate(
+    'UPDATE exercises SET is_unilateral = 1 WHERE name IN ($placeholders)',
+    v3Unilateral,
+  );
+}
+
+/// v3 -> v4: rename exercises to the canonical English "Equipment + move" style,
+/// then (re)assert the unilateral flag on the canonical names — an earlier
+/// upgrade may have re-seeded canonical names while `migrateV2toV3` still used
+/// the old ones.
+Future<void> migrateV3toV4(Database db) async {
+  final batch = db.batch();
+  exerciseRenamesV3toV4.forEach((oldName, newName) {
+    batch.update('exercises', {'name': newName},
+        where: 'name = ?', whereArgs: [oldName]);
+  });
+  await batch.commit(noResult: true);
+
+  final placeholders =
+      List.filled(unilateralExerciseNames.length, '?').join(',');
   await db.rawUpdate(
     'UPDATE exercises SET is_unilateral = 1 WHERE name IN ($placeholders)',
     unilateralExerciseNames,

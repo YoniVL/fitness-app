@@ -4,8 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../library/exercise_list_screen.dart';
 import 'state/active_workout_provider.dart';
+import 'state/rest_timer_notifier.dart';
 import 'widgets/number_stepper.dart';
-import 'widgets/rest_timer_bar.dart';
+import 'widgets/rest_fullscreen.dart';
 
 class ActiveWorkoutScreen extends ConsumerStatefulWidget {
   const ActiveWorkoutScreen({super.key});
@@ -22,6 +23,20 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(activeWorkoutProvider);
+    final resting = ref.watch(restTimerProvider).active;
+
+    if (resting) {
+      final state = async.valueOrNull;
+      final next = state == null || state.currentBlockIndex < 0
+          ? null
+          : state.blocks[state.currentBlockIndex];
+      return RestFullscreen(
+        nextExerciseName: next?.exercise.name,
+        nextSetLabel: next == null
+            ? null
+            : 'Set ${next.completedSets + 1}/${next.targetSets}',
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -81,7 +96,6 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           );
         },
       ),
-      bottomNavigationBar: const RestTimerBar(),
       floatingActionButton:
           (async.valueOrNull == null || async.valueOrNull!.allComplete)
               ? null

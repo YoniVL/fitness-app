@@ -61,7 +61,8 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Schema samenstellen')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, 24 + MediaQuery.viewPaddingOf(context).bottom),
         children: [
           TextField(
             controller: _nameController,
@@ -368,33 +369,60 @@ class _DayEditorState extends State<_DayEditor> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.7,
+      initialChildSize: 0.75,
       maxChildSize: 0.95,
-      builder: (context, scroll) => ListView(
-        controller: scroll,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      builder: (context, scroll) => Column(
         children: [
-          Text(widget.day.label, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          for (var i = 0; i < widget.day.exercises.length; i++)
-            _ExerciseEditRow(
-              entry: widget.day.exercises[i],
-              onRemove: widget.day.exercises.length > 1
-                  ? () {
-                      setState(() => widget.day.exercises.removeAt(i));
-                      widget.onChanged();
-                    }
-                  : null,
-              onSwap: () => _swap(i),
-              onChanged: _bump,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(widget.day.label, style: theme.textTheme.titleLarge),
             ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _addExercise,
-            icon: const Icon(Icons.add),
-            label: const Text('Oefening toevoegen'),
+          ),
+          Expanded(
+            child: ReorderableListView.builder(
+              scrollController: scroll,
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+              buildDefaultDragHandles: false,
+              itemCount: widget.day.exercises.length,
+              // ignore: deprecated_member_use
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) newIndex--;
+                  final item = widget.day.exercises.removeAt(oldIndex);
+                  widget.day.exercises.insert(newIndex, item);
+                });
+                widget.onChanged();
+              },
+              itemBuilder: (context, i) => _ExerciseEditRow(
+                key: ValueKey(widget.day.exercises[i]),
+                index: i,
+                entry: widget.day.exercises[i],
+                onRemove: widget.day.exercises.length > 1
+                    ? () {
+                        setState(() => widget.day.exercises.removeAt(i));
+                        widget.onChanged();
+                      }
+                    : null,
+                onSwap: () => _swap(i),
+                onChanged: _bump,
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 12 + bottomInset),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _addExercise,
+                icon: const Icon(Icons.add),
+                label: const Text('Oefening toevoegen'),
+              ),
+            ),
           ),
         ],
       ),
@@ -448,12 +476,15 @@ class _DayEditorState extends State<_DayEditor> {
 
 class _ExerciseEditRow extends StatelessWidget {
   const _ExerciseEditRow({
+    super.key,
+    required this.index,
     required this.entry,
     required this.onRemove,
     required this.onSwap,
     required this.onChanged,
   });
 
+  final int index;
   final _EditExercise entry;
   final VoidCallback? onRemove;
   final VoidCallback onSwap;
@@ -472,6 +503,13 @@ class _ExerciseEditRow extends StatelessWidget {
           children: [
             Row(
               children: [
+                ReorderableDragStartListener(
+                  index: index,
+                  child: const Padding(
+                    padding: EdgeInsets.only(right: 4),
+                    child: Icon(Icons.drag_handle),
+                  ),
+                ),
                 Expanded(
                   child: Text(entry.exercise.name,
                       style: theme.textTheme.titleSmall),
