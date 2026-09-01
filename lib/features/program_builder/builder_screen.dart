@@ -398,18 +398,21 @@ class _DayEditorState extends State<_DayEditor> {
                 });
                 widget.onChanged();
               },
-              itemBuilder: (context, i) => _ExerciseEditRow(
+              itemBuilder: (context, i) => ReorderableDelayedDragStartListener(
                 key: ValueKey(widget.day.exercises[i]),
                 index: i,
-                entry: widget.day.exercises[i],
-                onRemove: widget.day.exercises.length > 1
-                    ? () {
-                        setState(() => widget.day.exercises.removeAt(i));
-                        widget.onChanged();
-                      }
-                    : null,
-                onSwap: () => _swap(i),
-                onChanged: _bump,
+                child: _ExerciseEditRow(
+                  index: i,
+                  entry: widget.day.exercises[i],
+                  onRemove: widget.day.exercises.length > 1
+                      ? () {
+                          setState(() => widget.day.exercises.removeAt(i));
+                          widget.onChanged();
+                        }
+                      : null,
+                  onSwap: () => _swap(i),
+                  onChanged: _bump,
+                ),
               ),
             ),
           ),
@@ -476,7 +479,6 @@ class _DayEditorState extends State<_DayEditor> {
 
 class _ExerciseEditRow extends StatelessWidget {
   const _ExerciseEditRow({
-    super.key,
     required this.index,
     required this.entry,
     required this.onRemove,

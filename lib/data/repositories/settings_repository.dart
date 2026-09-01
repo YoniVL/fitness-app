@@ -94,3 +94,9 @@ final defaultRestBetweenSetsProvider = FutureProvider<int>(
 final defaultRestAfterExerciseProvider = FutureProvider<int>(
   (ref) => ref.watch(settingsRepositoryProvider).restAfterExercise(),
 );
+
+final restTimerSoundProvider = FutureProvider<bool>(
+  (ref) => ref
+      .watch(settingsRepositoryProvider)
+      .getBool(SettingsKeys.restTimerSound, true),
+);

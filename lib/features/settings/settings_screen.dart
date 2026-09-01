@@ -13,6 +13,7 @@ class SettingsScreen extends ConsumerWidget {
     final owned = ref.watch(ownedEquipmentProvider);
     final restBetween = ref.watch(defaultRestBetweenSetsProvider);
     final restAfter = ref.watch(defaultRestAfterExerciseProvider);
+    final sound = ref.watch(restTimerSoundProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Instellingen')),
@@ -78,6 +79,20 @@ class SettingsScreen extends ConsumerWidget {
                     .read(settingsRepositoryProvider)
                     .setInt(SettingsKeys.defaultRestAfterExercise, v);
                 ref.invalidate(defaultRestAfterExerciseProvider);
+              },
+            ),
+          ),
+          sound.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+            data: (on) => SwitchListTile(
+              title: const Text('Aftel-piep laatste 5 seconden'),
+              value: on,
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setBool(SettingsKeys.restTimerSound, v);
+                ref.invalidate(restTimerSoundProvider);
               },
             ),
           ),

@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/repositories/settings_repository.dart';
 import '../../../data/repositories/workout_session_repository.dart';
 
-/// State of the between-sets rest timer.
+/// State of the between-sets / after-exercise rest timer.
 class RestTimerState {
   const RestTimerState({
     this.active = false,
@@ -41,14 +43,25 @@ class RestTimerState {
       );
 }
 
-/// Counts down the rest between sets. Duration is caller-supplied (per exercise,
-/// defaulting to the user's `default_rest_seconds`). No per-stroke or per-second
-/// nagging — just the countdown and a single cue when it hits zero.
+/// Counts down the rest. Beeps every second for the last 5 seconds and a longer
+/// tone at zero (gated on the `rest_timer_sound` setting).
 class RestTimerNotifier extends StateNotifier<RestTimerState> {
   RestTimerNotifier(this._ref) : super(RestTimerState.idle);
 
   final Ref _ref;
   Timer? _ticker;
+  bool _soundOn = true;
+
+  AudioPlayer? _beep;
+  AudioPlayer? _beepFinal;
+
+  AudioPlayer _player(String asset) {
+    final p = AudioPlayer();
+    p.setReleaseMode(ReleaseMode.stop).catchError((_) {});
+    p.setPlayerMode(PlayerMode.lowLatency).catchError((_) {});
+    p.setSource(AssetSource(asset)).catchError((_) {});
+    return p;
+  }
 
   void start(int seconds, {int? forSetId}) {
     _ticker?.cancel();
@@ -58,17 +71,38 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
       remainingSeconds: seconds,
       forSetId: forSetId,
     );
+    _prepareSound();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  Future<void> _prepareSound() async {
+    try {
+      _soundOn = await _ref
+          .read(settingsRepositoryProvider)
+          .getBool(SettingsKeys.restTimerSound, true);
+    } catch (_) {
+      _soundOn = false; // no DB (tests) — stay silent
+      return;
+    }
+    if (!_soundOn || !_bindingReady) return;
+    try {
+      _beep ??= _player('audio/beep.wav');
+      _beepFinal ??= _player('audio/beep_final.wav');
+    } catch (_) {
+      _soundOn = false;
+    }
   }
 
   void _tick() {
     final remaining = state.remainingSeconds - 1;
     if (remaining <= 0) {
       _cue();
+      _playFinal();
       _persistRest(state.totalSeconds);
       _ticker?.cancel();
       state = state.copyWith(active: false, remainingSeconds: 0);
     } else {
+      if (remaining <= 5) _playBeep();
       state = state.copyWith(remainingSeconds: remaining);
     }
   }
@@ -103,24 +137,31 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   Future<void> _persistRest(int seconds) async {
     final setId = state.forSetId;
     if (setId == null) return;
-    await _ref.read(workoutSessionRepositoryProvider).setRestForSet(setId, seconds);
+    await _ref
+        .read(workoutSessionRepositoryProvider)
+        .setRestForSet(setId, seconds);
+  }
+
+  void _playBeep() => _play(_beep);
+  void _playFinal() => _play(_beepFinal);
+
+  void _play(AudioPlayer? p) {
+    if (!_soundOn || p == null) return;
+    try {
+      p.stop().catchError((_) {});
+      p.resume().catchError((_) {});
+    } catch (_) {}
   }
 
   void _cue() {
-    // Minimal cue only. A real countdown beep lands with the rowing iteratie
-    // (audioplayers); for now a haptic pulse. Skip entirely when there's no
-    // Flutter binding (unit tests) and swallow platform failures.
     if (!_bindingReady) return;
     try {
       HapticFeedback.mediumImpact();
-    } catch (_) {
-      // ignored
-    }
+    } catch (_) {}
   }
 
   bool get _bindingReady {
     try {
-      // The `instance` getter throws until a Flutter binding is initialized.
       return ServicesBinding.instance.hashCode != 0;
     } catch (_) {
       return false;
@@ -130,6 +171,8 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _beep?.dispose();
+    _beepFinal?.dispose();
     super.dispose();
   }
 }
