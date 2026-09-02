@@ -1,4 +1,5 @@
 import '../taxonomy.dart';
+import 'rowing_plan.dart';
 
 /// Training discipline for a program or session.
 enum Discipline {
@@ -53,6 +54,8 @@ class ProgramCategory {
   static const rowSteady = 'row_steady';
   static const rowInterval = 'row_interval';
   static const rowPyramid = 'row_pyramid';
+  static const rowPlan = 'row_plan';
+  static const rowGenerated = 'row_generated';
 }
 
 /// A training program. Templates ([isTemplate] == true) are read-only starting
@@ -68,6 +71,7 @@ class Program {
     this.level,
     this.daysPerWeek,
     this.equipmentProfile = const [],
+    this.goal,
   });
 
   final int id;
@@ -78,6 +82,9 @@ class Program {
   final int? sourceTemplateId;
   final ProgramLevel? level;
   final int? daysPerWeek;
+
+  /// The rowing training goal, for generated / preset rowing plans.
+  final RowingGoal? goal;
 
   /// Equipment tags this program assumes (see [Equipment]). A template is only
   /// shown in the library when the user owns all of these.
@@ -96,6 +103,7 @@ class Program {
         level: ProgramLevel.fromName(map['level'] as String?),
         daysPerWeek: map['days_per_week'] as int?,
         equipmentProfile: Equipment.parse(map['equipment_profile'] as String?),
+        goal: RowingGoal.fromName(map['goal'] as String?),
       );
 
   Map<String, Object?> toMap() => {
@@ -108,6 +116,7 @@ class Program {
         'level': level?.name,
         'days_per_week': daysPerWeek,
         'equipment_profile': equipmentProfile.join(','),
+        'goal': goal?.name,
       };
 }
 
@@ -201,6 +210,7 @@ class ProgramRowSegment {
     this.targetStrokeRate,
     required this.intensityLabel,
     this.isRest = false,
+    this.drillKey,
   });
 
   final int id;
@@ -211,6 +221,9 @@ class ProgramRowSegment {
   final String intensityLabel;
   final bool isRest;
 
+  /// A [RowDrill] key when this segment is a technique drill, else null.
+  final String? drillKey;
+
   factory ProgramRowSegment.fromMap(Map<String, Object?> map) => ProgramRowSegment(
         id: map['id'] as int,
         programDayId: map['program_day_id'] as int,
@@ -219,6 +232,7 @@ class ProgramRowSegment {
         targetStrokeRate: map['target_stroke_rate'] as int?,
         intensityLabel: map['intensity_label'] as String,
         isRest: (map['is_rest'] as int? ?? 0) == 1,
+        drillKey: map['drill_key'] as String?,
       );
 
   Map<String, Object?> toMap() => {
@@ -229,6 +243,7 @@ class ProgramRowSegment {
         'target_stroke_rate': targetStrokeRate,
         'intensity_label': intensityLabel,
         'is_rest': isRest ? 1 : 0,
+        'drill_key': drillKey,
       };
 }
 

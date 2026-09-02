@@ -8,6 +8,7 @@ import '../features/log/session_detail_screen.dart';
 import '../features/program_builder/builder_screen.dart';
 import '../features/program_builder/program_editor_screen.dart';
 import '../features/progress/progress_screen.dart';
+import '../features/rowing/rowing_builder_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/strength/active_workout_screen.dart';
 import '../features/today/today_screen.dart';
@@ -85,6 +86,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/program/builder',
       builder: (context, state) => const BuilderScreen(),
+    ),
+    GoRoute(
+      path: '/rowing/builder',
+      builder: (context, state) => const RowingBuilderScreen(),
     ),
     GoRoute(
       path: '/workout/active',

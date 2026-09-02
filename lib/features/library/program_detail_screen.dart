@@ -6,6 +6,7 @@ import '../../data/repositories/exercise_repository.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
+import '../../domain/models/rowing_plan.dart';
 import '../strength/state/active_workout_provider.dart';
 
 class _DayView {
@@ -85,6 +86,7 @@ class ProgramDetailScreen extends ConsumerWidget {
         data: (view) {
           final isStrength =
               view.program.discipline == Discipline.strength;
+          if (!isStrength) return _RowingPlanBody(view: view);
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -119,23 +121,15 @@ class ProgramDetailScreen extends ConsumerWidget {
                 _DayCard(
                   dayView: dayView,
                   isStrength: isStrength,
-                  onStart: isStrength
-                      ? () async {
-                          await ref
-                              .read(activeWorkoutProvider.notifier)
-                              .startFromDay(dayView.day);
-                          if (context.mounted) context.push('/workout/active');
-                        }
-                      : null,
+                  onStart: () async {
+                    await ref
+                        .read(activeWorkoutProvider.notifier)
+                        .startFromDay(dayView.day);
+                    if (context.mounted) context.push('/workout/active');
+                  },
                 ),
                 const SizedBox(height: 12),
               ],
-              if (!isStrength)
-                Text(
-                  'De live roeisessie met Bluetooth-koppeling komt in een '
-                  'volgende versie. Dit programma staat al klaar.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
             ],
           );
         },
@@ -243,5 +237,133 @@ class _DayCard extends StatelessWidget {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return s == 0 ? '${m}m' : '${m}m ${s}s';
+  }
+}
+
+String _segDuration(int seconds) {
+  final m = seconds ~/ 60;
+  final s = seconds % 60;
+  if (m == 0) return '${s}s';
+  return s == 0 ? '$m min' : "$m'${s.toString().padLeft(2, '0')}";
+}
+
+/// Rowing plan / loose session detail — sessions grouped by week, each an
+/// expandable list of its segments.
+class _RowingPlanBody extends StatelessWidget {
+  const _RowingPlanBody({required this.view});
+  final _ProgramView view;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final goal = view.program.goal;
+
+    // Group days by the "Wk N" prefix in their label; loose sessions (no
+    // prefix) fall under a single implicit group.
+    final groups = <String, List<_DayView>>{};
+    for (final d in view.days) {
+      final parts = d.day.label.split(' · ');
+      final key = parts.first.startsWith('Wk ') ? parts.first : '';
+      groups.putIfAbsent(key, () => []).add(d);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (goal != null || view.program.level != null)
+          Wrap(
+            spacing: 8,
+            children: [
+              if (goal != null) Chip(label: Text(goal.label)),
+              if (view.program.level != null)
+                Chip(label: Text(view.program.level!.label)),
+              if (view.program.daysPerWeek != null)
+                Chip(label: Text('${view.program.daysPerWeek}×/week')),
+            ],
+          ),
+        if (goal != null) ...[
+          const SizedBox(height: 8),
+          Text(goal.description, style: theme.textTheme.bodySmall),
+        ],
+        const SizedBox(height: 12),
+        for (final entry in groups.entries) ...[
+          if (entry.key.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 4),
+              child: Text(entry.key.replaceFirst('Wk ', 'Week '),
+                  style: theme.textTheme.titleSmall),
+            ),
+          for (final d in entry.value) _RowSessionCard(dayView: d),
+        ],
+      ],
+    );
+  }
+}
+
+class _RowSessionCard extends StatelessWidget {
+  const _RowSessionCard({required this.dayView});
+  final _DayView dayView;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final segs = dayView.segments;
+    final totalMin =
+        (segs.fold(0, (s, seg) => s + seg.durationSeconds) / 60).round();
+    const framing = {'Warming-up', 'Uitroeien'};
+    final workBlocks =
+        segs.where((s) => !s.isRest && !framing.contains(s.intensityLabel)).length;
+    // Drop the "Wk N · " prefix from the visible title.
+    final parts = dayView.day.label.split(' · ');
+    final title = parts.length > 1 ? parts.sublist(1).join(' · ') : parts.first;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        title: Text(title),
+        subtitle: Text('~$totalMin min · $workBlocks blokken'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        children: [
+          for (final seg in segs)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          seg.intensityLabel,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: seg.isRest
+                                ? theme.colorScheme.onSurfaceVariant
+                                : null,
+                          ),
+                        ),
+                        if (RowDrill.fromKey(seg.drillKey) case final d?)
+                          Text(d.tip,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    [
+                      _segDuration(seg.durationSeconds),
+                      if (seg.targetStrokeRate != null)
+                        '${seg.targetStrokeRate} spm',
+                    ].join(' · '),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

@@ -11,7 +11,7 @@ class LibraryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strength = ref.watch(visibleStrengthProgramsProvider);
-    final rowing = ref.watch(rowingTemplatesProvider);
+    final rowing = ref.watch(rowingProgramsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bibliotheek')),
@@ -56,12 +56,28 @@ class LibraryScreen extends ConsumerWidget {
             },
           ),
           _sectionHeader(context, 'Roeiprogramma\'s'),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text('Stel zelf een roeiplan samen'),
+            subtitle: const Text('Op basis van je doel en sessieduur'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/rowing/builder'),
+          ),
           rowing.when(
             loading: () => const _LoadingTile(),
             error: (e, _) => _ErrorTile('$e'),
-            data: (programs) => Column(
-              children: [for (final p in programs) _ProgramTile(program: p)],
-            ),
+            data: (programs) {
+              final own = programs.where((p) => !p.isTemplate).toList();
+              final templates = programs.where((p) => p.isTemplate).toList();
+              return Column(
+                children: [
+                  for (final p in own) _ProgramTile(program: p, own: true),
+                  if (own.isNotEmpty && templates.isNotEmpty)
+                    const Divider(indent: 16, endIndent: 16),
+                  for (final p in templates) _ProgramTile(program: p),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
         ],
@@ -90,6 +106,7 @@ class _ProgramTile extends StatelessWidget {
         'Roeien'
       else
         'Kracht',
+      if (isRowing && program.goal != null) program.goal!.label,
       if (program.level != null) program.level!.label,
       if (program.daysPerWeek != null) '${program.daysPerWeek}×/week',
     ];

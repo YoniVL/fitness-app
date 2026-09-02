@@ -58,15 +58,20 @@ void main() {
         'SELECT COUNT(*) FROM exercises WHERE pattern IS NOT NULL'));
     expect(withPattern, noPattern);
 
-    // 3 home programs + 2 gym programs + 3 rowing templates.
+    // 3 home programs + 2 gym programs.
     final strength = Sqflite.firstIntValue(await db.rawQuery(
       "SELECT COUNT(*) FROM programs WHERE discipline = 'strength'",
     ));
     expect(strength, 5);
+    // 3 loose rowing sessions + 5 preset multi-week plans.
     final rowing = Sqflite.firstIntValue(await db.rawQuery(
       "SELECT COUNT(*) FROM programs WHERE discipline = 'rowing'",
     ));
-    expect(rowing, 3);
+    expect(rowing, 8);
+    final rowingPlans = Sqflite.firstIntValue(await db.rawQuery(
+      "SELECT COUNT(*) FROM programs WHERE category = 'row_plan'",
+    ));
+    expect(rowingPlans, 5);
 
     // Home programs are dumbbell-only.
     final home = await db.query('programs',

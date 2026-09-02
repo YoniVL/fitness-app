@@ -3,6 +3,7 @@ import 'package:fitnesstracker/data/repositories/program_repository.dart';
 import 'package:fitnesstracker/data/repositories/settings_repository.dart';
 import 'package:fitnesstracker/data/repositories/workout_session_repository.dart';
 import 'package:fitnesstracker/domain/models/program.dart';
+import 'package:fitnesstracker/domain/models/rowing_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'helpers.dart';
@@ -17,6 +18,45 @@ void main() {
     sessions = WorkoutSessionRepository(AppDatabase.instance);
   });
   tearDown(closeTestDatabase);
+
+  test('createProgram persists a rowing draft with segments', () async {
+    final id = await repo.createProgram(NewProgramDraft(
+      name: 'Mijn roeiplan',
+      category: ProgramCategory.rowGenerated,
+      discipline: Discipline.rowing,
+      equipmentProfile: const [],
+      daysPerWeek: 2,
+      rowingGoal: RowingGoal.uithouding,
+      days: [
+        NewProgramDayDraft(label: 'Wk 1 · Duurloop', segments: [
+          NewRowSegmentDraft(
+              durationSeconds: 180, targetStrokeRate: 18, intensityLabel: 'Warming-up'),
+          NewRowSegmentDraft(
+              durationSeconds: 1200, targetStrokeRate: 21, intensityLabel: 'Duur'),
+        ]),
+        NewProgramDayDraft(label: 'Wk 1 · Techniek', segments: [
+          NewRowSegmentDraft(
+              durationSeconds: 120,
+              targetStrokeRate: 18,
+              intensityLabel: 'Techniek — Alleen benen',
+              drillKey: 'benen'),
+        ]),
+      ],
+    ));
+
+    final program = await repo.programById(id);
+    expect(program!.discipline, Discipline.rowing);
+    expect(program.goal, RowingGoal.uithouding);
+    expect(program.isTemplate, isFalse);
+
+    final days = await repo.daysForProgram(id);
+    expect(days, hasLength(2));
+    final segs = await repo.rowSegmentsForDay(days.first.id);
+    expect(segs, hasLength(2));
+    expect(segs.last.intensityLabel, 'Duur');
+    final drillSegs = await repo.rowSegmentsForDay(days[1].id);
+    expect(drillSegs.single.drillKey, 'benen');
+  });
 
   test('updateProgramContent replaces days/exercises in place for an own program',
       () async {

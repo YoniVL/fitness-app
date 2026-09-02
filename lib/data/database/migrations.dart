@@ -211,3 +211,17 @@ Future<void> migrateV3toV4(Database db) async {
     unilateralExerciseNames,
   );
 }
+
+/// v4 -> v5: rowing plans. Adds `program_row_segments.drill_key` and
+/// `programs.goal`, then replaces the three loose rowing templates with the
+/// generated multi-week plans + short sessions.
+Future<void> migrateV4toV5(Database db) async {
+  await db.execute(
+      'ALTER TABLE program_row_segments ADD COLUMN drill_key TEXT');
+  await db.execute('ALTER TABLE programs ADD COLUMN goal TEXT');
+
+  // Drop the old rowing templates (cascades to days / segments / progress).
+  await db.delete('programs',
+      where: "discipline = 'rowing' AND is_template = 1");
+  await seedRowingTemplates(db);
+}

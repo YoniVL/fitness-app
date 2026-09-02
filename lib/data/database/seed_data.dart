@@ -1,6 +1,10 @@
+import 'dart:math';
+
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
+import '../../domain/models/rowing_plan.dart';
+import '../../domain/rowing_plan_generator.dart';
 import '../../domain/taxonomy.dart';
 
 /// Seeds reference data (muscle groups, exercises), default settings, and the
@@ -12,7 +16,7 @@ Future<void> seedDatabase(DatabaseExecutor db) async {
   await _seedSettings(db);
   await _seedHomePrograms(db, exerciseIds);
   await _seedGymPrograms(db, exerciseIds);
-  await _seedRowingTemplates(db);
+  await seedRowingTemplates(db);
 }
 
 // --- Muscle groups ---------------------------------------------------------
@@ -570,66 +574,100 @@ class _Seg {
   final bool rest;
 }
 
-Future<void> _seedRowingTemplates(DatabaseExecutor db) async {
-  Future<void> insertRowProgram(
-    String name,
-    String category,
-    String dayLabel,
-    List<_Seg> segments,
-  ) async {
-    final programId = await db.insert('programs', {
-      'name': name,
-      'category': category,
-      'discipline': Discipline.rowing.name,
-      'is_template': 1,
-      'equipment_profile': '',
-    });
-    final dayId = await db.insert('program_days', {
-      'program_id': programId,
-      'day_index': 0,
-      'label': dayLabel,
-    });
-    for (var i = 0; i < segments.length; i++) {
-      final s = segments[i];
-      await db.insert('program_row_segments', {
-        'program_day_id': dayId,
-        'order_index': i,
-        'duration_seconds': s.duration,
-        'target_stroke_rate': s.spm,
-        'intensity_label': s.label,
-        'is_rest': s.rest ? 1 : 0,
-      });
-    }
-  }
+/// The five preset plans shown in the library, each a fixed-seed run of the
+/// generator so they stay realistic and consistent.
+const _presetPlans = <(String, RowingPlanInput)>[
+  (
+    'Vetverlies · 3×/week',
+    RowingPlanInput(
+      sessionsPerWeek: 3,
+      goal: RowingGoal.vetverlies,
+      level: ProgramLevel.beginner,
+      minMinutes: 25,
+      maxMinutes: 35,
+      weeks: 9,
+      name: 'Vetverlies · 3×/week',
+    ),
+  ),
+  (
+    'Uithouding opbouwen · 3×/week',
+    RowingPlanInput(
+      sessionsPerWeek: 3,
+      goal: RowingGoal.uithouding,
+      level: ProgramLevel.medium,
+      minMinutes: 30,
+      maxMinutes: 45,
+      weeks: 10,
+      name: 'Uithouding opbouwen · 3×/week',
+    ),
+  ),
+  (
+    'Kort & krachtig · 4×/week',
+    RowingPlanInput(
+      sessionsPerWeek: 4,
+      goal: RowingGoal.kracht,
+      level: ProgramLevel.medium,
+      minMinutes: 18,
+      maxMinutes: 25,
+      weeks: 8,
+      name: 'Kort & krachtig · 4×/week',
+    ),
+  ),
+  (
+    'Techniek & basis · 3×/week',
+    RowingPlanInput(
+      sessionsPerWeek: 3,
+      goal: RowingGoal.techniek,
+      level: ProgramLevel.beginner,
+      minMinutes: 20,
+      maxMinutes: 30,
+      weeks: 8,
+      name: 'Techniek & basis · 3×/week',
+    ),
+  ),
+  (
+    'Algemene conditie · 2×/week',
+    RowingPlanInput(
+      sessionsPerWeek: 2,
+      goal: RowingGoal.algemeen,
+      level: ProgramLevel.beginner,
+      minMinutes: 20,
+      maxMinutes: 30,
+      weeks: 8,
+      name: 'Algemene conditie · 2×/week',
+    ),
+  ),
+];
 
-  await insertRowProgram(
-    'Steady state 20 min',
-    ProgramCategory.rowSteady,
+Future<void> seedRowingTemplates(DatabaseExecutor db) async {
+  await _insertLooseSession(
+    db,
     'Steady 20 min',
-    const [_Seg(1200, 'Steady', spm: 22)],
+    ProgramCategory.rowSteady,
+    const [_Seg(1200, 'Duur', spm: 22)],
   );
-
-  await insertRowProgram(
-    'Intervallen 4x500m',
+  await _insertLooseSession(
+    db,
+    'Intervallen 4×500m',
     ProgramCategory.rowInterval,
-    '4 x 500m',
     const [
-      _Seg(110, 'Hard', spm: 28),
+      _Seg(180, 'Warming-up', spm: 18),
+      _Seg(110, 'Hard 1/4', spm: 28),
       _Seg(90, 'Rust', spm: 18, rest: true),
-      _Seg(110, 'Hard', spm: 28),
+      _Seg(110, 'Hard 2/4', spm: 28),
       _Seg(90, 'Rust', spm: 18, rest: true),
-      _Seg(110, 'Hard', spm: 28),
+      _Seg(110, 'Hard 3/4', spm: 28),
       _Seg(90, 'Rust', spm: 18, rest: true),
-      _Seg(110, 'Hard', spm: 28),
-      _Seg(120, 'Uitroeien', spm: 16, rest: true),
+      _Seg(110, 'Hard 4/4', spm: 28),
+      _Seg(120, 'Uitroeien', spm: 16),
     ],
   );
-
-  await insertRowProgram(
-    'Pyramide',
+  await _insertLooseSession(
+    db,
+    'Piramide 1-2-3-2-1',
     ProgramCategory.rowPyramid,
-    'Pyramide 1-2-3-2-1',
     const [
+      _Seg(180, 'Warming-up', spm: 18),
       _Seg(60, 'Opbouw', spm: 24),
       _Seg(60, 'Rust', spm: 18, rest: true),
       _Seg(120, 'Middel', spm: 26),
@@ -639,6 +677,84 @@ Future<void> _seedRowingTemplates(DatabaseExecutor db) async {
       _Seg(120, 'Middel', spm: 26),
       _Seg(60, 'Rust', spm: 18, rest: true),
       _Seg(60, 'Afbouw', spm: 24),
+      _Seg(120, 'Uitroeien', spm: 16),
     ],
   );
+
+  for (var i = 0; i < _presetPlans.length; i++) {
+    final (_, input) = _presetPlans[i];
+    final plan = RowingPlanGenerator(rng: Random(1000 + i)).generate(input);
+    await _insertRowingPlan(db, plan, isTemplate: true);
+  }
+}
+
+Future<void> _insertLooseSession(
+  DatabaseExecutor db,
+  String name,
+  String category,
+  List<_Seg> segments,
+) async {
+  final programId = await db.insert('programs', {
+    'name': name,
+    'category': category,
+    'discipline': Discipline.rowing.name,
+    'is_template': 1,
+    'equipment_profile': '',
+  });
+  final dayId = await db.insert('program_days', {
+    'program_id': programId,
+    'day_index': 0,
+    'label': name,
+  });
+  for (var i = 0; i < segments.length; i++) {
+    final s = segments[i];
+    await db.insert('program_row_segments', {
+      'program_day_id': dayId,
+      'order_index': i,
+      'duration_seconds': s.duration,
+      'target_stroke_rate': s.spm,
+      'intensity_label': s.label,
+      'is_rest': s.rest ? 1 : 0,
+    });
+  }
+}
+
+/// Persists a generated rowing plan. [isTemplate] true for the library presets,
+/// false for a user-built plan.
+Future<int> _insertRowingPlan(
+  DatabaseExecutor db,
+  GeneratedRowingPlan plan, {
+  required bool isTemplate,
+}) async {
+  final programId = await db.insert('programs', {
+    'name': plan.name,
+    'category': ProgramCategory.rowPlan,
+    'discipline': Discipline.rowing.name,
+    'is_template': isTemplate ? 1 : 0,
+    'level': plan.level.name,
+    'days_per_week': plan.sessionsPerWeek,
+    'equipment_profile': '',
+    'goal': plan.goal.name,
+  });
+  for (var d = 0; d < plan.sessions.length; d++) {
+    final session = plan.sessions[d];
+    final dayId = await db.insert('program_days', {
+      'program_id': programId,
+      'day_index': d,
+      'label': session.label,
+    });
+    for (var i = 0; i < session.segments.length; i++) {
+      final seg = session.segments[i];
+      await db.insert('program_row_segments', {
+        'program_day_id': dayId,
+        'order_index': i,
+        'duration_seconds': seg.durationSeconds,
+        'target_stroke_rate': seg.targetSpm,
+        'intensity_label': seg.intensityLabel,
+        'is_rest': seg.isRest ? 1 : 0,
+        'drill_key': seg.drillKey,
+      });
+    }
+  }
+  return programId;
 }

@@ -2,32 +2,57 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
+import '../../domain/models/rowing_plan.dart';
 import '../database/app_database.dart';
 import 'settings_repository.dart';
 
-/// Plain description of a program to persist (used by the generator UI).
+/// Plain description of a program to persist (used by the generator UIs).
 class NewProgramDraft {
   const NewProgramDraft({
     required this.name,
     required this.category,
     required this.equipmentProfile,
+    this.discipline = Discipline.strength,
     this.level,
     this.daysPerWeek,
+    this.rowingGoal,
     required this.days,
   });
 
   final String name;
   final String category;
   final List<String> equipmentProfile;
+  final Discipline discipline;
   final ProgramLevel? level;
   final int? daysPerWeek;
+  final RowingGoal? rowingGoal;
   final List<NewProgramDayDraft> days;
 }
 
 class NewProgramDayDraft {
-  const NewProgramDayDraft({required this.label, required this.exercises});
+  const NewProgramDayDraft({
+    required this.label,
+    this.exercises = const [],
+    this.segments = const [],
+  });
   final String label;
   final List<NewProgramExerciseDraft> exercises;
+  final List<NewRowSegmentDraft> segments;
+}
+
+class NewRowSegmentDraft {
+  const NewRowSegmentDraft({
+    required this.durationSeconds,
+    this.targetStrokeRate,
+    required this.intensityLabel,
+    this.isRest = false,
+    this.drillKey,
+  });
+  final int durationSeconds;
+  final int? targetStrokeRate;
+  final String intensityLabel;
+  final bool isRest;
+  final String? drillKey;
 }
 
 class NewProgramExerciseDraft {
@@ -67,6 +92,15 @@ class ProgramRepository {
     return rows.map(Program.fromMap).toList();
   }
 
+  /// All rowing programs — the user's own plans first, then the templates.
+  Future<List<Program>> rowingPrograms() async {
+    final db = await _appDb.database;
+    final rows = await db.query('programs',
+        where: "discipline = 'rowing'",
+        orderBy: 'is_template ASC, name');
+    return rows.map(Program.fromMap).toList();
+  }
+
   /// Strength programs to show in the library: the user's own programs, plus
   /// templates whose equipment profile is covered by [owned]. Sorted by level
   /// (beginner -> medium -> advanced), then name.
@@ -90,11 +124,12 @@ class ProgramRepository {
       final programId = await txn.insert('programs', {
         'name': draft.name,
         'category': draft.category,
-        'discipline': Discipline.strength.name,
+        'discipline': draft.discipline.name,
         'is_template': 0,
         'level': draft.level?.name,
         'days_per_week': draft.daysPerWeek,
         'equipment_profile': draft.equipmentProfile.join(','),
+        'goal': draft.rowingGoal?.name,
       });
       for (var d = 0; d < draft.days.length; d++) {
         final day = draft.days[d];
@@ -114,6 +149,18 @@ class ProgramRepository {
             'target_weight': null,
             'rest_seconds': e.restBetweenSets,
             'rest_after_exercise': e.restAfterExercise,
+          });
+        }
+        for (var i = 0; i < day.segments.length; i++) {
+          final s = day.segments[i];
+          await txn.insert('program_row_segments', {
+            'program_day_id': dayId,
+            'order_index': i,
+            'duration_seconds': s.durationSeconds,
+            'target_stroke_rate': s.targetStrokeRate,
+            'intensity_label': s.intensityLabel,
+            'is_rest': s.isRest ? 1 : 0,
+            'drill_key': s.drillKey,
           });
         }
       }
@@ -311,6 +358,10 @@ final programRepositoryProvider = Provider<ProgramRepository>(
 
 final rowingTemplatesProvider = FutureProvider<List<Program>>(
   (ref) => ref.watch(programRepositoryProvider).rowingTemplates(),
+);
+
+final rowingProgramsProvider = FutureProvider<List<Program>>(
+  (ref) => ref.watch(programRepositoryProvider).rowingPrograms(),
 );
 
 final visibleStrengthProgramsProvider = FutureProvider<List<Program>>(
