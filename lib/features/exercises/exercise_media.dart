@@ -93,9 +93,24 @@ List<String>? exercisePhotoAssets(String? exerciseName) {
 bool hasExercisePhoto(String? exerciseName) =>
     exerciseName != null && _photoSlugs.containsKey(exerciseName);
 
-/// The first (start-position) demo frame for [exerciseName], or null.
-String? exercisePhotoThumb(String? exerciseName) =>
-    exercisePhotoAssets(exerciseName)?.first;
+/// Exercises whose *start* frame (index 0) is the more recognisable thumbnail —
+/// usually a distinctive stretched or bottom position. Everything else uses the
+/// end frame (index 1), where the working muscle is contracted.
+const Set<String> _thumbUsesStartFrame = {
+  'Barbell deadlift',
+  'Dumbbell Bulgarian split squat',
+  'Dumbbell fly',
+  'Dumbbell kickback',
+  'Machine leg press',
+  'Push-up',
+};
+
+/// The demo frame that best represents [exerciseName] as a list thumbnail.
+String? exercisePhotoThumb(String? exerciseName) {
+  final assets = exercisePhotoAssets(exerciseName);
+  if (assets == null) return null;
+  return _thumbUsesStartFrame.contains(exerciseName) ? assets[0] : assets[1];
+}
 
 /// Small rounded thumbnail for list rows — the start frame of the demo, or a
 /// neutral placeholder for exercises without a bundled photo (custom ones).
