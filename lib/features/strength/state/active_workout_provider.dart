@@ -247,6 +247,18 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     state = AsyncData(current.copyWith(blocks: [...current.blocks, block]));
   }
 
+  /// Reorders the in-session exercise list (drag in the overview). The DB order
+  /// isn't touched — it only matters for the template.
+  void moveBlock(int from, int to) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    if (from < 0 || from >= current.blocks.length) return;
+    final blocks = [...current.blocks];
+    final b = blocks.removeAt(from);
+    blocks.insert(to.clamp(0, blocks.length), b);
+    state = AsyncData(current.copyWith(blocks: blocks));
+  }
+
   void updateBlockTargets(
     int blockIndex, {
     int? targetSets,

@@ -42,9 +42,12 @@ class AppDatabase {
     _db = null;
   }
 
+  /// Absolute path of the SQLite file — for the backup export/import.
+  Future<String> filePath() async =>
+      p.join(await getDatabasesPath(), _fileName);
+
   Future<Database> _open() async {
-    final dir = await getDatabasesPath();
-    final path = p.join(dir, _fileName);
+    final path = await filePath();
     return openDatabase(
       path,
       version: schemaVersion,

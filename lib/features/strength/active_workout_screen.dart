@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../exercises/exercise_media.dart';
 import '../library/exercise_list_screen.dart';
@@ -176,7 +177,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
           IconButton(
             icon: const Icon(Icons.list),
             tooltip: 'Overzicht',
-            onPressed: () => _showOverview(state),
+            onPressed: _showOverview,
           ),
           PopupMenuButton<String>(
             onSelected: (v) {
@@ -194,52 +195,68 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
         ],
       );
 
-  Future<void> _showOverview(ActiveWorkoutState state) async {
+  Future<void> _showOverview() async {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.75),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  children: [
-                    for (var i = 0; i < state.blocks.length; i++)
-                      ListTile(
-                        leading: Icon(state.blocks[i].isComplete
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final blocks =
+              ref.watch(activeWorkoutProvider).valueOrNull?.blocks ??
+                  const [];
+          return SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.75),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: ReorderableListView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      buildDefaultDragHandles: false,
+                      itemCount: blocks.length,
+                      onReorderItem: (oldIndex, newIndex) {
+                        ref
+                            .read(activeWorkoutProvider.notifier)
+                            .moveBlock(oldIndex, newIndex);
+                      },
+                      itemBuilder: (context, i) => ListTile(
+                        key: ValueKey(blocks[i].exercise.id),
+                        leading: Icon(blocks[i].isComplete
                             ? Icons.check_circle
                             : Icons.circle_outlined),
-                        title: Text(state.blocks[i].exercise.name),
+                        title: Text(blocks[i].exercise.name),
                         subtitle: Text(
-                            '${state.blocks[i].completedSets}/${state.blocks[i].targetSets} sets'),
+                            '${blocks[i].completedSets}/${blocks[i].targetSets} sets'),
+                        trailing: ReorderableDragStartListener(
+                          index: i,
+                          child: const Icon(Icons.drag_handle),
+                        ),
                         selected: i == _page,
                         onTap: () {
-                          Navigator.pop(context);
+                          Navigator.pop(sheetContext);
                           _jumpTo(i);
                         },
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.add),
+                    title: const Text('Oefening toevoegen'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _addExercise();
+                    },
+                  ),
+                ],
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.add),
-                title: const Text('Oefening toevoegen'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _addExercise();
-                },
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -448,6 +465,9 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
     final reps = _reps ??= block.suggestedReps.toDouble();
     final warmup =
         _warmup ?? (block.suggestsWarmup && block.completedSets == 0);
+    final owned = ref.watch(ownedEquipmentProvider).valueOrNull;
+    final missingGear =
+        owned != null && !block.exercise.canPerformWith(owned);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -492,6 +512,24 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
               ],
             ),
           ),
+          if (missingGear)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline,
+                      size: 16, color: theme.colorScheme.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Je mist materiaal hiervoor — tik ⇄ om te vervangen',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: Center(
               child: hasExercisePhoto(block.exercise.name)

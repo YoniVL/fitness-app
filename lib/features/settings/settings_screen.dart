@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/taxonomy.dart';
 import '../exercises/exercise_media.dart';
+import 'backup.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -117,6 +119,20 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
+          _sectionHeader(context, 'Back-up'),
+          ListTile(
+            leading: const Icon(Icons.upload_outlined),
+            title: const Text('Exporteren'),
+            subtitle: const Text('Deel een kopie van al je gegevens'),
+            onTap: () => _export(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('Importeren'),
+            subtitle: const Text('Vervang alles door een back-upbestand'),
+            onTap: () => _import(context),
+          ),
+          const Divider(),
           _sectionHeader(context, 'Credits'),
           ListTile(
             title: const Text('Oefeningfoto’s'),
@@ -144,6 +160,64 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _export(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await Backup.export();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Export mislukt: $e')));
+    }
+  }
+
+  Future<void> _import(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Back-up importeren?'),
+        content: const Text(
+            'Al je huidige trainingen, programma’s en instellingen worden '
+            'overschreven door het gekozen bestand. Dit kan niet ongedaan '
+            'gemaakt worden.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuleren'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Kiezen & vervangen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    try {
+      final imported = await Backup.import();
+      if (!imported || !context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Back-up geïmporteerd'),
+          content: const Text(
+              'Sluit de app en open hem opnieuw om alles te vernieuwen.'),
+          actions: [
+            FilledButton(
+              onPressed: () => SystemNavigator.pop(),
+              child: const Text('App sluiten'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Import mislukt: $e')));
+      }
+    }
   }
 
   Widget _sectionHeader(BuildContext context, String text) => Padding(

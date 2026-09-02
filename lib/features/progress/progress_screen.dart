@@ -15,12 +15,23 @@ class ProgressScreen extends ConsumerWidget {
     final weekly = ref.watch(weeklySetsProvider);
     final muscles = ref.watch(muscleGroupLoadProvider);
     final trained = ref.watch(trainedExercisesProvider);
+    final streak = ref.watch(trainingWeekStreakProvider).valueOrNull ?? 0;
+    final records = ref.watch(personalRecordsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Voortgang')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
+          if (streak >= 2) ...[
+            Card(
+              child: ListTile(
+                leading: const Text('🔥', style: TextStyle(fontSize: 24)),
+                title: Text('$streak weken op rij getraind'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           _Section(
             title: 'Sets per week',
             child: weekly.when(
@@ -75,8 +86,52 @@ class ProgressScreen extends ConsumerWidget {
               },
             ),
           ),
+          const SizedBox(height: 24),
+          _Section(
+            title: 'Persoonlijke records · beste set',
+            child: records.when(
+              loading: () => const _ChartLoading(),
+              error: (e, _) => Text('Fout: $e'),
+              data: (rows) => rows.isEmpty
+                  ? const _Empty('Nog geen records — log enkele trainingen.')
+                  : _RecordList(rows: rows),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _RecordList extends StatelessWidget {
+  const _RecordList({required this.rows});
+  final List<PersonalRecord> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fmt = DateFormat('d MMM y', 'nl');
+    return Column(
+      children: [
+        for (final r in rows.take(20))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(r.name, style: theme.textTheme.bodyMedium),
+                ),
+                Text('${r.reps} reps',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: theme.colorScheme.primary)),
+                const SizedBox(width: 10),
+                Text(fmt.format(r.date),
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

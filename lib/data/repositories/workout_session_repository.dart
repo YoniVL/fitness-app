@@ -49,6 +49,14 @@ class ExerciseHistoryPoint {
   final int totalSets;
 }
 
+/// Best-ever working set for an exercise (no weight — reps are the record).
+class PersonalRecord {
+  const PersonalRecord(this.name, this.reps, this.date);
+  final String name;
+  final int reps;
+  final DateTime date;
+}
+
 class WorkoutSessionRepository {
   WorkoutSessionRepository(this._appDb);
 
@@ -393,6 +401,70 @@ class WorkoutSessionRepository {
             ))
         .toList();
   }
+
+  /// Best working set (max reps) per exercise across all finished sessions, with
+  /// the date it was first hit. Most reps first.
+  Future<List<PersonalRecord>> personalRecords() async {
+    final db = await _appDb.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT e.name AS name, best.reps AS reps, MIN(ws.started_at) AS date
+      FROM (
+        SELECT ss.exercise_id AS eid, MAX(ss.reps) AS reps
+        FROM strength_sets ss
+        JOIN workout_sessions ws ON ws.id = ss.session_id
+        WHERE ss.is_warmup = 0 AND ws.ended_at IS NOT NULL
+        GROUP BY ss.exercise_id
+      ) best
+      JOIN strength_sets ss ON ss.exercise_id = best.eid AND ss.reps = best.reps
+                            AND ss.is_warmup = 0
+      JOIN workout_sessions ws ON ws.id = ss.session_id AND ws.ended_at IS NOT NULL
+      JOIN exercises e ON e.id = best.eid
+      GROUP BY best.eid
+      ORDER BY best.reps DESC, e.name COLLATE NOCASE
+      ''',
+    );
+    return rows
+        .map((r) => PersonalRecord(
+              r['name'] as String,
+              (r['reps'] as int?) ?? 0,
+              DateTime.fromMillisecondsSinceEpoch(r['date'] as int),
+            ))
+        .toList();
+  }
+
+  /// Number of consecutive weeks (Monday start), ending at the current or last
+  /// week, with at least one finished strength session.
+  Future<int> trainingWeekStreak() async {
+    final db = await _appDb.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT DISTINCT ws.started_at AS started_at
+      FROM workout_sessions ws
+      JOIN strength_sets ss ON ss.session_id = ws.id
+      WHERE ws.discipline = 'strength' AND ws.ended_at IS NOT NULL
+      ''',
+    );
+    if (rows.isEmpty) return 0;
+    DateTime weekOf(DateTime d) => DateTime(d.year, d.month, d.day)
+        .subtract(Duration(days: d.weekday - 1));
+    final weeks = <DateTime>{
+      for (final r in rows)
+        weekOf(DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int)),
+    };
+    final now = DateTime.now();
+    var cursor = weekOf(now);
+    // Allow the streak to "hang on" if this week hasn't been trained yet.
+    if (!weeks.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 7));
+    }
+    var streak = 0;
+    while (weeks.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 7));
+    }
+    return streak;
+  }
 }
 
 /// Reads an aggregate scalar from a `rawQuery` result.
@@ -433,6 +505,14 @@ final exerciseHistoryProvider =
     FutureProvider.family<List<ExerciseHistoryPoint>, int>(
   (ref, exerciseId) =>
       ref.watch(workoutSessionRepositoryProvider).exerciseHistory(exerciseId),
+);
+
+final personalRecordsProvider = FutureProvider<List<PersonalRecord>>(
+  (ref) => ref.watch(workoutSessionRepositoryProvider).personalRecords(),
+);
+
+final trainingWeekStreakProvider = FutureProvider<int>(
+  (ref) => ref.watch(workoutSessionRepositoryProvider).trainingWeekStreak(),
 );
 
 /// Sets of the last finished session that included this exercise — shown on the

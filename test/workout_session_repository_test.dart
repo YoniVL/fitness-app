@@ -109,4 +109,28 @@ void main() {
     expect(history.single.bestReps, 8);
     expect(history.single.totalSets, 2);
   });
+
+  test('personalRecords: best working set per exercise', () async {
+    final s1 = await repo.startSession(discipline: Discipline.strength);
+    await repo.addSet(sessionId: s1.id, exerciseId: 1, reps: 8);
+    await repo.addSet(sessionId: s1.id, exerciseId: 1, reps: 12); // PR
+    await repo.addSet(sessionId: s1.id, exerciseId: 2, reps: 20, isWarmup: true);
+    await repo.addSet(sessionId: s1.id, exerciseId: 2, reps: 9);
+    await repo.finishSession(s1.id);
+
+    final prs = await repo.personalRecords();
+    expect(prs.first.reps, 12); // sorted desc
+    expect(prs.map((r) => r.reps), contains(9));
+    expect(prs.map((r) => r.reps), isNot(contains(20))); // warm-up ignored
+  });
+
+  test('trainingWeekStreak counts consecutive trained weeks', () async {
+    expect(await repo.trainingWeekStreak(), 0);
+
+    final s1 = await repo.startSession(discipline: Discipline.strength);
+    await repo.addSet(sessionId: s1.id, exerciseId: 1, reps: 8);
+    await repo.finishSession(s1.id);
+
+    expect(await repo.trainingWeekStreak(), 1);
+  });
 }
