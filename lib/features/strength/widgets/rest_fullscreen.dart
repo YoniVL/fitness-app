@@ -31,7 +31,9 @@ class RestFullscreen extends ConsumerWidget {
         '${(remaining % 60).toString().padLeft(2, '0')}';
 
     return Scaffold(
-      backgroundColor: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      // Opaque: this sits on top of the (still-mounted) exercise pager.
+      backgroundColor: Color.alphaBlend(
+          scheme.surfaceContainerHighest.withValues(alpha: 0.6), scheme.surface),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),

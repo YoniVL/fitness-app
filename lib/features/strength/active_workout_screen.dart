@@ -44,6 +44,16 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
     }
   }
 
+  /// The exercise to show next: your current page, or — if it's finished — the
+  /// nearest unfinished one after it. Never earlier.
+  int _forwardTarget(ActiveWorkoutState s) {
+    var t = _page.clamp(0, s.blocks.length - 1);
+    while (t < s.blocks.length - 1 && s.blocks[t].isComplete) {
+      t++;
+    }
+    return t;
+  }
+
   void _jumpTo(int index, {bool animate = true}) {
     if (!_pc.hasClients) return;
     final clamped = index.clamp(0, 9999);
@@ -60,31 +70,42 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
     final async = ref.watch(activeWorkoutProvider);
     final resting = ref.watch(restTimerProvider).active;
 
-    // When the rest ends, move to the exercise the user should do next.
+    // When the rest ends: if the exercise you're on is finished, step forward to
+    // the next unfinished one. Never scroll backward — staying put is the least
+    // surprising thing.
     ref.listen(restTimerProvider, (prev, next) {
-      if (prev != null && prev.active && !next.active) {
-        final s = ref.read(activeWorkoutProvider).valueOrNull;
-        final target = s?.currentBlockIndex ?? -1;
-        if (target >= 0) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => _jumpTo(target));
-        }
+      if (prev == null || !prev.active || next.active) return;
+      final s = ref.read(activeWorkoutProvider).valueOrNull;
+      if (s == null || s.blocks.isEmpty) return;
+      final target = _forwardTarget(s);
+      if (target != _page) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _jumpTo(target));
       }
     });
 
-    if (resting) {
-      final state = async.valueOrNull;
-      final next = state == null || state.currentBlockIndex < 0
-          ? null
-          : state.blocks[state.currentBlockIndex];
-      return RestFullscreen(
-        nextExerciseName: next?.exercise.name,
-        nextExerciseId: next?.exercise.id,
-        nextSetLabel: next == null
-            ? null
-            : 'Set ${next.completedSets + 1}/${next.targetSets}',
-      );
-    }
+    final state = async.valueOrNull;
+    final next = (state == null || state.blocks.isEmpty)
+        ? null
+        : state.blocks[_forwardTarget(state)];
 
+    // The scaffold (and its pager) stays mounted at all times; the rest view is
+    // layered on top so the pager never loses its page.
+    return Stack(
+      children: [
+        _buildScaffold(async),
+        if (resting)
+          RestFullscreen(
+            nextExerciseName: next?.exercise.name,
+            nextExerciseId: next?.exercise.id,
+            nextSetLabel: next == null
+                ? null
+                : 'Set ${next.completedSets + 1}/${next.targetSets}',
+          ),
+      ],
+    );
+  }
+
+  Widget _buildScaffold(AsyncValue<ActiveWorkoutState?> async) {
     return async.when(
       loading: () => const Scaffold(
           body: Center(child: CircularProgressIndicator())),
