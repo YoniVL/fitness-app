@@ -198,34 +198,47 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < state.blocks.length; i++)
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.75),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (var i = 0; i < state.blocks.length; i++)
+                      ListTile(
+                        leading: Icon(state.blocks[i].isComplete
+                            ? Icons.check_circle
+                            : Icons.circle_outlined),
+                        title: Text(state.blocks[i].exercise.name),
+                        subtitle: Text(
+                            '${state.blocks[i].completedSets}/${state.blocks[i].targetSets} sets'),
+                        selected: i == _page,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _jumpTo(i);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
               ListTile(
-                leading: Icon(state.blocks[i].isComplete
-                    ? Icons.check_circle
-                    : Icons.circle_outlined),
-                title: Text(state.blocks[i].exercise.name),
-                subtitle: Text(
-                    '${state.blocks[i].completedSets}/${state.blocks[i].targetSets} sets'),
-                selected: i == _page,
+                leading: const Icon(Icons.add),
+                title: const Text('Oefening toevoegen'),
                 onTap: () {
                   Navigator.pop(context);
-                  _jumpTo(i);
+                  _addExercise();
                 },
               ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.add),
-              title: const Text('Oefening toevoegen'),
-              onTap: () {
-                Navigator.pop(context);
-                _addExercise();
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
