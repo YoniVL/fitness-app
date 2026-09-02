@@ -1,19 +1,39 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'data/database/app_database.dart';
-import 'services/rest_notifications.dart';
+import 'services/rest_foreground_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterForegroundTask.initCommunicationPort();
+  RestForegroundService.instance.init();
   await initializeDateFormatting('nl');
+  // Route all app audio (the rest-timer beeps) to the alarm stream so it is
+  // audible even when the phone is on vibrate.
+  AudioPlayer.global
+      .setAudioContext(AudioContext(
+        android: const AudioContextAndroid(
+          isSpeakerphoneOn: false,
+          stayAwake: true,
+          contentType: AndroidContentType.sonification,
+          usageType: AndroidUsageType.alarm,
+          audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: const {},
+        ),
+      ))
+      .catchError((_) {});
   // Open (and, first run, create + seed) the local database up front so the
   // first screen doesn't flash a loader.
   await AppDatabase.instance.database;
-  await RestNotifications.instance.init();
   runApp(const ProviderScope(child: FitnessApp()));
 }
 

@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/settings_repository.dart';
 import '../../../data/repositories/workout_session_repository.dart';
-import '../../../services/rest_notifications.dart';
+import '../../../services/rest_foreground_service.dart';
 
 /// State of the between-sets / after-exercise rest timer.
 class RestTimerState {
@@ -45,8 +45,15 @@ class RestTimerState {
       );
 }
 
-/// Counts down the rest. Beeps every second for the last 5 seconds and a longer
-/// tone at zero (gated on the `rest_timer_sound` setting).
+String _mmss(int s) {
+  final v = s < 0 ? 0 : s;
+  return '${(v ~/ 60).toString().padLeft(2, '0')}:'
+      '${(v % 60).toString().padLeft(2, '0')}';
+}
+
+/// Counts down the rest. A foreground service keeps this ticking (and its beeps
+/// audible) after the user leaves the app; it beeps every second for the last
+/// 5 seconds and a longer tone at zero (gated on the `rest_timer_sound` setting).
 class RestTimerNotifier extends StateNotifier<RestTimerState> {
   RestTimerNotifier(this._ref) : super(RestTimerState.idle);
 
@@ -54,13 +61,13 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   Timer? _ticker;
   bool _soundOn = true;
 
-  /// Absolute moment the current rest ends. Drives [reconcile] (after the app
-  /// was backgrounded and the ticker was frozen) and the scheduled notification.
+  /// Absolute moment the current rest ends — lets [reconcile] correct any drift.
   DateTime? _endAt;
 
   AudioPlayer? _beep;
   AudioPlayer? _beepFinal;
 
+  /// Audio routing (alarm stream) is set once globally in `main()`.
   AudioPlayer _player() => AudioPlayer()
     ..setReleaseMode(ReleaseMode.stop).catchError((e) {
       debugPrint('[RestTimer] setReleaseMode failed: $e');
@@ -76,16 +83,13 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
       forSetId: forSetId,
     );
     _prepareSound();
-    RestNotifications.instance.scheduleIn(seconds);
+    RestForegroundService.instance.start(_mmss(seconds));
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
-  /// Re-syncs the countdown with wall-clock time. Call this when the app comes
-  /// back to the foreground: while backgrounded the periodic ticker is frozen,
-  /// so [state.remainingSeconds] is stale.
+  /// Re-syncs the countdown with wall-clock time — e.g. after the OS briefly
+  /// froze the ticker despite the foreground service.
   void reconcile() {
-    // Always in the foreground here, so dismiss the pending/fired notification.
-    RestNotifications.instance.cancel();
     if (!state.active || _endAt == null) {
       _endAt = null;
       return;
@@ -95,19 +99,16 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
       _finish();
     } else {
       state = state.copyWith(remainingSeconds: remaining);
+      RestForegroundService.instance.update(_mmss(remaining));
     }
   }
 
   void _finish() {
     _ticker?.cancel();
     _persistRest(state.totalSeconds);
-    if (_isForeground) {
-      // The user is watching: end in-app and dismiss the pending notification.
-      _cue();
-      _playFinal();
-      RestNotifications.instance.cancel();
-    }
-    // Backgrounded: leave the scheduled notification to alert them.
+    _cue();
+    _playFinal();
+    RestForegroundService.instance.stop();
     _endAt = null;
     state = state.copyWith(active: false, remainingSeconds: 0);
   }
@@ -136,8 +137,9 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     if (remaining <= 0) {
       _finish();
     } else {
-      if (remaining <= 5 && _isForeground) _playBeep();
+      if (remaining <= 5) _playBeep();
       state = state.copyWith(remainingSeconds: remaining);
+      RestForegroundService.instance.update(_mmss(remaining));
     }
   }
 
@@ -150,28 +152,28 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     if (remaining <= 0) {
       _ticker?.cancel();
       _persistRest(state.elapsedSeconds);
-      RestNotifications.instance.cancel();
+      RestForegroundService.instance.stop();
       _endAt = null;
       state = RestTimerState.idle;
       return;
     }
     _endAt = DateTime.now().add(Duration(seconds: remaining));
-    RestNotifications.instance.scheduleIn(remaining);
     state = state.copyWith(totalSeconds: total, remainingSeconds: remaining);
+    RestForegroundService.instance.update(_mmss(remaining));
   }
 
   void skip() {
     if (!state.active) return;
     _ticker?.cancel();
     _persistRest(state.elapsedSeconds);
-    RestNotifications.instance.cancel();
+    RestForegroundService.instance.stop();
     _endAt = null;
     state = RestTimerState.idle;
   }
 
   void cancel() {
     _ticker?.cancel();
-    RestNotifications.instance.cancel();
+    RestForegroundService.instance.stop();
     _endAt = null;
     state = RestTimerState.idle;
   }
@@ -213,18 +215,10 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     }
   }
 
-  bool get _isForeground {
-    try {
-      return WidgetsBinding.instance.lifecycleState ==
-          AppLifecycleState.resumed;
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   void dispose() {
     _ticker?.cancel();
+    RestForegroundService.instance.stop();
     _beep?.dispose();
     _beepFinal?.dispose();
     super.dispose();
