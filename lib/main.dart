@@ -1,5 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -13,6 +14,8 @@ import 'services/rest_foreground_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Portrait everywhere; only the live rowing screen flips to landscape.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   FlutterForegroundTask.initCommunicationPort();
   RestForegroundService.instance.init();
   await initializeDateFormatting('nl');

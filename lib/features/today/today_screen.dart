@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/home_shell.dart';
 import '../../data/repositories/exercise_repository.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
@@ -29,7 +30,7 @@ final _dayPreviewProvider =
   ];
 });
 
-/// (label, minutes, work-block count) for a rowing program day.
+/// (minutes, work-block count) for a rowing program day.
 final _rowDayInfoProvider =
     FutureProvider.family<(int minutes, int blocks), int>((ref, dayId) async {
   final segs = await ref.watch(programRepositoryProvider).rowSegmentsForDay(dayId);
@@ -41,35 +42,37 @@ final _rowDayInfoProvider =
   return ((seconds / 60).round(), blocks);
 });
 
-/// Number of finished strength sessions in the current ISO week.
-final _thisWeekCountProvider = FutureProvider<int>((ref) async {
+/// Finished sessions of [discipline] in the current ISO week.
+final _thisWeekCountProvider =
+    FutureProvider.family<int, Discipline>((ref, discipline) async {
   final sessions = await ref.watch(recentSessionsProvider.future);
   final now = DateTime.now();
   final monday = DateTime(now.year, now.month, now.day)
       .subtract(Duration(days: now.weekday - 1));
   return sessions
       .where((s) =>
-          s.session.isFinished && !s.session.startedAt.isBefore(monday))
+          s.session.discipline == discipline &&
+          s.session.isFinished &&
+          !s.session.startedAt.isBefore(monday))
       .length;
 });
 
 class TodayScreen extends ConsumerWidget {
-  const TodayScreen({super.key});
+  const TodayScreen({super.key, required this.discipline});
+
+  final Discipline discipline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final active = ref.watch(activeWorkoutProvider);
-    final program = ref.watch(activeProgramProvider);
-    final rowingProgram = ref.watch(activeRowingProgramProvider);
-    final activeRowing = ref.watch(activeRowingProvider);
-
+    final isRowing = discipline == Discipline.rowing;
     return Scaffold(
       appBar: AppBar(
+        leading: const DisciplineSwitchButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Vandaag'),
+            Text(isRowing ? 'Roeien' : 'Krachttraining'),
             Text(
               DateFormat('EEEE d MMMM', 'nl').format(DateTime.now()),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -84,90 +87,125 @@ class TodayScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(activeProgramProvider);
-          ref.invalidate(activeRowingProgramProvider);
-          ref.invalidate(activeWorkoutProvider);
-          ref.invalidate(recentSessionsProvider);
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const _WeekStrip(),
-            const SizedBox(height: 16),
-            active.maybeWhen(
-              data: (s) => s == null || s.blocks.isEmpty
-                  ? const SizedBox.shrink()
-                  : _ResumeCard(setCount: s.totalSets),
-              orElse: () => const SizedBox.shrink(),
-            ),
-            activeRowing.maybeWhen(
-              data: (s) => s == null
-                  ? const SizedBox.shrink()
-                  : Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.rowing),
-                        title: const Text('Roeisessie bezig'),
-                        subtitle: const Text('Hervat waar je gebleven was'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.push('/rowing/active'),
-                      ),
-                    ),
-              orElse: () => const SizedBox.shrink(),
-            ),
-            program.when(
-              loading: () => const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+      body: isRowing ? const _RowingToday() : const _StrengthToday(),
+    );
+  }
+}
+
+// --- Strength -------------------------------------------------------
+
+class _StrengthToday extends ConsumerWidget {
+  const _StrengthToday();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(activeWorkoutProvider);
+    final program = ref.watch(activeProgramProvider);
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(activeProgramProvider);
+        ref.invalidate(activeWorkoutProvider);
+        ref.invalidate(recentSessionsProvider);
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const _WeekStrip(discipline: Discipline.strength),
+          const SizedBox(height: 16),
+          active.maybeWhen(
+            data: (s) => s == null || s.blocks.isEmpty
+                ? const SizedBox.shrink()
+                : _ResumeCard(setCount: s.totalSets),
+            orElse: () => const SizedBox.shrink(),
+          ),
+          program.when(
+            loading: () => const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
               ),
-              error: (e, _) => Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('Kon programma niet laden: $e'),
-                ),
+            ),
+            error: (e, _) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Kon programma niet laden: $e'),
               ),
-              data: (p) => p == null
-                  ? _NoProgramCard()
-                  : _ProgramDayCard(active: p),
             ),
-            rowingProgram.maybeWhen(
-              data: (p) => p == null
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: _RowingDayCard(active: p),
+            data: (p) =>
+                p == null ? const _NoProgramCard() : _ProgramDayCard(active: p),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () async {
+              await ref.read(activeWorkoutProvider.notifier).startEmpty();
+              if (context.mounted) context.push('/workout/active');
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Losse training'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Rowing --------------------------------------------------------
+
+class _RowingToday extends ConsumerWidget {
+  const _RowingToday();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rowingProgram = ref.watch(activeRowingProgramProvider);
+    final activeRowing = ref.watch(activeRowingProvider);
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(activeRowingProgramProvider);
+        ref.invalidate(activeRowingProvider);
+        ref.invalidate(recentSessionsProvider);
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const _WeekStrip(discipline: Discipline.rowing),
+          const SizedBox(height: 16),
+          activeRowing.maybeWhen(
+            data: (s) => s == null
+                ? const SizedBox.shrink()
+                : Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.rowing),
+                      title: const Text('Roeisessie bezig'),
+                      subtitle: const Text('Hervat waar je gebleven was'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/rowing/active'),
                     ),
-              orElse: () => const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: () async {
-                await ref.read(activeWorkoutProvider.notifier).startEmpty();
-                if (context.mounted) context.push('/workout/active');
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Losse training'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () async {
-                await ref.read(activeRowingProvider.notifier).startFree();
-                if (context.mounted) context.push('/rowing/active');
-              },
-              icon: const Icon(Icons.rowing),
-              label: const Text('Losse roeisessie'),
-            ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => showLogRowingSheet(context, ref),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Roeisessie handmatig loggen'),
-            ),
-          ],
-        ),
+                  ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+          rowingProgram.maybeWhen(
+            data: (p) =>
+                p == null ? const _NoRowingPlanCard() : _RowingDayCard(active: p),
+            orElse: () => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () async {
+              await ref.read(activeRowingProvider.notifier).startFree();
+              if (context.mounted) context.push('/rowing/active');
+            },
+            icon: const Icon(Icons.rowing),
+            label: const Text('Losse roeisessie'),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => showLogRowingSheet(context, ref),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Roeisessie handmatig loggen'),
+          ),
+        ],
       ),
     );
   }
@@ -192,6 +230,8 @@ class _ResumeCard extends StatelessWidget {
 }
 
 class _NoProgramCard extends StatelessWidget {
+  const _NoProgramCard();
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -207,7 +247,36 @@ class _NoProgramCard extends StatelessWidget {
                 'Kies een programma in de bibliotheek of stel er zelf een samen.'),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: () => context.go('/library'),
+              onPressed: () => context.go('/strength/library'),
+              child: const Text('Naar de bibliotheek'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoRowingPlanCard extends StatelessWidget {
+  const _NoRowingPlanCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Nog geen roeiplan gekozen',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text(
+                'Kies een plan in de bibliotheek of stel er zelf een samen. '
+                'Of start hieronder een losse sessie.'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => context.go('/rowing/library'),
               child: const Text('Naar de bibliotheek'),
             ),
           ],
@@ -218,20 +287,21 @@ class _NoProgramCard extends StatelessWidget {
 }
 
 class _WeekStrip extends ConsumerWidget {
-  const _WeekStrip();
+  const _WeekStrip({required this.discipline});
+  final Discipline discipline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(_thisWeekCountProvider).valueOrNull ?? 0;
-    final streak = ref.watch(trainingWeekStreakProvider).valueOrNull ?? 0;
-
+    final count = ref.watch(_thisWeekCountProvider(discipline)).valueOrNull ?? 0;
+    final noun = discipline == Discipline.rowing ? 'sessie' : 'training';
     final week = _StatChip(
       icon: Icons.event_available,
       label: 'Deze week',
-      value: count == 0
-          ? 'Nog niks'
-          : '$count training${count == 1 ? '' : 'en'}',
+      value: count == 0 ? 'Nog niks' : '$count $noun${count == 1 ? '' : 's'}',
     );
+    if (discipline == Discipline.rowing) return week;
+
+    final streak = ref.watch(trainingWeekStreakProvider).valueOrNull ?? 0;
     if (streak < 2) return week;
     return Row(
       children: [
@@ -298,7 +368,6 @@ class _RowingDayCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final day = active.currentDay;
     final info = ref.watch(_rowDayInfoProvider(day.id));
-    // Session number within the plan (cursor + full rounds through it).
     final sessionNr =
         (active.round - 1) * active.dayCount + active.currentDayIndex + 1;
     final planDone = active.round > 1 && active.currentDayIndex == 0;
@@ -309,13 +378,10 @@ class _RowingDayCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${active.program.name} · roeien',
-                style: theme.textTheme.labelMedium),
+            Text(active.program.name, style: theme.textTheme.labelMedium),
             const SizedBox(height: 4),
-            Text(
-              day.label.split(' · ').last,
-              style: theme.textTheme.headlineSmall,
-            ),
+            Text(day.label.split(' · ').last,
+                style: theme.textTheme.headlineSmall),
             Text(
               planDone
                   ? 'Plan afgerond — begin opnieuw of kies een nieuw plan'
@@ -337,6 +403,10 @@ class _RowingDayCard extends ConsumerWidget {
                 },
                 child: const Text('Start roeisessie'),
               ),
+            ),
+            TextButton(
+              onPressed: () => context.go('/rowing/library'),
+              child: const Text('Ander plan'),
             ),
           ],
         ),

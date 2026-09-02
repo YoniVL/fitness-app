@@ -3,15 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../domain/models/program.dart';
 import '../../data/repositories/workout_session_repository.dart';
 
 final _selectedExerciseProvider = StateProvider<int?>((ref) => null);
 
 class ProgressScreen extends ConsumerWidget {
-  const ProgressScreen({super.key});
+  const ProgressScreen({super.key, required this.discipline});
+
+  final Discipline discipline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (discipline == Discipline.rowing) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Voortgang')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Text(
+              'Roei-voortgang (afstand per week, tempo-trend) komt binnenkort.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
     final weekly = ref.watch(weeklySetsProvider);
     final muscles = ref.watch(muscleGroupLoadProvider);
     final trained = ref.watch(trainedExercisesProvider);

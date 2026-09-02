@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/home_shell.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/rowing_format.dart';
 
 class LogScreen extends ConsumerWidget {
-  const LogScreen({super.key});
+  const LogScreen({super.key, required this.discipline});
+
+  final Discipline discipline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -16,12 +19,13 @@ class LogScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const DisciplineSwitchButton(),
         title: const Text('Logboek'),
         actions: [
           IconButton(
             icon: const Icon(Icons.insights_outlined),
             tooltip: 'Voortgang',
-            onPressed: () => context.push('/log/progress'),
+            onPressed: () => context.push('progress'),
           ),
         ],
       ),
@@ -30,12 +34,15 @@ class LogScreen extends ConsumerWidget {
         child: sessions.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Fout: $e')),
-          data: (list) {
+          data: (all) {
+            final list = all
+                .where((s) => s.session.discipline == discipline)
+                .toList();
             if (list.isEmpty) {
               return ListView(
                 children: const [
                   SizedBox(height: 120),
-                  Center(child: Text('Nog geen trainingen gelogd')),
+                  Center(child: Text('Nog niks gelogd')),
                 ],
               );
             }
@@ -129,7 +136,7 @@ class _SessionTile extends StatelessWidget {
         if (ongoing) 'bezig',
       ].join(' · ')),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push('/log/session/${s.id}'),
+      onTap: () => context.push('session/${s.id}'),
     );
     return ongoing
         ? Opacity(opacity: 0.55, child: tile)

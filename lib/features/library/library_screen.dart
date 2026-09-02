@@ -2,86 +2,96 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/home_shell.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../domain/models/program.dart';
 
 class LibraryScreen extends ConsumerWidget {
-  const LibraryScreen({super.key});
+  const LibraryScreen({super.key, required this.discipline});
+
+  final Discipline discipline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final strength = ref.watch(visibleStrengthProgramsProvider);
-    final rowing = ref.watch(rowingProgramsProvider);
-
+    final isRowing = discipline == Discipline.rowing;
     return Scaffold(
-      appBar: AppBar(title: const Text('Bibliotheek')),
-      body: ListView(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.fitness_center),
-            title: const Text('Oefeningendatabase'),
-            subtitle: const Text('Alle oefeningen, per spiergroep'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/library/exercises'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.auto_awesome),
-            title: const Text('Stel zelf een schema samen'),
-            subtitle: const Text('Op basis van je materiaal en spiergroepen'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/program/builder'),
-          ),
-          const Divider(),
-          _sectionHeader(context, 'Krachtprogramma\'s'),
-          strength.when(
-            loading: () => const _LoadingTile(),
-            error: (e, _) => _ErrorTile('$e'),
-            data: (programs) {
-              if (programs.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Geen programma\'s. Stel er zelf een samen.'),
-                );
-              }
-              final own = programs.where((p) => !p.isTemplate).toList();
-              final templates = programs.where((p) => p.isTemplate).toList();
-              return Column(
-                children: [
-                  for (final p in own) _ProgramTile(program: p, own: true),
-                  if (own.isNotEmpty && templates.isNotEmpty)
-                    const Divider(indent: 16, endIndent: 16),
-                  for (final p in templates) _ProgramTile(program: p),
-                ],
-              );
-            },
-          ),
-          _sectionHeader(context, 'Roeiprogramma\'s'),
-          ListTile(
-            leading: const Icon(Icons.auto_awesome),
-            title: const Text('Stel zelf een roeiplan samen'),
-            subtitle: const Text('Op basis van je doel en sessieduur'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/rowing/builder'),
-          ),
-          rowing.when(
-            loading: () => const _LoadingTile(),
-            error: (e, _) => _ErrorTile('$e'),
-            data: (programs) {
-              final own = programs.where((p) => !p.isTemplate).toList();
-              final templates = programs.where((p) => p.isTemplate).toList();
-              return Column(
-                children: [
-                  for (final p in own) _ProgramTile(program: p, own: true),
-                  if (own.isNotEmpty && templates.isNotEmpty)
-                    const Divider(indent: 16, endIndent: 16),
-                  for (final p in templates) _ProgramTile(program: p),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-        ],
+      appBar: AppBar(
+        leading: const DisciplineSwitchButton(),
+        title: const Text('Bibliotheek'),
       ),
+      body: ListView(
+        children: isRowing ? _rowing(context, ref) : _strength(context, ref),
+      ),
+    );
+  }
+
+  List<Widget> _strength(BuildContext context, WidgetRef ref) {
+    final strength = ref.watch(visibleStrengthProgramsProvider);
+    return [
+      ListTile(
+        leading: const Icon(Icons.fitness_center),
+        title: const Text('Oefeningendatabase'),
+        subtitle: const Text('Alle oefeningen, per spiergroep'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/strength/library/exercises'),
+      ),
+      ListTile(
+        leading: const Icon(Icons.auto_awesome),
+        title: const Text('Stel zelf een schema samen'),
+        subtitle: const Text('Op basis van je materiaal en spiergroepen'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/program/builder'),
+      ),
+      const Divider(),
+      _sectionHeader(context, 'Krachtprogramma\'s'),
+      strength.when(
+        loading: () => const _LoadingTile(),
+        error: (e, _) => _ErrorTile('$e'),
+        data: (programs) {
+          if (programs.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Geen programma\'s. Stel er zelf een samen.'),
+            );
+          }
+          return _programList(programs);
+        },
+      ),
+      const SizedBox(height: 24),
+    ];
+  }
+
+  List<Widget> _rowing(BuildContext context, WidgetRef ref) {
+    final rowing = ref.watch(rowingProgramsProvider);
+    return [
+      ListTile(
+        leading: const Icon(Icons.auto_awesome),
+        title: const Text('Stel zelf een roeiplan samen'),
+        subtitle: const Text('Op basis van je doel en sessieduur'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/rowing/builder'),
+      ),
+      const Divider(),
+      _sectionHeader(context, 'Roeiprogramma\'s'),
+      rowing.when(
+        loading: () => const _LoadingTile(),
+        error: (e, _) => _ErrorTile('$e'),
+        data: _programList,
+      ),
+      const SizedBox(height: 24),
+    ];
+  }
+
+  Widget _programList(List<Program> programs) {
+    final own = programs.where((p) => !p.isTemplate).toList();
+    final templates = programs.where((p) => p.isTemplate).toList();
+    return Column(
+      children: [
+        for (final p in own) _ProgramTile(program: p, own: true),
+        if (own.isNotEmpty && templates.isNotEmpty)
+          const Divider(indent: 16, endIndent: 16),
+        for (final p in templates) _ProgramTile(program: p),
+      ],
     );
   }
 
@@ -100,22 +110,18 @@ class _ProgramTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRowing = program.discipline == Discipline.rowing;
     final bits = <String>[
-      if (own)
-        'Eigen schema'
-      else if (isRowing)
-        'Roeien'
-      else
-        'Kracht',
+      if (own) 'Eigen schema',
       if (isRowing && program.goal != null) program.goal!.label,
       if (program.level != null) program.level!.label,
       if (program.daysPerWeek != null) '${program.daysPerWeek}×/week',
     ];
+    final prefix = isRowing ? '/rowing' : '/strength';
     return ListTile(
       leading: Icon(isRowing ? Icons.rowing : Icons.fitness_center),
       title: Text(program.name),
-      subtitle: Text(bits.join(' · ')),
+      subtitle: bits.isEmpty ? null : Text(bits.join(' · ')),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push('/library/program/${program.id}'),
+      onTap: () => context.push('$prefix/library/program/${program.id}'),
     );
   }
 }

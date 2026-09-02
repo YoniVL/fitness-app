@@ -200,7 +200,7 @@ class _ProgramEditorScreenState extends ConsumerState<ProgramEditorScreen> {
     }
     ref.invalidate(visibleStrengthProgramsProvider);
     ref.invalidate(activeProgramProvider);
-    if (mounted) context.go('/library/program/$id');
+    if (mounted) context.go('/strength/library/program/$id');
   }
 }
 

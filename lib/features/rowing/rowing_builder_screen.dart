@@ -79,7 +79,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
           ),
         );
     ref.invalidate(rowingProgramsProvider);
-    if (mounted) context.go('/library/program/$id');
+    if (mounted) context.go('/rowing/library/program/$id');
   }
 
   @override

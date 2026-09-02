@@ -83,7 +83,8 @@ class SessionDetailScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            onPressed: () => context.go('/today'),
+            onPressed: () => context.go(
+                isRowing ? '/rowing/today' : '/strength/today'),
             child: const Text('Klaar'),
           ),
         ),

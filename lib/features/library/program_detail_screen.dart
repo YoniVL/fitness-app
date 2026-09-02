@@ -67,7 +67,7 @@ class ProgramDetailScreen extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Aanpassen',
-              onPressed: () => context.push('/library/program/$programId/edit'),
+              onPressed: () => context.push('edit'),
             ),
             if (!program.isTemplate)
               PopupMenuButton<String>(

@@ -281,9 +281,9 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
         );
     if (!mounted) return;
     if (id != null) {
-      context.pushReplacement('/log/session/$id');
+      context.pushReplacement('/strength/log/session/$id');
     } else {
-      context.go('/today');
+      context.go('/strength/today');
     }
   }
 
@@ -307,7 +307,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
     );
     if (ok != true) return;
     await ref.read(activeWorkoutProvider.notifier).discard();
-    if (mounted) context.go('/today');
+    if (mounted) context.go('/strength/today');
   }
 }
 

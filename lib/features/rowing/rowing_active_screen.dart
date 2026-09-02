@@ -41,7 +41,7 @@ class RowingActiveScreen extends ConsumerWidget {
               );
               if (ok != true) return;
               await ref.read(activeRowingProvider.notifier).discard();
-              if (context.mounted) context.go('/today');
+              if (context.mounted) context.go('/rowing/today');
             },
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'discard', child: Text('Sessie weggooien')),
@@ -209,9 +209,9 @@ class _Body extends ConsumerWidget {
         .finish(notes: note.isEmpty ? null : note);
     if (context.mounted) {
       if (id != null) {
-        context.go('/log/session/$id');
+        context.go('/rowing/log/session/$id');
       } else {
-        context.go('/today');
+        context.go('/rowing/today');
       }
     }
   }

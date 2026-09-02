@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
 
+import '../domain/models/program.dart';
+import '../features/home/discipline_chooser_screen.dart';
 import '../features/library/exercise_list_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/program_detail_screen.dart';
@@ -15,71 +17,78 @@ import '../features/strength/active_workout_screen.dart';
 import '../features/today/today_screen.dart';
 import 'home_shell.dart';
 
-final appRouter = GoRouter(
-  initialLocation: '/today',
-  routes: [
-    StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) =>
-          HomeShell(navigationShell: navigationShell),
-      branches: [
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/today',
-              builder: (context, state) => const TodayScreen(),
-            ),
-          ],
+/// The three-tab shell for one discipline. [prefix] is `/strength` or `/rowing`.
+StatefulShellRoute _disciplineShell(Discipline discipline) {
+  final prefix = discipline == Discipline.rowing ? '/rowing' : '/strength';
+  return StatefulShellRoute.indexedStack(
+    builder: (context, state, navigationShell) =>
+        HomeShell(navigationShell: navigationShell, discipline: discipline),
+    branches: [
+      StatefulShellBranch(routes: [
+        GoRoute(
+          path: '$prefix/today',
+          builder: (context, state) => TodayScreen(discipline: discipline),
         ),
-        StatefulShellBranch(
+      ]),
+      StatefulShellBranch(routes: [
+        GoRoute(
+          path: '$prefix/library',
+          builder: (context, state) => LibraryScreen(discipline: discipline),
           routes: [
+            if (discipline == Discipline.strength)
+              GoRoute(
+                path: 'exercises',
+                builder: (context, state) => const ExerciseListScreen(),
+              ),
             GoRoute(
-              path: '/library',
-              builder: (context, state) => const LibraryScreen(),
+              path: 'program/:id',
+              builder: (context, state) => ProgramDetailScreen(
+                programId: int.parse(state.pathParameters['id']!),
+              ),
               routes: [
                 GoRoute(
-                  path: 'exercises',
-                  builder: (context, state) => const ExerciseListScreen(),
-                ),
-                GoRoute(
-                  path: 'program/:id',
-                  builder: (context, state) => ProgramDetailScreen(
+                  path: 'edit',
+                  builder: (context, state) => ProgramEditorScreen(
                     programId: int.parse(state.pathParameters['id']!),
                   ),
-                  routes: [
-                    GoRoute(
-                      path: 'edit',
-                      builder: (context, state) => ProgramEditorScreen(
-                        programId: int.parse(state.pathParameters['id']!),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
           ],
         ),
-        StatefulShellBranch(
+      ]),
+      StatefulShellBranch(routes: [
+        GoRoute(
+          path: '$prefix/log',
+          builder: (context, state) => LogScreen(discipline: discipline),
           routes: [
             GoRoute(
-              path: '/log',
-              builder: (context, state) => const LogScreen(),
-              routes: [
-                GoRoute(
-                  path: 'progress',
-                  builder: (context, state) => const ProgressScreen(),
-                ),
-                GoRoute(
-                  path: 'session/:id',
-                  builder: (context, state) => SessionDetailScreen(
-                    sessionId: int.parse(state.pathParameters['id']!),
-                  ),
-                ),
-              ],
+              path: 'progress',
+              builder: (context, state) =>
+                  ProgressScreen(discipline: discipline),
+            ),
+            GoRoute(
+              path: 'session/:id',
+              builder: (context, state) => SessionDetailScreen(
+                sessionId: int.parse(state.pathParameters['id']!),
+              ),
             ),
           ],
         ),
-      ],
+      ]),
+    ],
+  );
+}
+
+final appRouter = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const DisciplineChooserScreen(),
     ),
+    _disciplineShell(Discipline.strength),
+    _disciplineShell(Discipline.rowing),
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
@@ -93,12 +102,12 @@ final appRouter = GoRouter(
       builder: (context, state) => const RowingBuilderScreen(),
     ),
     GoRoute(
-      path: '/rowing/active',
-      builder: (context, state) => const RowingActiveScreen(),
-    ),
-    GoRoute(
       path: '/workout/active',
       builder: (context, state) => const ActiveWorkoutScreen(),
+    ),
+    GoRoute(
+      path: '/rowing/active',
+      builder: (context, state) => const RowingActiveScreen(),
     ),
   ],
 );

@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Bottom-navigation shell hosting the three top-level tabs.
+import '../domain/models/program.dart';
+
+/// Bottom-navigation shell for one discipline (strength or rowing). Each
+/// discipline has its own instance so their tab stacks stay independent.
 class HomeShell extends StatelessWidget {
-  const HomeShell({super.key, required this.navigationShell});
+  const HomeShell({
+    super.key,
+    required this.navigationShell,
+    required this.discipline,
+  });
 
   final StatefulNavigationShell navigationShell;
+  final Discipline discipline;
 
   @override
   Widget build(BuildContext context) {
@@ -37,4 +45,16 @@ class HomeShell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// AppBar leading button that returns to the discipline chooser.
+class DisciplineSwitchButton extends StatelessWidget {
+  const DisciplineSwitchButton({super.key});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        icon: const Icon(Icons.swap_horiz),
+        tooltip: 'Wissel onderdeel',
+        onPressed: () => context.go('/'),
+      );
 }

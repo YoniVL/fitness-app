@@ -323,6 +323,6 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
       await repo.setActiveProgram(id);
       ref.invalidate(activeProgramProvider);
     }
-    if (mounted) context.go('/library/program/$id');
+    if (mounted) context.go('/strength/library/program/$id');
   }
 }
