@@ -261,6 +261,12 @@ class _PaceChart extends StatelessWidget {
     }
     final minPace = points.map((p) => p.y).reduce((a, b) => a < b ? a : b);
     final maxPace = points.map((p) => p.y).reduce((a, b) => a > b ? a : b);
+    final maxMin = points.last.x;
+    final shortSession = maxMin < 3;
+    final xInterval = (maxMin / 4).clamp(shortSession ? 0.25 : 1.0, 60.0);
+    String xLabel(double v) => shortSession
+        ? '${(v * 60).round()}s'
+        : "${v.round()}'";
 
     return LineChart(
       LineChartData(
@@ -293,8 +299,11 @@ class _PaceChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 20,
-              getTitlesWidget: (v, m) => Text("${v.toInt()}'",
-                  style: Theme.of(context).textTheme.labelSmall),
+              interval: xInterval,
+              getTitlesWidget: (v, m) => v == m.min
+                  ? const SizedBox.shrink()
+                  : Text(xLabel(v),
+                      style: Theme.of(context).textTheme.labelSmall),
             ),
           ),
         ),

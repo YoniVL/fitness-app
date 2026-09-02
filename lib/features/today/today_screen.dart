@@ -10,6 +10,7 @@ import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/progression.dart';
 import '../rowing/log_rowing_sheet.dart';
+import '../rowing/state/active_rowing_provider.dart';
 import '../strength/state/active_workout_provider.dart';
 
 /// (name, "N×M") for each exercise of a program day.
@@ -26,6 +27,18 @@ final _dayPreviewProvider =
         '${pe.targetSets} × ${pe.targetReps}'
       )
   ];
+});
+
+/// (label, minutes, work-block count) for a rowing program day.
+final _rowDayInfoProvider =
+    FutureProvider.family<(int minutes, int blocks), int>((ref, dayId) async {
+  final segs = await ref.watch(programRepositoryProvider).rowSegmentsForDay(dayId);
+  const framing = {'Warming-up', 'Uitroeien'};
+  final seconds = segs.fold(0, (s, seg) => s + seg.durationSeconds);
+  final blocks = segs
+      .where((s) => !s.isRest && !framing.contains(s.intensityLabel))
+      .length;
+  return ((seconds / 60).round(), blocks);
 });
 
 /// Number of finished strength sessions in the current ISO week.
@@ -47,6 +60,8 @@ class TodayScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final active = ref.watch(activeWorkoutProvider);
     final program = ref.watch(activeProgramProvider);
+    final rowingProgram = ref.watch(activeRowingProgramProvider);
+    final activeRowing = ref.watch(activeRowingProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +87,7 @@ class TodayScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(activeProgramProvider);
+          ref.invalidate(activeRowingProgramProvider);
           ref.invalidate(activeWorkoutProvider);
           ref.invalidate(recentSessionsProvider);
         },
@@ -84,6 +100,20 @@ class TodayScreen extends ConsumerWidget {
               data: (s) => s == null || s.blocks.isEmpty
                   ? const SizedBox.shrink()
                   : _ResumeCard(setCount: s.totalSets),
+              orElse: () => const SizedBox.shrink(),
+            ),
+            activeRowing.maybeWhen(
+              data: (s) => s == null
+                  ? const SizedBox.shrink()
+                  : Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.rowing),
+                        title: const Text('Roeisessie bezig'),
+                        subtitle: const Text('Hervat waar je gebleven was'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/rowing/active'),
+                      ),
+                    ),
               orElse: () => const SizedBox.shrink(),
             ),
             program.when(
@@ -103,6 +133,15 @@ class TodayScreen extends ConsumerWidget {
                   ? _NoProgramCard()
                   : _ProgramDayCard(active: p),
             ),
+            rowingProgram.maybeWhen(
+              data: (p) => p == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: _RowingDayCard(active: p),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
             const SizedBox(height: 20),
             OutlinedButton.icon(
               onPressed: () async {
@@ -114,9 +153,18 @@ class TodayScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => showLogRowingSheet(context, ref),
+              onPressed: () async {
+                await ref.read(activeRowingProvider.notifier).startFree();
+                if (context.mounted) context.push('/rowing/active');
+              },
               icon: const Icon(Icons.rowing),
-              label: const Text('Roeisessie loggen'),
+              label: const Text('Losse roeisessie'),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => showLogRowingSheet(context, ref),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Roeisessie handmatig loggen'),
             ),
           ],
         ),
@@ -236,6 +284,62 @@ class _StatChip extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RowingDayCard extends ConsumerWidget {
+  const _RowingDayCard({required this.active});
+  final ActiveProgram active;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final day = active.currentDay;
+    final info = ref.watch(_rowDayInfoProvider(day.id));
+    // Session number within the plan (cursor + full rounds through it).
+    final sessionNr =
+        (active.round - 1) * active.dayCount + active.currentDayIndex + 1;
+    final planDone = active.round > 1 && active.currentDayIndex == 0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${active.program.name} · roeien',
+                style: theme.textTheme.labelMedium),
+            const SizedBox(height: 4),
+            Text(
+              day.label.split(' · ').last,
+              style: theme.textTheme.headlineSmall,
+            ),
+            Text(
+              planDone
+                  ? 'Plan afgerond — begin opnieuw of kies een nieuw plan'
+                  : info.maybeWhen(
+                      data: (i) =>
+                          'Sessie $sessionNr · ~${i.$1} min · ${i.$2} blokken',
+                      orElse: () => 'Sessie $sessionNr'),
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  await ref
+                      .read(activeRowingProvider.notifier)
+                      .startFromDay(day);
+                  if (context.mounted) context.push('/rowing/active');
+                },
+                child: const Text('Start roeisessie'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

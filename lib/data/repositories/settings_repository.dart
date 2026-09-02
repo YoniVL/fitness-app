@@ -75,6 +75,18 @@ class SettingsRepository {
 
   Future<void> setActiveProgramId(int? id) =>
       id == null ? remove(SettingsKeys.activeProgramId) : setInt(SettingsKeys.activeProgramId, id);
+
+  Future<int?> activeRowingProgramId() async {
+    final raw = await getString(SettingsKeys.activeRowingProgramId);
+    return raw == null ? null : int.tryParse(raw);
+  }
+
+  Future<void> setActiveRowingProgramId(int? id) => id == null
+      ? remove(SettingsKeys.activeRowingProgramId)
+      : setInt(SettingsKeys.activeRowingProgramId, id);
+
+  Future<bool> rowingDemoMode() =>
+      getBool(SettingsKeys.rowingDemoMode, false);
 }
 
 class SettingsKeys {
@@ -85,6 +97,10 @@ class SettingsKeys {
   static const activeProgramId = 'active_program_id';
   static const autoProgression = 'auto_progression';
   static const warmupSuggestions = 'warmup_suggestions';
+  static const activeRowingProgramId = 'active_rowing_program_id';
+  static const rowingDeviceId = 'rowing_device_id';
+  static const rowingDeviceName = 'rowing_device_name';
+  static const rowingDemoMode = 'rowing_demo_mode';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(

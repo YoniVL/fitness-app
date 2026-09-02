@@ -7,6 +7,7 @@ import '../../data/repositories/program_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../rowing/state/active_rowing_provider.dart';
 import '../strength/state/active_workout_provider.dart';
 
 class _DayView {
@@ -249,14 +250,19 @@ String _segDuration(int seconds) {
 
 /// Rowing plan / loose session detail — sessions grouped by week, each an
 /// expandable list of its segments.
-class _RowingPlanBody extends StatelessWidget {
+class _RowingPlanBody extends ConsumerWidget {
   const _RowingPlanBody({required this.view});
   final _ProgramView view;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final goal = view.program.goal;
+    final program = view.program;
+    final isPlan = view.days.length > 1;
+    final activeRowId =
+        ref.watch(activeRowingProgramProvider).valueOrNull?.program.id;
+    final isActive = activeRowId == program.id;
 
     // Group days by the "Wk N" prefix in their label; loose sessions (no
     // prefix) fall under a single implicit group.
@@ -285,6 +291,35 @@ class _RowingPlanBody extends StatelessWidget {
           const SizedBox(height: 8),
           Text(goal.description, style: theme.textTheme.bodySmall),
         ],
+        if (isPlan) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: isActive
+                ? OutlinedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Je actieve roeiprogramma'),
+                  )
+                : FilledButton.icon(
+                    onPressed: () async {
+                      await ref
+                          .read(programRepositoryProvider)
+                          .setActiveRowingProgram(program.id);
+                      ref.invalidate(activeRowingProgramProvider);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('Ingesteld als je roeiprogramma')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.event_available),
+                    label: const Text('Kies als mijn roeiprogramma'),
+                  ),
+          ),
+        ],
         const SizedBox(height: 12),
         for (final entry in groups.entries) ...[
           if (entry.key.isNotEmpty)
@@ -293,7 +328,16 @@ class _RowingPlanBody extends StatelessWidget {
               child: Text(entry.key.replaceFirst('Wk ', 'Week '),
                   style: theme.textTheme.titleSmall),
             ),
-          for (final d in entry.value) _RowSessionCard(dayView: d),
+          for (final d in entry.value)
+            _RowSessionCard(
+              dayView: d,
+              onStart: () async {
+                await ref
+                    .read(activeRowingProvider.notifier)
+                    .startFromDay(d.day);
+                if (context.mounted) context.push('/rowing/active');
+              },
+            ),
         ],
       ],
     );
@@ -301,8 +345,9 @@ class _RowingPlanBody extends StatelessWidget {
 }
 
 class _RowSessionCard extends StatelessWidget {
-  const _RowSessionCard({required this.dayView});
+  const _RowSessionCard({required this.dayView, this.onStart});
   final _DayView dayView;
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) {
@@ -360,6 +405,17 @@ class _RowSessionCard extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
+              ),
+            ),
+          if (onStart != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onStart,
+                  child: const Text('Start deze sessie'),
+                ),
               ),
             ),
         ],

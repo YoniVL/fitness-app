@@ -230,8 +230,12 @@ class ProgramRepository {
   Future<void> deleteProgram(int programId) async {
     final db = await _appDb.database;
     await db.delete('programs', where: 'id = ?', whereArgs: [programId]);
-    final activeId = await _settings.activeProgramId();
-    if (activeId == programId) await _settings.setActiveProgramId(null);
+    if (await _settings.activeProgramId() == programId) {
+      await _settings.setActiveProgramId(null);
+    }
+    if (await _settings.activeRowingProgramId() == programId) {
+      await _settings.setActiveRowingProgramId(null);
+    }
   }
 
   Future<Program?> programById(int id) async {
@@ -276,6 +280,14 @@ class ProgramRepository {
   // --- Active program + progression cursor --------------------------
 
   Future<void> setActiveProgram(int programId) async {
+    await _setActive(programId, rowing: false);
+  }
+
+  Future<void> setActiveRowingProgram(int programId) async {
+    await _setActive(programId, rowing: true);
+  }
+
+  Future<void> _setActive(int programId, {required bool rowing}) async {
     final db = await _appDb.database;
     // Reset the cursor whenever a program is (re)chosen.
     await db.insert(
@@ -283,13 +295,25 @@ class ProgramRepository {
       {'program_id': programId, 'current_day_index': 0, 'round': 1},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    await _settings.setActiveProgramId(programId);
+    if (rowing) {
+      await _settings.setActiveRowingProgramId(programId);
+    } else {
+      await _settings.setActiveProgramId(programId);
+    }
   }
 
   Future<void> clearActiveProgram() => _settings.setActiveProgramId(null);
+  Future<void> clearActiveRowingProgram() =>
+      _settings.setActiveRowingProgramId(null);
 
-  Future<ActiveProgram?> activeProgram() async {
-    final id = await _settings.activeProgramId();
+  Future<ActiveProgram?> activeProgram() =>
+      _buildActiveProgram(_settings.activeProgramId());
+
+  Future<ActiveProgram?> activeRowingProgram() =>
+      _buildActiveProgram(_settings.activeRowingProgramId());
+
+  Future<ActiveProgram?> _buildActiveProgram(Future<int?> idFuture) async {
+    final id = await idFuture;
     if (id == null) return null;
     final program = await programById(id);
     if (program == null) return null;
@@ -309,10 +333,16 @@ class ProgramRepository {
     );
   }
 
-  /// Advances the cursor of the active program if [finishedProgramDayId] is its
-  /// current day. Wrapping past the last day bumps the round counter.
-  Future<void> advanceIfCurrentDay(int finishedProgramDayId) async {
-    final active = await activeProgram();
+  /// Advances the cursor of the active strength program if [finishedProgramDayId]
+  /// is its current day. Wrapping past the last day bumps the round counter.
+  Future<void> advanceIfCurrentDay(int finishedProgramDayId) async =>
+      _advance(await activeProgram(), finishedProgramDayId);
+
+  /// The rowing-slot equivalent of [advanceIfCurrentDay].
+  Future<void> advanceRowingIfCurrentDay(int finishedProgramDayId) async =>
+      _advance(await activeRowingProgram(), finishedProgramDayId);
+
+  Future<void> _advance(ActiveProgram? active, int finishedProgramDayId) async {
     if (active == null) return;
     if (active.currentDay.id != finishedProgramDayId) return;
 
@@ -373,4 +403,8 @@ final visibleStrengthProgramsProvider = FutureProvider<List<Program>>(
 
 final activeProgramProvider = FutureProvider<ActiveProgram?>(
   (ref) => ref.watch(programRepositoryProvider).activeProgram(),
+);
+
+final activeRowingProgramProvider = FutureProvider<ActiveProgram?>(
+  (ref) => ref.watch(programRepositoryProvider).activeRowingProgram(),
 );

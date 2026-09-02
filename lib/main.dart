@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'data/database/app_database.dart';
+import 'features/rowing/state/active_rowing_provider.dart';
 import 'features/strength/state/rest_timer_notifier.dart';
 import 'services/rest_foreground_service.dart';
 
@@ -61,13 +62,19 @@ class _FitnessAppState extends ConsumerState<FitnessApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final here = appRouter.routerDelegate.currentConfiguration.uri.path;
+
     // Coming back while a rest is counting down (e.g. tapped the "Rustpauze"
     // notification) → land on the workout, not wherever the app last was.
-    if (state == AppLifecycleState.resumed &&
-        ref.read(restTimerProvider).active) {
-      final here =
-          appRouter.routerDelegate.currentConfiguration.uri.path;
+    if (ref.read(restTimerProvider).active) {
       if (here != '/workout/active') appRouter.go('/workout/active');
+      return;
+    }
+    // Coming back mid-row → land on the live rowing screen.
+    if (ref.read(activeRowingProvider).valueOrNull != null &&
+        here != '/rowing/active') {
+      appRouter.go('/rowing/active');
     }
   }
 
