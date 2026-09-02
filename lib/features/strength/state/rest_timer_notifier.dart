@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/settings_repository.dart';
 import '../../../data/repositories/workout_session_repository.dart';
+import '../../../services/rest_notifications.dart';
 
 /// State of the between-sets / after-exercise rest timer.
 class RestTimerState {
@@ -53,6 +54,10 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   Timer? _ticker;
   bool _soundOn = true;
 
+  /// Absolute moment the current rest ends. Drives [reconcile] (after the app
+  /// was backgrounded and the ticker was frozen) and the scheduled notification.
+  DateTime? _endAt;
+
   AudioPlayer? _beep;
   AudioPlayer? _beepFinal;
 
@@ -63,6 +68,7 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
 
   void start(int seconds, {int? forSetId}) {
     _ticker?.cancel();
+    _endAt = DateTime.now().add(Duration(seconds: seconds));
     state = RestTimerState(
       active: true,
       totalSeconds: seconds,
@@ -70,7 +76,31 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
       forSetId: forSetId,
     );
     _prepareSound();
+    RestNotifications.instance.scheduleIn(seconds);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  /// Re-syncs the countdown with wall-clock time. Call this when the app comes
+  /// back to the foreground: while backgrounded the periodic ticker is frozen,
+  /// so [state.remainingSeconds] is stale.
+  void reconcile() {
+    if (!state.active || _endAt == null) return;
+    final remaining = _endAt!.difference(DateTime.now()).inSeconds;
+    if (remaining <= 0) {
+      _finish();
+    } else {
+      state = state.copyWith(remainingSeconds: remaining);
+    }
+  }
+
+  void _finish() {
+    _ticker?.cancel();
+    _cue();
+    _playFinal();
+    _persistRest(state.totalSeconds);
+    RestNotifications.instance.cancel();
+    _endAt = null;
+    state = state.copyWith(active: false, remainingSeconds: 0);
   }
 
   Future<void> _prepareSound() async {
@@ -95,11 +125,7 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   void _tick() {
     final remaining = state.remainingSeconds - 1;
     if (remaining <= 0) {
-      _cue();
-      _playFinal();
-      _persistRest(state.totalSeconds);
-      _ticker?.cancel();
-      state = state.copyWith(active: false, remainingSeconds: 0);
+      _finish();
     } else {
       if (remaining <= 5) _playBeep();
       state = state.copyWith(remainingSeconds: remaining);
@@ -115,9 +141,13 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     if (remaining <= 0) {
       _ticker?.cancel();
       _persistRest(state.elapsedSeconds);
+      RestNotifications.instance.cancel();
+      _endAt = null;
       state = RestTimerState.idle;
       return;
     }
+    _endAt = DateTime.now().add(Duration(seconds: remaining));
+    RestNotifications.instance.scheduleIn(remaining);
     state = state.copyWith(totalSeconds: total, remainingSeconds: remaining);
   }
 
@@ -125,11 +155,15 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     if (!state.active) return;
     _ticker?.cancel();
     _persistRest(state.elapsedSeconds);
+    RestNotifications.instance.cancel();
+    _endAt = null;
     state = RestTimerState.idle;
   }
 
   void cancel() {
     _ticker?.cancel();
+    RestNotifications.instance.cancel();
+    _endAt = null;
     state = RestTimerState.idle;
   }
 

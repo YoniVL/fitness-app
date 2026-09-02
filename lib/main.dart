@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'data/database/app_database.dart';
+import 'services/rest_notifications.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,7 @@ Future<void> main() async {
   // Open (and, first run, create + seed) the local database up front so the
   // first screen doesn't flash a loader.
   await AppDatabase.instance.database;
+  await RestNotifications.instance.init();
   runApp(const ProviderScope(child: FitnessApp()));
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/repositories/workout_session_repository.dart';
 import '../exercises/exercise_media.dart';
 import '../library/exercise_list_screen.dart';
 import 'state/active_workout_provider.dart';
@@ -17,15 +18,30 @@ class ActiveWorkoutScreen extends ConsumerStatefulWidget {
       _ActiveWorkoutScreenState();
 }
 
-class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
+class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
+    with WidgetsBindingObserver {
   final _pc = PageController();
   int _page = 0;
   bool _didInitialJump = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pc.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(restTimerProvider.notifier).reconcile();
+    }
   }
 
   void _jumpTo(int index, {bool animate = true}) {
@@ -62,6 +78,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           : state.blocks[state.currentBlockIndex];
       return RestFullscreen(
         nextExerciseName: next?.exercise.name,
+        nextExerciseId: next?.exercise.id,
         nextSetLabel: next == null
             ? null
             : 'Set ${next.completedSets + 1}/${next.targetSets}',
@@ -97,7 +114,10 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
         if (state.allComplete) {
           return Scaffold(
             appBar: AppBar(title: const Text('Training')),
-            body: _DonePage(onFinish: _finish, onAdd: _addExercise),
+            body: _DonePage(
+              onFinish: (notes) => _finish(notes: notes),
+              onAdd: _addExercise,
+            ),
           );
         }
 
@@ -203,8 +223,11 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     }
   }
 
-  Future<void> _finish() async {
-    final id = await ref.read(activeWorkoutProvider.notifier).finish();
+  Future<void> _finish({String? notes}) async {
+    final trimmed = notes?.trim();
+    final id = await ref.read(activeWorkoutProvider.notifier).finish(
+          notes: (trimmed == null || trimmed.isEmpty) ? null : trimmed,
+        );
     if (!mounted) return;
     if (id != null) {
       context.pushReplacement('/log/session/$id');
@@ -293,41 +316,63 @@ class _EmptyHint extends StatelessWidget {
       );
 }
 
-class _DonePage extends StatelessWidget {
+class _DonePage extends StatefulWidget {
   const _DonePage({required this.onFinish, required this.onAdd});
-  final VoidCallback onFinish;
+  final ValueChanged<String?> onFinish;
   final VoidCallback onAdd;
+
+  @override
+  State<_DonePage> createState() => _DonePageState();
+}
+
+class _DonePageState extends State<_DonePage> {
+  final _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle,
-                size: 72, color: theme.colorScheme.primary),
-            const SizedBox(height: 16),
-            Text('Alle oefeningen klaar', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52)),
-                onPressed: onFinish,
-                child: const Text('Dag afronden'),
-              ),
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+          24, 32, 24, 24 + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle, size: 72, color: theme.colorScheme.primary),
+          const SizedBox(height: 16),
+          Text('Alle oefeningen klaar', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _note,
+            minLines: 1,
+            maxLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Notitie (optioneel)',
+              hintText: 'Hoe voelde het? Wat aanpassen volgende keer?',
             ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: onAdd,
-              child: const Text('Toch nog een oefening'),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52)),
+              onPressed: () => widget.onFinish(_note.text),
+              child: const Text('Dag afronden'),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: widget.onAdd,
+            child: const Text('Toch nog een oefening'),
+          ),
+        ],
       ),
     );
   }
@@ -371,10 +416,19 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
       child: Column(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(block.exercise.name,
-                    style: theme.textTheme.titleLarge),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(block.exercise.name,
+                      style: theme.textTheme.titleLarge),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.swap_horiz, size: 20),
+                tooltip: 'Vervangen',
+                onPressed: () => _swapExercise(),
               ),
               IconButton(
                 icon: const Icon(Icons.tune, size: 20),
@@ -387,12 +441,18 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
               ),
             ],
           ),
-          if (block.exercise.pattern != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(block.exercise.pattern!.label,
-                  style: theme.textTheme.bodySmall),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 10,
+              children: [
+                if (block.exercise.pattern != null)
+                  Text(block.exercise.pattern!.label,
+                      style: theme.textTheme.bodySmall),
+                _LastTimeLabel(exerciseId: block.exercise.id),
+              ],
             ),
+          ),
           Expanded(
             child: Center(
               child: hasExercisePhoto(block.exercise.name)
@@ -422,6 +482,14 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                   visualDensity: VisualDensity.compact,
                   onPressed: () => notifier.undoLastSet(widget.blockIndex),
                 ),
+              ActionChip(
+                avatar: const Icon(Icons.timer_outlined, size: 16),
+                label: const Text('Pauze'),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => ref
+                    .read(restTimerProvider.notifier)
+                    .start(block.restBetweenSets),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -482,6 +550,47 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _swapExercise() async {
+    final state = ref.read(activeWorkoutProvider).valueOrNull;
+    if (state == null || widget.blockIndex >= state.blocks.length) return;
+    final block = state.blocks[widget.blockIndex];
+    if (block.sets.isNotEmpty) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Oefening vervangen?'),
+          content: Text(
+              'De ${block.sets.length} gelogde set(s) van "${block.exercise.name}" gaan verloren.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuleren'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Vervangen'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    if (!mounted) return;
+    final id = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        builder: (_) => const ExerciseListScreen(pickMode: true),
+      ),
+    );
+    if (id == null) return;
+    await ref
+        .read(activeWorkoutProvider.notifier)
+        .replaceBlock(widget.blockIndex, id);
+    setState(() {
+      _reps = null;
+      _warmup = false;
+    });
   }
 
   Future<void> _editTargets(ExerciseBlock block) async {
@@ -546,5 +655,22 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
         ),
       ),
     );
+  }
+}
+
+/// "Vorige keer: 9 · 8 · 8" — the working sets of the last finished session with
+/// this exercise. Renders nothing when there is no history.
+class _LastTimeLabel extends ConsumerWidget {
+  const _LastTimeLabel({required this.exerciseId});
+  final int exerciseId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final last = ref.watch(lastPerformanceProvider(exerciseId)).valueOrNull;
+    if (last == null) return const SizedBox.shrink();
+    final reps = last.where((s) => !s.isWarmup).map((s) => s.reps).toList();
+    if (reps.isEmpty) return const SizedBox.shrink();
+    return Text('Vorige keer: ${reps.join(' · ')}',
+        style: Theme.of(context).textTheme.bodySmall);
   }
 }

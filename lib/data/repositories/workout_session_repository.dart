@@ -91,6 +91,13 @@ class WorkoutSessionRepository {
     await db.delete('workout_sessions', where: 'id = ?', whereArgs: [sessionId]);
   }
 
+  /// Updates only the note of a session (leaves `ended_at` untouched).
+  Future<void> updateNotes(int sessionId, String? notes) async {
+    final db = await _appDb.database;
+    await db.update('workout_sessions', {'notes': notes},
+        where: 'id = ?', whereArgs: [sessionId]);
+  }
+
   /// The most recent session that was never finished (crash / app kill).
   Future<WorkoutSession?> activeSession() async {
     final db = await _appDb.database;
@@ -426,4 +433,12 @@ final exerciseHistoryProvider =
     FutureProvider.family<List<ExerciseHistoryPoint>, int>(
   (ref, exerciseId) =>
       ref.watch(workoutSessionRepositoryProvider).exerciseHistory(exerciseId),
+);
+
+/// Sets of the last finished session that included this exercise — shown on the
+/// exercise page as a "last time" reference (there is no weight to compare).
+final lastPerformanceProvider =
+    FutureProvider.family<List<StrengthSet>, int>(
+  (ref, exerciseId) =>
+      ref.watch(workoutSessionRepositoryProvider).lastPerformance(exerciseId),
 );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/repositories/workout_session_repository.dart';
 import '../../exercises/exercise_media.dart';
 import '../state/rest_timer_notifier.dart';
 
@@ -10,10 +11,12 @@ class RestFullscreen extends ConsumerWidget {
   const RestFullscreen({
     super.key,
     this.nextExerciseName,
+    this.nextExerciseId,
     this.nextSetLabel,
   });
 
   final String? nextExerciseName;
+  final int? nextExerciseId;
   final String? nextSetLabel;
 
   @override
@@ -74,6 +77,21 @@ class RestFullscreen extends ConsumerWidget {
                   Text(nextSetLabel!,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium),
+                if (nextExerciseId != null)
+                  Builder(builder: (context) {
+                    final last = ref
+                        .watch(lastPerformanceProvider(nextExerciseId!))
+                        .valueOrNull;
+                    final reps = last
+                            ?.where((s) => !s.isWarmup)
+                            .map((s) => s.reps)
+                            .toList() ??
+                        const [];
+                    if (reps.isEmpty) return const SizedBox.shrink();
+                    return Text('Vorige keer: ${reps.join(' · ')}',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall);
+                  }),
                 if (hasExercisePhoto(nextExerciseName)) ...[
                   const SizedBox(height: 10),
                   ExerciseDemo(exerciseName: nextExerciseName, maxHeight: 160),

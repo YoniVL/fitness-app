@@ -225,6 +225,35 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     state = AsyncData(current.copyWith(blocks: blocks));
   }
 
+  /// Swaps the exercise of [blockIndex] for [newExerciseId], keeping its
+  /// position. Any sets already logged for the old exercise are discarded.
+  Future<void> replaceBlock(int blockIndex, int newExerciseId) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    if (blockIndex < 0 || blockIndex >= current.blocks.length) return;
+    final old = current.blocks[blockIndex];
+    if (old.exercise.id == newExerciseId) return;
+    if (current.blocks
+        .any((b) => b != old && b.exercise.id == newExerciseId)) {
+      return;
+    }
+    final ex = await _exercises.byId(newExerciseId);
+    if (ex == null) return;
+    for (final s in old.sets) {
+      await _sessions.deleteSet(s.id);
+    }
+    final last = await _sessions.lastPerformance(newExerciseId);
+    final blocks = [...current.blocks];
+    blocks[blockIndex] = ExerciseBlock(
+      exercise: ex,
+      targetSets: last.isNotEmpty ? last.length : old.targetSets,
+      targetReps: last.isNotEmpty ? last.first.reps : old.targetReps,
+      restBetweenSets: old.restBetweenSets,
+      restAfterExercise: old.restAfterExercise,
+    );
+    state = AsyncData(current.copyWith(blocks: blocks));
+  }
+
   // --- Logging sets -----------------------------------------------
 
   Future<void> logSet(

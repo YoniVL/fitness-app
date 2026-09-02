@@ -41,6 +41,12 @@ class SessionDetailScreen extends ConsumerWidget {
         title: const Text('Samenvatting'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.edit_note),
+            tooltip: 'Notitie',
+            onPressed: () => _editNote(
+                context, ref, view.valueOrNull?.detail.session.notes),
+          ),
+          IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: () => _confirmDelete(context, ref),
           ),
@@ -67,6 +73,41 @@ class SessionDetailScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _editNote(
+      BuildContext context, WidgetRef ref, String? current) async {
+    final controller = TextEditingController(text: current ?? '');
+    final saved = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Notitie'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 2,
+          maxLines: 5,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Notitie bij deze sessie'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuleren'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Opslaan'),
+          ),
+        ],
+      ),
+    );
+    if (saved == null) return;
+    await ref
+        .read(workoutSessionRepositoryProvider)
+        .updateNotes(sessionId, saved.isEmpty ? null : saved);
+    ref.invalidate(_sessionViewProvider(sessionId));
+    ref.invalidate(recentSessionsProvider);
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
