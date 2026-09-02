@@ -4,6 +4,7 @@ import '../../domain/models/program.dart';
 import '../../domain/models/strength_set.dart';
 import '../../domain/models/workout_session.dart';
 import '../database/app_database.dart';
+import 'rowing_repository.dart';
 
 /// A finished session plus the numbers the log list needs, in one query pass.
 class SessionSummary {
@@ -12,12 +13,16 @@ class SessionSummary {
     required this.setCount,
     required this.exerciseCount,
     this.muscleGroups = const [],
+    this.rowing,
   });
 
   final WorkoutSession session;
   final int setCount;
   final int exerciseCount;
   final List<String> muscleGroups;
+
+  /// Present for rowing sessions (distance / duration / pace / spm).
+  final RowingSummary? rowing;
 }
 
 /// One (weekStart, value) point for a weekly progress chart.
@@ -107,10 +112,19 @@ class WorkoutSessionRepository {
   }
 
   /// The most recent session that was never finished (crash / app kill).
-  Future<WorkoutSession?> activeSession() async {
+  /// Pass [discipline] to only consider that kind — the strength and rowing
+  /// controllers each want their own unfinished session, not the other's.
+  Future<WorkoutSession?> activeSession({Discipline? discipline}) async {
     final db = await _appDb.database;
-    final rows = await db.query('workout_sessions',
-        where: 'ended_at IS NULL', orderBy: 'started_at DESC', limit: 1);
+    final rows = await db.query(
+      'workout_sessions',
+      where: discipline == null
+          ? 'ended_at IS NULL'
+          : 'ended_at IS NULL AND discipline = ?',
+      whereArgs: discipline == null ? null : [discipline.name],
+      orderBy: 'started_at DESC',
+      limit: 1,
+    );
     return rows.isEmpty ? null : WorkoutSession.fromMap(rows.first);
   }
 
@@ -194,9 +208,15 @@ class WorkoutSessionRepository {
       '''
       SELECT ws.*,
              COUNT(ss.id) AS set_count,
-             COUNT(DISTINCT ss.exercise_id) AS exercise_count
+             COUNT(DISTINCT ss.exercise_id) AS exercise_count,
+             rs.total_distance_m  AS total_distance_m,
+             rs.duration_seconds  AS duration_seconds,
+             rs.avg_stroke_rate   AS avg_stroke_rate,
+             rs.avg_power         AS avg_power,
+             rs.id                AS rowing_session_id
       FROM workout_sessions ws
       LEFT JOIN strength_sets ss ON ss.session_id = ws.id
+      LEFT JOIN rowing_sessions rs ON rs.session_id = ws.id
       GROUP BY ws.id
       ORDER BY ws.started_at DESC
       LIMIT ?
@@ -228,6 +248,9 @@ class WorkoutSessionRepository {
         setCount: (r['set_count'] as int?) ?? 0,
         exerciseCount: (r['exercise_count'] as int?) ?? 0,
         muscleGroups: musclesBySession[session.id] ?? const [],
+        rowing: r['rowing_session_id'] == null
+            ? null
+            : RowingSummary.fromMap(r),
       );
     }).toList();
   }

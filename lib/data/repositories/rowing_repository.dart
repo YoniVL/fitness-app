@@ -1,0 +1,203 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../domain/models/program.dart';
+import '../../domain/models/rowing.dart';
+import '../../domain/models/workout_session.dart';
+import '../database/app_database.dart';
+
+/// The rowing numbers the log list needs for one session.
+class RowingSummary {
+  const RowingSummary({
+    required this.distanceM,
+    required this.durationSeconds,
+    required this.avgStrokeRate,
+    required this.avgPower,
+  });
+
+  final double distanceM;
+  final int durationSeconds;
+  final double avgStrokeRate;
+  final double avgPower;
+
+  Duration get duration => Duration(seconds: durationSeconds);
+
+  /// Average pace in seconds per 500 m, derived from distance + time.
+  double? get avgPaceSec500 {
+    if (distanceM <= 0 || durationSeconds <= 0) return null;
+    return durationSeconds / distanceM * 500;
+  }
+
+  factory RowingSummary.fromMap(Map<String, Object?> map) => RowingSummary(
+        distanceM: (map['total_distance_m'] as num?)?.toDouble() ?? 0,
+        durationSeconds: (map['duration_seconds'] as num?)?.toInt() ?? 0,
+        avgStrokeRate: (map['avg_stroke_rate'] as num?)?.toDouble() ?? 0,
+        avgPower: (map['avg_power'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+/// A finished rowing session with its aggregate row and time-series samples,
+/// for the log detail screen.
+class RowingSessionDetail {
+  const RowingSessionDetail({
+    required this.session,
+    required this.rowing,
+    required this.samples,
+  });
+
+  final WorkoutSession session;
+  final RowingSession rowing;
+  final List<RowingSample> samples;
+}
+
+/// New rowing session ids: the `workout_sessions` row and its `rowing_sessions`
+/// child, returned by [RowingRepository.startSession].
+typedef RowingSessionIds = ({int sessionId, int rowingSessionId});
+
+class RowingRepository {
+  RowingRepository(this._appDb);
+
+  final AppDatabase _appDb;
+
+  // --- Live sessions --------------------------------------------------
+
+  /// Opens a rowing session plus its (zeroed) `rowing_sessions` child so live
+  /// samples have something to attach to. Finalise with [finalize].
+  Future<RowingSessionIds> startSession({int? programDayId}) async {
+    final db = await _appDb.database;
+    final now = DateTime.now();
+    final sessionId = await db.insert('workout_sessions', {
+      'discipline': Discipline.rowing.name,
+      'program_day_id': programDayId,
+      'started_at': now.millisecondsSinceEpoch,
+      'ended_at': null,
+    });
+    final rowingSessionId = await db.insert('rowing_sessions', {
+      'session_id': sessionId,
+      'program_day_id': programDayId,
+    });
+    return (sessionId: sessionId, rowingSessionId: rowingSessionId);
+  }
+
+  Future<void> addSamples(
+      int rowingSessionId, List<RowingSample> samples) async {
+    if (samples.isEmpty) return;
+    final db = await _appDb.database;
+    final batch = db.batch();
+    for (final s in samples) {
+      batch.insert('rowing_samples', {
+        'rowing_session_id': rowingSessionId,
+        't_offset_ms': s.tOffsetMs,
+        'stroke_rate': s.strokeRate,
+        'stroke_count': s.strokeCount,
+        'distance_m': s.distanceM,
+        'pace_sec_500m': s.paceSec500m,
+        'power_w': s.powerW,
+        'energy_kcal': s.energyKcal,
+        'heart_rate': s.heartRate,
+      });
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Writes the aggregate numbers onto the `rowing_sessions` row and closes the
+  /// parent `workout_sessions` row.
+  Future<void> finalize(
+    int sessionId, {
+    required double distanceM,
+    required Duration duration,
+    double avgStrokeRate = 0,
+    double avgPower = 0,
+    double energyKcal = 0,
+    String? notes,
+  }) async {
+    final db = await _appDb.database;
+    await db.update(
+      'rowing_sessions',
+      {
+        'total_distance_m': distanceM,
+        'total_energy_kcal': energyKcal,
+        'avg_stroke_rate': avgStrokeRate,
+        'avg_power': avgPower,
+        'duration_seconds': duration.inSeconds,
+      },
+      where: 'session_id = ?',
+      whereArgs: [sessionId],
+    );
+    await db.update(
+      'workout_sessions',
+      {'ended_at': DateTime.now().millisecondsSinceEpoch, 'notes': ?notes},
+      where: 'id = ?',
+      whereArgs: [sessionId],
+    );
+  }
+
+  Future<void> discardSession(int sessionId) async {
+    final db = await _appDb.database;
+    await db.delete('workout_sessions', where: 'id = ?', whereArgs: [sessionId]);
+  }
+
+  // --- Manual entry --------------------------------------------------
+
+  /// Logs a finished rowing session in one go (no samples).
+  Future<int> logManualSession({
+    required double distanceM,
+    required Duration duration,
+    double avgStrokeRate = 0,
+    double avgPower = 0,
+    double energyKcal = 0,
+    String? notes,
+    int? programDayId,
+  }) async {
+    final db = await _appDb.database;
+    final now = DateTime.now();
+    final startedAt = now.subtract(duration);
+    final sessionId = await db.insert('workout_sessions', {
+      'discipline': Discipline.rowing.name,
+      'program_day_id': programDayId,
+      'started_at': startedAt.millisecondsSinceEpoch,
+      'ended_at': now.millisecondsSinceEpoch,
+      'notes': ?notes,
+    });
+    await db.insert('rowing_sessions', {
+      'session_id': sessionId,
+      'program_day_id': programDayId,
+      'total_distance_m': distanceM,
+      'total_energy_kcal': energyKcal,
+      'avg_stroke_rate': avgStrokeRate,
+      'avg_power': avgPower,
+      'duration_seconds': duration.inSeconds,
+    });
+    return sessionId;
+  }
+
+  // --- Reading -----------------------------------------------------
+
+  Future<RowingSessionDetail?> rowingDetail(int sessionId) async {
+    final db = await _appDb.database;
+    final sessionRows = await db.query('workout_sessions',
+        where: 'id = ?', whereArgs: [sessionId], limit: 1);
+    if (sessionRows.isEmpty) return null;
+    final rowingRows = await db.query('rowing_sessions',
+        where: 'session_id = ?', whereArgs: [sessionId], limit: 1);
+    if (rowingRows.isEmpty) return null;
+    final sampleRows = await db.query('rowing_samples',
+        where: 'rowing_session_id = ?',
+        whereArgs: [rowingRows.first['id']],
+        orderBy: 't_offset_ms');
+    return RowingSessionDetail(
+      session: WorkoutSession.fromMap(sessionRows.first),
+      rowing: RowingSession.fromMap(rowingRows.first),
+      samples: sampleRows.map(RowingSample.fromMap).toList(),
+    );
+  }
+}
+
+final rowingRepositoryProvider = Provider<RowingRepository>(
+  (ref) => RowingRepository(AppDatabase.instance),
+);
+
+final rowingSessionDetailProvider =
+    FutureProvider.family<RowingSessionDetail?, int>(
+  (ref, sessionId) =>
+      ref.watch(rowingRepositoryProvider).rowingDetail(sessionId),
+);

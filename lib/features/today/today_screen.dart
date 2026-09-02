@@ -9,6 +9,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/progression.dart';
+import '../rowing/log_rowing_sheet.dart';
 import '../strength/state/active_workout_provider.dart';
 
 /// (name, "N×M") for each exercise of a program day.
@@ -110,6 +111,12 @@ class TodayScreen extends ConsumerWidget {
               },
               icon: const Icon(Icons.add),
               label: const Text('Losse training'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => showLogRowingSheet(context, ref),
+              icon: const Icon(Icons.rowing),
+              label: const Text('Roeisessie loggen'),
             ),
           ],
         ),

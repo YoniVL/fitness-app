@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
+import '../../domain/rowing_format.dart';
 
 class LogScreen extends ConsumerWidget {
   const LogScreen({super.key});
@@ -105,6 +106,7 @@ class _SessionTile extends StatelessWidget {
     final ongoing = !s.isFinished;
 
     final muscles = summary.muscleGroups.take(3).join(', ');
+    final rowing = summary.rowing;
     final tile = ListTile(
       leading: Icon(
         ongoing
@@ -113,10 +115,17 @@ class _SessionTile extends StatelessWidget {
       ),
       title: Text(dateFmt.format(s.startedAt)),
       subtitle: Text([
-        if (!isRowing)
-          '${summary.exerciseCount} oefeningen · ${summary.setCount} sets',
-        if (!isRowing && muscles.isNotEmpty) muscles,
-        if (duration != null) _fmtDuration(duration),
+        if (isRowing && rowing != null) ...[
+          distanceLabel(rowing.distanceM),
+          hmsLabel(rowing.duration),
+          if (rowing.avgPaceSec500 != null)
+            '~${paceLabel(rowing.avgPaceSec500)}',
+        ] else ...[
+          if (!isRowing)
+            '${summary.exerciseCount} oefeningen · ${summary.setCount} sets',
+          if (!isRowing && muscles.isNotEmpty) muscles,
+          if (duration != null) _fmtDuration(duration),
+        ],
         if (ongoing) 'bezig',
       ].join(' · ')),
       trailing: const Icon(Icons.chevron_right),
