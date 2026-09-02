@@ -82,20 +82,3 @@ class SectionHeader extends StatelessWidget {
         child: Text(text, style: Theme.of(context).textTheme.titleMedium),
       );
 }
-
-/// Icon + colour per muscle group (keyed by `MuscleGroup.iconKey`). The colour
-/// is the real signal — it makes the exercise list scannable by muscle group;
-/// the icon is a loose hint.
-({IconData icon, Color color}) muscleGroupStyle(String iconKey) =>
-    switch (iconKey) {
-      'chest' => (icon: Icons.fitness_center, color: Color(0xFFEF5350)),
-      'back' => (icon: Icons.rowing, color: Color(0xFF5C6BC0)),
-      'legs' => (icon: Icons.sports_kabaddi, color: Color(0xFF66BB6A)),
-      'shoulders' => (icon: Icons.open_with, color: Color(0xFFFFB300)),
-      'biceps' => (icon: Icons.sports_martial_arts, color: Color(0xFFAB47BC)),
-      'triceps' => (icon: Icons.sports_handball, color: Color(0xFF26A69A)),
-      'core' => (icon: Icons.self_improvement, color: Color(0xFFFF7043)),
-      'glutes' => (icon: Icons.sports_gymnastics, color: Color(0xFFEC407A)),
-      'calves' => (icon: Icons.directions_run, color: Color(0xFF29B6F6)),
-      _ => (icon: Icons.fitness_center, color: Color(0xFF8D8D8D)),
-    };

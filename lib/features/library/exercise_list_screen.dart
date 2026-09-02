@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/theme.dart';
 import '../../data/repositories/exercise_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/muscle_group.dart';
@@ -176,13 +175,8 @@ class _ExerciseList extends StatelessWidget {
       itemBuilder: (context, index) {
         final ex = list[index];
         final group = groups[ex.primaryMuscleGroupId];
-        final style = muscleGroupStyle(group?.iconKey ?? '');
         return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: style.color.withValues(alpha: 0.18),
-            foregroundColor: style.color,
-            child: Icon(style.icon, size: 20),
-          ),
+          leading: ExerciseThumb(exerciseName: ex.name),
           title: Text(ex.name),
           subtitle: Text([
             if (group != null) group.name,

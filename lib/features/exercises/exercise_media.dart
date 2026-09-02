@@ -93,6 +93,40 @@ List<String>? exercisePhotoAssets(String? exerciseName) {
 bool hasExercisePhoto(String? exerciseName) =>
     exerciseName != null && _photoSlugs.containsKey(exerciseName);
 
+/// The first (start-position) demo frame for [exerciseName], or null.
+String? exercisePhotoThumb(String? exerciseName) =>
+    exercisePhotoAssets(exerciseName)?.first;
+
+/// Small rounded thumbnail for list rows — the start frame of the demo, or a
+/// neutral placeholder for exercises without a bundled photo (custom ones).
+class ExerciseThumb extends StatelessWidget {
+  const ExerciseThumb({super.key, required this.exerciseName, this.size = 52});
+
+  final String? exerciseName;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final thumb = exercisePhotoThumb(exerciseName);
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: thumb == null
+          ? Icon(Icons.fitness_center,
+              size: size * 0.42, color: scheme.onSurfaceVariant)
+          : Image.asset(thumb, fit: BoxFit.cover),
+    );
+  }
+}
+
 /// Two-frame exercise demo: the start and end position of the rep, cross-fading
 /// back and forth. Renders nothing when the exercise has no bundled photos.
 class ExerciseDemo extends StatefulWidget {
