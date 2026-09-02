@@ -1,27 +1,56 @@
 import 'package:flutter/material.dart';
 
+import '../domain/taxonomy.dart';
+
+/// A consistent spacing scale — use these instead of ad-hoc SizedBox values.
+abstract class Gap {
+  static const xs = SizedBox(height: 4, width: 4);
+  static const s = SizedBox(height: 8, width: 8);
+  static const m = SizedBox(height: 12, width: 12);
+  static const l = SizedBox(height: 16, width: 16);
+  static const xl = SizedBox(height: 24, width: 24);
+}
+
 /// Material 3 light + dark themes from a single seed colour.
 class AppTheme {
   static const _seed = Color(0xFF2E7D32); // fitness green
+  static const _headingFont = 'Barlow';
 
   static ThemeData light() => _base(Brightness.light);
   static ThemeData dark() => _base(Brightness.dark);
 
   static ThemeData _base(Brightness brightness) {
     final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: brightness);
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: scheme,
+    final base = ThemeData(useMaterial3: true, colorScheme: scheme);
+    final heading = TextStyle(fontFamily: _headingFont, fontWeight: FontWeight.w700);
+    return base.copyWith(
       scaffoldBackgroundColor: scheme.surface,
+      textTheme: base.textTheme.copyWith(
+        displaySmall: base.textTheme.displaySmall?.merge(heading),
+        headlineMedium: base.textTheme.headlineMedium?.merge(heading),
+        headlineSmall: base.textTheme.headlineSmall?.merge(heading),
+        titleLarge: base.textTheme.titleLarge?.merge(heading),
+        titleMedium: base.textTheme.titleMedium
+            ?.merge(TextStyle(fontFamily: _headingFont, fontWeight: FontWeight.w600)),
+      ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          fontFamily: _headingFont,
+          fontWeight: FontWeight.w700,
+          fontSize: 22,
+          color: scheme.onSurface,
+        ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: scheme.surfaceContainerHigh,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+        ),
       ),
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
@@ -33,35 +62,43 @@ class AppTheme {
           // minimum *width* to infinity, which breaks any FilledButton placed
           // in a Row. Full-width buttons opt in via a stretched parent.
           minimumSize: const Size(0, 48),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+              fontFamily: _headingFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 }
 
-/// Maps a muscle-group `icon_key` to an icon (placeholder for exercise media).
-IconData muscleGroupIcon(String iconKey) {
-  switch (iconKey) {
-    case 'chest':
-      return Icons.fitness_center;
-    case 'back':
-      return Icons.airline_seat_recline_normal;
-    case 'legs':
-      return Icons.directions_walk;
-    case 'shoulders':
-      return Icons.accessibility_new;
-    case 'biceps':
-      return Icons.sports_martial_arts;
-    case 'triceps':
-      return Icons.sports_handball;
-    case 'core':
-      return Icons.self_improvement;
-    case 'glutes':
-      return Icons.airline_seat_legroom_extra;
-    case 'calves':
-      return Icons.directions_run;
-    default:
-      return Icons.fitness_center;
-  }
+/// Standard screen-section heading.
+class SectionHeader extends StatelessWidget {
+  const SectionHeader(this.text, {super.key, this.padding});
+  final String text;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: padding ?? const EdgeInsets.fromLTRB(16, 20, 16, 8),
+        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+      );
 }
+
+/// A Material icon that hints at the exercise's movement (force direction for
+/// the compounds, an evocative sport icon for the isolations).
+IconData movementPatternIcon(MovementPattern? pattern) => switch (pattern) {
+      MovementPattern.horizontalPush => Icons.open_in_full,
+      MovementPattern.verticalPush => Icons.arrow_upward,
+      MovementPattern.horizontalPull => Icons.arrow_back,
+      MovementPattern.verticalPull => Icons.arrow_downward,
+      MovementPattern.squat => Icons.unfold_less,
+      MovementPattern.hinge => Icons.height,
+      MovementPattern.lunge => Icons.directions_walk,
+      MovementPattern.core => Icons.self_improvement,
+      MovementPattern.bicepsIso => Icons.sports_martial_arts,
+      MovementPattern.tricepsIso => Icons.sports_handball,
+      MovementPattern.sideDeltIso => Icons.open_with,
+      MovementPattern.calfIso => Icons.directions_run,
+      null => Icons.fitness_center,
+    };

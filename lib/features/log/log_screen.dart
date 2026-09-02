@@ -41,13 +41,55 @@ class LogScreen extends ConsumerWidget {
             return ListView.separated(
               itemCount: list.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) => _SessionTile(summary: list[index]),
+              itemBuilder: (context, index) {
+                final summary = list[index];
+                return Dismissible(
+                  key: ValueKey(summary.session.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: Icon(Icons.delete,
+                        color: Theme.of(context).colorScheme.onErrorContainer),
+                  ),
+                  confirmDismiss: (_) => _confirmDelete(context),
+                  onDismissed: (_) async {
+                    await ref
+                        .read(workoutSessionRepositoryProvider)
+                        .deleteSession(summary.session.id);
+                    ref.invalidate(recentSessionsProvider);
+                  },
+                  child: _SessionTile(summary: summary),
+                );
+              },
             );
           },
         ),
       ),
     );
   }
+}
+
+Future<bool> _confirmDelete(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Sessie verwijderen?'),
+      content: const Text('Dit kan niet ongedaan worden gemaakt.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Annuleren'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Verwijderen'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
 }
 
 class _SessionTile extends StatelessWidget {
@@ -60,21 +102,29 @@ class _SessionTile extends StatelessWidget {
     final dateFmt = DateFormat('EEE d MMM · HH:mm', 'nl');
     final isRowing = s.discipline == Discipline.rowing;
     final duration = s.duration;
+    final ongoing = !s.isFinished;
 
     final muscles = summary.muscleGroups.take(3).join(', ');
-    return ListTile(
-      leading: Icon(isRowing ? Icons.rowing : Icons.fitness_center),
+    final tile = ListTile(
+      leading: Icon(
+        ongoing
+            ? Icons.pending_outlined
+            : (isRowing ? Icons.rowing : Icons.fitness_center),
+      ),
       title: Text(dateFmt.format(s.startedAt)),
       subtitle: Text([
         if (!isRowing)
           '${summary.exerciseCount} oefeningen · ${summary.setCount} sets',
         if (!isRowing && muscles.isNotEmpty) muscles,
         if (duration != null) _fmtDuration(duration),
-        if (!s.isFinished) 'niet afgerond',
+        if (ongoing) 'bezig',
       ].join(' · ')),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/log/session/${s.id}'),
     );
+    return ongoing
+        ? Opacity(opacity: 0.55, child: tile)
+        : tile;
   }
 
   String _fmtDuration(Duration d) {

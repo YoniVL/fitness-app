@@ -37,12 +37,25 @@ class ProgressScreen extends ConsumerWidget {
             child: weekly.when(
               loading: () => const _ChartLoading(),
               error: (e, _) => Text('Fout: $e'),
-              data: (points) => points.every((p) => p.value == 0)
-                  ? const _Empty('Nog geen afgeronde trainingen.')
-                  : _WeeklySetsChart(points: points),
+              data: (points) {
+                final withData = points.where((p) => p.value > 0).length;
+                if (withData == 0) {
+                  return const _Empty('Nog geen afgeronde trainingen.');
+                }
+                if (withData < 3) {
+                  final total = points.fold(0, (s, p) => s + p.value);
+                  return Text(
+                    '$total sets over $withData '
+                    'week${withData == 1 ? '' : 'en'} — de grafiek komt na een '
+                    'paar weken data.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  );
+                }
+                return _WeeklySetsChart(points: points);
+              },
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           _Section(
             title: 'Sets per spiergroep · laatste 30 dagen',
             child: muscles.when(
@@ -53,7 +66,7 @@ class ProgressScreen extends ConsumerWidget {
                   : _MuscleBars(rows: rows),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           _Section(
             title: 'Per oefening · beste set',
             child: trained.when(
@@ -86,7 +99,7 @@ class ProgressScreen extends ConsumerWidget {
               },
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           _Section(
             title: 'Persoonlijke records · beste set',
             child: records.when(
@@ -113,11 +126,17 @@ class _RecordList extends StatelessWidget {
     final fmt = DateFormat('d MMM y', 'nl');
     return Column(
       children: [
-        for (final r in rows.take(20))
+        for (final (i, r) in rows.take(20).indexed)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 7),
             child: Row(
               children: [
+                SizedBox(
+                  width: 24,
+                  child: Text(i == 0 ? '🥇' : '${i + 1}',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ),
                 Expanded(
                   child: Text(r.name, style: theme.textTheme.bodyMedium),
                 ),
@@ -143,13 +162,18 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
-        child,
-      ],
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
     );
   }
 }

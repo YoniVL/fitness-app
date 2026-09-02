@@ -136,7 +136,6 @@ class ExerciseListScreen extends ConsumerWidget {
               error: (e, _) => Center(child: Text('Fout: $e')),
               data: (list) => _ExerciseList(
                 list: list,
-                groups: muscleGroups.valueOrNull ?? const [],
                 pickMode: pickMode,
                 onTap: pickMode
                     ? (ex) => Navigator.of(context).pop(ex.id)
@@ -152,14 +151,9 @@ class ExerciseListScreen extends ConsumerWidget {
 }
 
 class _ExerciseList extends StatelessWidget {
-  const _ExerciseList(
-      {required this.list,
-      required this.groups,
-      this.onTap,
-      this.pickMode = false});
+  const _ExerciseList({required this.list, this.onTap, this.pickMode = false});
 
   final List<Exercise> list;
-  final List<MuscleGroup> groups;
   final void Function(Exercise)? onTap;
   final bool pickMode;
 
@@ -168,15 +162,12 @@ class _ExerciseList extends StatelessWidget {
     if (list.isEmpty) {
       return const Center(child: Text('Geen oefeningen gevonden'));
     }
-    final iconByGroup = {for (final g in groups) g.id: g.iconKey};
     return ListView.builder(
       itemCount: list.length,
       itemBuilder: (context, index) {
         final ex = list[index];
         return ListTile(
-          leading: CircleAvatar(
-            child: Icon(muscleGroupIcon(iconByGroup[ex.primaryMuscleGroupId] ?? '')),
-          ),
+          leading: CircleAvatar(child: Icon(movementPatternIcon(ex.pattern))),
           title: Text(ex.name),
           subtitle: Text(ex.equipmentTags.map(Equipment.label).join(' · ')),
           trailing: onTap == null

@@ -3,13 +3,14 @@
 // rest_timer_test).
 
 import 'package:fitnesstracker/app/theme.dart';
+import 'package:fitnesstracker/domain/taxonomy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('muscleGroupIcon always resolves to an icon', () {
-    for (final key in ['chest', 'back', 'legs', 'core', 'unknown-key', '']) {
-      expect(muscleGroupIcon(key), isA<IconData>());
+  test('movementPatternIcon resolves for every pattern (and null)', () {
+    for (final p in [...MovementPattern.values, null]) {
+      expect(movementPatternIcon(p), isA<IconData>());
     }
   });
 

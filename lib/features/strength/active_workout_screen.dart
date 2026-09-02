@@ -486,51 +486,48 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.swap_horiz, size: 20),
+                icon: const Icon(Icons.swap_horiz),
                 tooltip: 'Vervangen',
-                onPressed: () => _swapExercise(),
+                onPressed: _swapExercise,
               ),
-              IconButton(
-                icon: const Icon(Icons.tune, size: 20),
-                tooltip: 'Aanpassen',
-                onPressed: () => _editTargets(block),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 20),
-                onPressed: () => notifier.removeBlock(widget.blockIndex),
+              PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'edit') _editTargets(block);
+                  if (v == 'remove') notifier.removeBlock(widget.blockIndex);
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Aanpassen')),
+                  PopupMenuItem(value: 'remove', child: Text('Verwijderen')),
+                ],
               ),
             ],
           ),
           Align(
             alignment: Alignment.centerLeft,
             child: Wrap(
-              spacing: 10,
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (block.exercise.pattern != null)
                   Text(block.exercise.pattern!.label,
                       style: theme.textTheme.bodySmall),
                 _LastTimeLabel(exerciseId: block.exercise.id),
+                if (block.isProgressed)
+                  _MiniChip(
+                    icon: Icons.trending_up,
+                    label: 'schema ${block.baseTargetSets}×${block.baseTargetReps}',
+                    color: theme.colorScheme.primary,
+                  ),
+                if (missingGear)
+                  _MiniChip(
+                    icon: Icons.error_outline,
+                    label: 'materiaal ontbreekt — tik ⇄',
+                    color: theme.colorScheme.error,
+                  ),
               ],
             ),
           ),
-          if (missingGear)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline,
-                      size: 16, color: theme.colorScheme.error),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Je mist materiaal hiervoor — tik ⇄ om te vervangen',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.error),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: Center(
               child: hasExercisePhoto(block.exercise.name)
@@ -542,45 +539,42 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                           .withValues(alpha: 0.25)),
             ),
           ),
-          // Done sets.
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            alignment: WrapAlignment.center,
+          // Done sets — plain, no actions mixed in.
+          if (block.sets.isNotEmpty)
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final s in block.sets)
+                  Chip(
+                    label: Text('${s.reps}${s.isWarmup ? ' W' : ''}'),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+              ],
+            ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              for (final s in block.sets)
-                Chip(
-                  label: Text('${s.reps}${s.isWarmup ? ' W' : ''}'),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              if (block.sets.isNotEmpty)
-                ActionChip(
-                  label: const Text('Wis laatste'),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => notifier.undoLastSet(widget.blockIndex),
-                ),
-              ActionChip(
-                avatar: const Icon(Icons.timer_outlined, size: 16),
+              TextButton.icon(
+                icon: const Icon(Icons.timer_outlined, size: 18),
                 label: const Text('Pauze'),
-                visualDensity: VisualDensity.compact,
                 onPressed: () => ref
                     .read(restTimerProvider.notifier)
                     .start(block.restBetweenSets),
               ),
+              if (block.sets.isNotEmpty)
+                TextButton.icon(
+                  icon: const Icon(Icons.undo, size: 18),
+                  label: const Text('Wis laatste'),
+                  onPressed: () => notifier.undoLastSet(widget.blockIndex),
+                ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (!block.isComplete) ...[
-            if (block.isProgressed)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '▲ Progressie: schema ${block.baseTargetSets}×${block.baseTargetReps}',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.primary),
-                ),
-              ),
             if (suggestWarmup && block.sets.isEmpty) ...[
               Align(
                 alignment: Alignment.centerLeft,
@@ -755,6 +749,36 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
 
 /// "Vorige keer: 9 · 8 · 8" — the working sets of the last finished session with
 /// this exercise. Renders nothing when there is no history.
+/// A small coloured info pill (progression / missing gear).
+class _MiniChip extends StatelessWidget {
+  const _MiniChip(
+      {required this.icon, required this.label, required this.color});
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(6, 2, 8, 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(label,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: color)),
+          ],
+        ),
+      );
+}
+
 class _LastTimeLabel extends ConsumerWidget {
   const _LastTimeLabel({required this.exerciseId});
   final int exerciseId;
