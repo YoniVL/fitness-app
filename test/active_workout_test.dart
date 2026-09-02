@@ -96,6 +96,38 @@ void main() {
     expect(active2!.currentDayIndex, 1);
   });
 
+  test('auto-progression bumps targets on later rounds of the active program',
+      () async {
+    await container.read(activeWorkoutProvider.future);
+    final prog = (await programs().allStrengthPrograms())
+        .firstWhere((p) => p.name == 'Full-body Medium');
+    await programs().setActiveProgram(prog.id);
+
+    final active = await programs().activeProgram();
+    final day = active!.currentDay;
+    final baseReps = (await programs().exercisesForDay(day.id)).first.targetReps;
+
+    // Round 1 → exactly as written.
+    await controller().startFromDay(day);
+    expect(container.read(activeWorkoutProvider).requireValue!.blocks.first
+        .targetReps, baseReps);
+    await controller().discard();
+
+    // Jump the cursor a full lap so round becomes 2.
+    for (var i = 0; i < active.dayCount; i++) {
+      await programs().advanceIfCurrentDay(
+          (await programs().activeProgram())!.currentDay.id);
+    }
+    expect((await programs().activeProgram())!.round, 2);
+
+    await controller().startFromDay(day);
+    final block =
+        container.read(activeWorkoutProvider).requireValue!.blocks.first;
+    expect(block.targetReps, baseReps + 1);
+    expect(block.baseTargetReps, baseReps);
+    expect(block.isProgressed, isTrue);
+  });
+
   test('rehydrates an unfinished session on rebuild', () async {
     await container.read(activeWorkoutProvider.future);
     await controller().startEmpty();

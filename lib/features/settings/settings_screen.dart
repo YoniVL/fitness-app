@@ -15,6 +15,7 @@ class SettingsScreen extends ConsumerWidget {
     final restBetween = ref.watch(defaultRestBetweenSetsProvider);
     final restAfter = ref.watch(defaultRestAfterExerciseProvider);
     final sound = ref.watch(restTimerSoundProvider);
+    final autoProgression = ref.watch(autoProgressionProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Instellingen')),
@@ -94,6 +95,24 @@ class SettingsScreen extends ConsumerWidget {
                     .read(settingsRepositoryProvider)
                     .setBool(SettingsKeys.restTimerSound, v);
                 ref.invalidate(restTimerSoundProvider);
+              },
+            ),
+          ),
+          const Divider(),
+          _sectionHeader(context, 'Programma'),
+          autoProgression.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+            data: (on) => SwitchListTile(
+              title: const Text('Automatische progressie'),
+              subtitle: const Text(
+                  'Elke ronde iets zwaarder: +1 rep tot +3, dan +1 set'),
+              value: on,
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setBool(SettingsKeys.autoProgression, v);
+                ref.invalidate(autoProgressionProvider);
               },
             ),
           ),

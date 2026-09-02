@@ -8,6 +8,7 @@ import '../../../domain/models/exercise.dart';
 import '../../../domain/models/program.dart';
 import '../../../domain/models/strength_set.dart';
 import '../../../domain/models/workout_session.dart';
+import '../../../domain/progression.dart';
 import 'rest_timer_notifier.dart';
 
 /// One exercise inside the active session: its (possibly overridden) targets and
@@ -20,18 +21,35 @@ class ExerciseBlock {
     required this.targetReps,
     required this.restBetweenSets,
     required this.restAfterExercise,
+    int? baseTargetSets,
+    int? baseTargetReps,
     this.sets = const [],
-  });
+  })  : baseTargetSets = baseTargetSets ?? targetSets,
+        baseTargetReps = baseTargetReps ?? targetReps;
 
   final Exercise exercise;
   final int targetSets;
   final int targetReps;
+
+  /// The program's written targets, before auto-progression. Equal to
+  /// [targetSets] / [targetReps] for a freestyle exercise.
+  final int baseTargetSets;
+  final int baseTargetReps;
+
   final int restBetweenSets;
   final int restAfterExercise;
   final List<StrengthSet> sets;
 
   int get completedSets => sets.length;
   bool get isComplete => completedSets >= targetSets;
+
+  bool get isProgressed =>
+      targetSets > baseTargetSets || targetReps > baseTargetReps;
+
+  /// Whether a couple of warm-up sets are worth suggesting: a compound lift at a
+  /// real working-rep range.
+  bool get suggestsWarmup =>
+      (exercise.pattern?.isCompound ?? false) && targetReps >= 5;
 
   /// Suggested reps for the next set: mirror the last logged set, else the
   /// target.
@@ -48,6 +66,8 @@ class ExerciseBlock {
         exercise: exercise,
         targetSets: targetSets ?? this.targetSets,
         targetReps: targetReps ?? this.targetReps,
+        baseTargetSets: baseTargetSets,
+        baseTargetReps: baseTargetReps,
         restBetweenSets: restBetweenSets ?? this.restBetweenSets,
         restAfterExercise: restAfterExercise ?? this.restAfterExercise,
         sets: sets ?? this.sets,
@@ -97,6 +117,26 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
         after: await _settings.restAfterExercise(),
       );
 
+  /// The active program's round for [programDayId] — 1 for a day that isn't the
+  /// active program's current day (redoing an old day gives no progression).
+  Future<int> _roundFor(int? programDayId) async {
+    if (programDayId == null) return 1;
+    final active = await _programs.activeProgram();
+    if (active == null || active.currentDay.id != programDayId) return 1;
+    return active.round;
+  }
+
+  /// The prescribed targets with auto-progression applied for [round] (a no-op
+  /// on round 1 or when the setting is off).
+  ({int sets, int reps}) _progressed(
+      ProgramExercise pe, int round, bool progression) {
+    if (round <= 1 || !progression) {
+      return (sets: pe.targetSets, reps: pe.targetReps);
+    }
+    return progressTargets(
+        baseSets: pe.targetSets, baseReps: pe.targetReps, round: round);
+  }
+
   Future<ActiveWorkoutState> _rehydrate(WorkoutSession session) async {
     final sets = await _sessions.setsForSession(session.id);
     final byExercise = <int, List<StrengthSet>>{};
@@ -118,6 +158,8 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
 
     final rests = await _defaultRests();
     final exercises = await _exercises.byIds(order);
+    final round = await _roundFor(session.programDayId);
+    final progression = round > 1 && await _settings.autoProgression();
 
     final blocks = <ExerciseBlock>[];
     for (final id in order) {
@@ -125,10 +167,15 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       if (ex == null) continue;
       final logged = byExercise[id] ?? const <StrengthSet>[];
       final t = targets[id];
+      final prog =
+          t == null ? null : _progressed(t, round, progression);
       blocks.add(ExerciseBlock(
         exercise: ex,
-        targetSets: t?.targetSets ?? (logged.isEmpty ? 3 : logged.length),
-        targetReps: t?.targetReps ?? (logged.isNotEmpty ? logged.last.reps : 10),
+        targetSets: prog?.sets ?? (logged.isEmpty ? 3 : logged.length),
+        targetReps:
+            prog?.reps ?? (logged.isNotEmpty ? logged.last.reps : 10),
+        baseTargetSets: t?.targetSets,
+        baseTargetReps: t?.targetReps,
         restBetweenSets: t?.restBetweenSets ?? rests.between,
         restAfterExercise: t?.restAfterExercise ?? rests.after,
         sets: logged,
@@ -159,14 +206,19 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
       final rests = await _defaultRests();
       final exercises =
           await _exercises.byIds(prescribed.map((e) => e.exerciseId));
+      final round = await _roundFor(day.id);
+      final progression = round > 1 && await _settings.autoProgression();
       final blocks = <ExerciseBlock>[];
       for (final pe in prescribed) {
         final ex = exercises[pe.exerciseId];
         if (ex == null) continue;
+        final prog = _progressed(pe, round, progression);
         blocks.add(ExerciseBlock(
           exercise: ex,
-          targetSets: pe.targetSets,
-          targetReps: pe.targetReps,
+          targetSets: prog.sets,
+          targetReps: prog.reps,
+          baseTargetSets: pe.targetSets,
+          baseTargetReps: pe.targetReps,
           restBetweenSets: pe.restBetweenSets,
           restAfterExercise: pe.restAfterExercise ?? rests.after,
         ));

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/program_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/program.dart';
+import '../../domain/progression.dart';
 import '../strength/state/active_workout_provider.dart';
 
 class TodayScreen extends ConsumerWidget {
@@ -119,6 +121,19 @@ class _ProgramDayCard extends ConsumerWidget {
   const _ProgramDayCard({required this.active});
   final ActiveProgram active;
 
+  String _roundLabel(WidgetRef ref, int round) {
+    final autoOn = ref.watch(autoProgressionProvider).valueOrNull ?? true;
+    if (!autoOn) return 'Ronde $round';
+    final d = progressTargets(baseSets: 0, baseReps: 0, round: round);
+    final parts = [
+      if (d.sets > 0) '+${d.sets} set${d.sets > 1 ? 's' : ''}',
+      if (d.reps > 0) '+${d.reps} reps',
+    ];
+    return parts.isEmpty
+        ? 'Ronde $round'
+        : 'Ronde $round · ${parts.join(' · ')}';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -137,7 +152,8 @@ class _ProgramDayCard extends ConsumerWidget {
               style: theme.textTheme.headlineSmall,
             ),
             if (active.round > 1)
-              Text('Ronde ${active.round}', style: theme.textTheme.bodySmall),
+              Text(_roundLabel(ref, active.round),
+                  style: theme.textTheme.bodySmall),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,

@@ -62,6 +62,9 @@ class SettingsRepository {
   Future<int> restAfterExercise() =>
       getInt(SettingsKeys.defaultRestAfterExercise, 60);
 
+  Future<bool> autoProgression() =>
+      getBool(SettingsKeys.autoProgression, true);
+
   Future<int?> activeProgramId() async {
     final raw = await getString(SettingsKeys.activeProgramId);
     return raw == null ? null : int.tryParse(raw);
@@ -77,6 +80,7 @@ class SettingsKeys {
   static const defaultRestAfterExercise = 'default_rest_after_exercise';
   static const restTimerSound = 'rest_timer_sound';
   static const activeProgramId = 'active_program_id';
+  static const autoProgression = 'auto_progression';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(
@@ -99,4 +103,8 @@ final restTimerSoundProvider = FutureProvider<bool>(
   (ref) => ref
       .watch(settingsRepositoryProvider)
       .getBool(SettingsKeys.restTimerSound, true),
+);
+
+final autoProgressionProvider = FutureProvider<bool>(
+  (ref) => ref.watch(settingsRepositoryProvider).autoProgression(),
 );

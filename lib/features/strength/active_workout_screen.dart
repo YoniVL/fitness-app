@@ -397,7 +397,10 @@ class _ExercisePage extends ConsumerStatefulWidget {
 
 class _ExercisePageState extends ConsumerState<_ExercisePage> {
   double? _reps;
-  bool _warmup = false;
+
+  /// null → follow the per-block default (warm-up suggested for the first set of
+  /// a compound); a bool means the user chose explicitly.
+  bool? _warmup;
 
   @override
   Widget build(BuildContext context) {
@@ -409,6 +412,8 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
     final notifier = ref.read(activeWorkoutProvider.notifier);
     final theme = Theme.of(context);
     final reps = _reps ??= block.suggestedReps.toDouble();
+    final warmup =
+        _warmup ?? (block.suggestsWarmup && block.completedSets == 0);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -494,6 +499,23 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
           ),
           const SizedBox(height: 12),
           if (!block.isComplete) ...[
+            if (block.isProgressed)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '▲ Progressie: schema ${block.baseTargetSets}×${block.baseTargetReps}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.primary),
+                ),
+              ),
+            if (block.suggestsWarmup && block.sets.isEmpty) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Tip: begin met 1–2 opwarmsets',
+                    style: theme.textTheme.bodySmall),
+              ),
+              const SizedBox(height: 8),
+            ],
             NumberStepper(
               label:
                   'Reps · set ${block.completedSets + 1}/${block.targetSets}',
@@ -504,12 +526,12 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
             ),
             const SizedBox(height: 4),
             InkWell(
-              onTap: () => setState(() => _warmup = !_warmup),
+              onTap: () => setState(() => _warmup = !warmup),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Checkbox(
-                    value: _warmup,
+                    value: warmup,
                     onChanged: (v) => setState(() => _warmup = v ?? false),
                   ),
                   const Text('Opwarmset'),
@@ -526,11 +548,11 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                   notifier.logSet(
                     widget.blockIndex,
                     reps: reps.round(),
-                    isWarmup: _warmup,
+                    isWarmup: warmup,
                   );
                   setState(() {
                     _reps = null;
-                    _warmup = false;
+                    _warmup = null;
                   });
                 },
                 child: const Text('Klaar'),
@@ -589,7 +611,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
         .replaceBlock(widget.blockIndex, id);
     setState(() {
       _reps = null;
-      _warmup = false;
+      _warmup = null;
     });
   }
 
