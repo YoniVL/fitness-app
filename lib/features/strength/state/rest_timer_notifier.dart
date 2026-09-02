@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/settings_repository.dart';
@@ -84,7 +84,12 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   /// back to the foreground: while backgrounded the periodic ticker is frozen,
   /// so [state.remainingSeconds] is stale.
   void reconcile() {
-    if (!state.active || _endAt == null) return;
+    // Always in the foreground here, so dismiss the pending/fired notification.
+    RestNotifications.instance.cancel();
+    if (!state.active || _endAt == null) {
+      _endAt = null;
+      return;
+    }
     final remaining = _endAt!.difference(DateTime.now()).inSeconds;
     if (remaining <= 0) {
       _finish();
@@ -95,10 +100,14 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
 
   void _finish() {
     _ticker?.cancel();
-    _cue();
-    _playFinal();
     _persistRest(state.totalSeconds);
-    RestNotifications.instance.cancel();
+    if (_isForeground) {
+      // The user is watching: end in-app and dismiss the pending notification.
+      _cue();
+      _playFinal();
+      RestNotifications.instance.cancel();
+    }
+    // Backgrounded: leave the scheduled notification to alert them.
     _endAt = null;
     state = state.copyWith(active: false, remainingSeconds: 0);
   }
@@ -127,7 +136,7 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
     if (remaining <= 0) {
       _finish();
     } else {
-      if (remaining <= 5) _playBeep();
+      if (remaining <= 5 && _isForeground) _playBeep();
       state = state.copyWith(remainingSeconds: remaining);
     }
   }
@@ -199,6 +208,15 @@ class RestTimerNotifier extends StateNotifier<RestTimerState> {
   bool get _bindingReady {
     try {
       return ServicesBinding.instance.hashCode != 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _isForeground {
+    try {
+      return WidgetsBinding.instance.lifecycleState ==
+          AppLifecycleState.resumed;
     } catch (_) {
       return false;
     }

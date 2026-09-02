@@ -48,7 +48,7 @@ class RestNotifications {
         when,
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'rest_timer',
+            'rest_alarm',
             'Rusttimer',
             channelDescription: 'Melding wanneer de rustpauze afgelopen is',
             importance: Importance.max,
@@ -58,7 +58,7 @@ class RestNotifications {
             audioAttributesUsage: AudioAttributesUsage.alarm,
             playSound: true,
             enableVibration: true,
-            timeoutAfter: 60000,
+            timeoutAfter: 300000,
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
