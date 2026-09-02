@@ -38,10 +38,31 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   laatste 5s (`assets/audio/beep*.wav`, audioplayers, key `rest_timer_sound`) +
   demofoto van de volgende oefening.
 - **Trainingsflow = pager** (`active_workout_screen.dart`): één oefening per
-  (bijna) fullscreen `PageView`-pagina (naam, demofoto, gedane sets, reps-stepper,
-  "Klaar"). Set gedaan → fullscreen rustklok → na de rust springt de pager auto
-  naar de eerstvolgende onafgewerkte oefening (`ref.listen(restTimerProvider)`).
-  Lijst-icoon = overzicht/springen/oefening toevoegen. Alles klaar → "Dag afronden".
+  (bijna) fullscreen `PageView`-pagina. Rustklok = overlay bovenop de pager
+  (`Stack`, pager blijft gemount → verliest z'n pagina niet). Na de rust:
+  alleen vooruit naar de eerstvolgende onafgewerkte oefening vanaf je huidige
+  pagina, nooit terug (`_forwardTarget`). Lijst-icoon = overzicht-sheet
+  (scrollbaar, sleep-herschikken via `moveBlock`, springen, oefening toevoegen).
+- **Iteratie 3 klaar** (commits a48713d…ff51f15):
+  - *3a*: "Vorige keer: 9·8·8" (`lastPerformanceProvider`); rusttimer draait
+    tijdens de rust in een **voorgrond-service** (`flutter_foreground_task`,
+    `services/rest_foreground_service.dart`) → teller loopt door + piep hoorbaar
+    op de achtergrond (alarm-stream, global `AudioContext` in `main.dart`).
+    Notificatie toont de resttijd; erop tikken opent de klok
+    (lifecycle-observer in `FitnessApp`). Handmatige "Pauze"-knop; oefening
+    vervangen (`replaceBlock`, ⇄); notitieveld bij "Dag afronden" + potlood in
+    het sessiedetail (`updateNotes`, raakt `ended_at` niet).
+    **flutter_local_notifications is bewust weer verwijderd** (Samsung blokte
+    achtergrond-audiofocus — daarom de FG-service).
+  - *3b*: `lib/domain/progression.dart` `progressTargets()` — +1 rep/ronde tot
+    +3, dan +1 set (plateau ronde 9). Toegepast in
+    `active_workout_provider` (`startFromDay`/`_rehydrate`) o.b.v.
+    `program_progress.round`; `ExerciseBlock.baseTarget*` → `isProgressed`.
+    Setting `auto_progression` (aan). Opwarmset-tip + vinkje voor compounds
+    (`ExerciseBlock.suggestsWarmup`).
+  - *3c*: rode "materiaal ontbreekt"-regel; **back-up** (`features/settings/
+    backup.dart`, share_plus + file_picker + path_provider — hele `.db`
+    exporteren/importeren); PR-lijst + streak-kaart op Voortgang.
 - **Iteratie 2b klaar**: programma-editor (`program_editor_screen.dart` +
   `program_editor_widgets.dart`, gedeeld met de builder). Potlood op elk
   krachtprogramma → dagen/oefeningen/sets/reps/rust bewerken, herschikken,
@@ -49,8 +70,8 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   schema"); eigen schema → in-place (`updateProgramContent`). Eigen schema's
   verwijderbaar via `...`-menu.
 - **Voortgang** (`features/progress/progress_screen.dart`, grafiek-icoon in
-  Logboek): sets/week (fl_chart bar), sets/spiergroep 30d, beste set per oefening
-  over tijd (line). Reps/sets-gebaseerd.
+  Logboek): streak-kaart, sets/week (fl_chart bar), sets/spiergroep 30d, beste
+  set per oefening over tijd (line), persoonlijke records. Reps/sets-gebaseerd.
 - **Oefening-demo's** (`features/exercises/exercise_media.dart`): 2 gebundelde
   foto's per oefening (start/eind), langzame cross-fade = de beweging
   (`ExerciseDemo`). ~63 oefeningen gemapt in `_photoSlugs`; assets in
