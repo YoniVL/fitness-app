@@ -66,4 +66,18 @@ class Backup {
     debugPrint('[Backup] imported $path');
     return true;
   }
+
+  /// Wipes everything: deletes the database file so it is recreated + reseeded
+  /// from scratch (empty log, no own programs, default settings).
+  static Future<void> factoryReset() async {
+    final dst = await AppDatabase.instance.filePath();
+    await AppDatabase.instance.close();
+    for (final f in [dst, '$dst-wal', '$dst-shm']) {
+      try {
+        await File(f).delete();
+      } catch (_) {}
+    }
+    await AppDatabase.instance.database; // onCreate + seedDatabase
+    debugPrint('[Backup] factory reset');
+  }
 }

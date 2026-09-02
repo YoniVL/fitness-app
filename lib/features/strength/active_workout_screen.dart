@@ -463,8 +463,9 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
     final notifier = ref.read(activeWorkoutProvider.notifier);
     final theme = Theme.of(context);
     final reps = _reps ??= block.suggestedReps.toDouble();
-    final warmup =
-        _warmup ?? (block.suggestsWarmup && block.completedSets == 0);
+    final suggestWarmup = block.suggestsWarmup &&
+        (ref.watch(warmupSuggestionsProvider).valueOrNull ?? false);
+    final warmup = _warmup ?? (suggestWarmup && block.completedSets == 0);
     final owned = ref.watch(ownedEquipmentProvider).valueOrNull;
     final missingGear =
         owned != null && !block.exercise.canPerformWith(owned);
@@ -580,7 +581,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                       ?.copyWith(color: theme.colorScheme.primary),
                 ),
               ),
-            if (block.suggestsWarmup && block.sets.isEmpty) ...[
+            if (suggestWarmup && block.sets.isEmpty) ...[
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text('Tip: begin met 1–2 opwarmsets',

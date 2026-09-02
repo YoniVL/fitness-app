@@ -18,6 +18,7 @@ class SettingsScreen extends ConsumerWidget {
     final restAfter = ref.watch(defaultRestAfterExerciseProvider);
     final sound = ref.watch(restTimerSoundProvider);
     final autoProgression = ref.watch(autoProgressionProvider);
+    final warmup = ref.watch(warmupSuggestionsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Instellingen')),
@@ -118,6 +119,22 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
+          warmup.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+            data: (on) => SwitchListTile(
+              title: const Text('Opwarmsets voorstellen'),
+              subtitle: const Text(
+                  'Tip + vinkje vooraf bij de eerste set van een compound'),
+              value: on,
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setBool(SettingsKeys.warmupSuggestions, v);
+                ref.invalidate(warmupSuggestionsProvider);
+              },
+            ),
+          ),
           const Divider(),
           _sectionHeader(context, 'Back-up'),
           ListTile(
@@ -131,6 +148,15 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Importeren'),
             subtitle: const Text('Vervang alles door een back-upbestand'),
             onTap: () => _import(context),
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_forever_outlined,
+                color: Theme.of(context).colorScheme.error),
+            title: Text('Alle gegevens wissen',
+                style:
+                    TextStyle(color: Theme.of(context).colorScheme.error)),
+            subtitle: const Text('Terug naar een lege app'),
+            onTap: () => _factoryReset(context),
           ),
           const Divider(),
           _sectionHeader(context, 'Credits'),
@@ -216,6 +242,57 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Import mislukt: $e')));
+      }
+    }
+  }
+
+  Future<void> _factoryReset(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Alle gegevens wissen?'),
+        content: const Text(
+            'Al je trainingen, eigen programma’s en instellingen worden gewist. '
+            'De oefeningendatabase en de standaardschema’s blijven. Dit kan niet '
+            'ongedaan gemaakt worden.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuleren'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Wissen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    try {
+      await Backup.factoryReset();
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Gegevens gewist'),
+          content: const Text(
+              'Sluit de app en open hem opnieuw om met een schone lei te starten.'),
+          actions: [
+            FilledButton(
+              onPressed: () => SystemNavigator.pop(),
+              child: const Text('App sluiten'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Wissen mislukt: $e')));
       }
     }
   }

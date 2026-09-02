@@ -65,6 +65,9 @@ class SettingsRepository {
   Future<bool> autoProgression() =>
       getBool(SettingsKeys.autoProgression, true);
 
+  Future<bool> warmupSuggestions() =>
+      getBool(SettingsKeys.warmupSuggestions, false);
+
   Future<int?> activeProgramId() async {
     final raw = await getString(SettingsKeys.activeProgramId);
     return raw == null ? null : int.tryParse(raw);
@@ -81,6 +84,7 @@ class SettingsKeys {
   static const restTimerSound = 'rest_timer_sound';
   static const activeProgramId = 'active_program_id';
   static const autoProgression = 'auto_progression';
+  static const warmupSuggestions = 'warmup_suggestions';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(
@@ -107,4 +111,8 @@ final restTimerSoundProvider = FutureProvider<bool>(
 
 final autoProgressionProvider = FutureProvider<bool>(
   (ref) => ref.watch(settingsRepositoryProvider).autoProgression(),
+);
+
+final warmupSuggestionsProvider = FutureProvider<bool>(
+  (ref) => ref.watch(settingsRepositoryProvider).warmupSuggestions(),
 );
