@@ -170,24 +170,23 @@ class _WeekStrip extends ConsumerWidget {
     final count = ref.watch(_thisWeekCountProvider).valueOrNull ?? 0;
     final streak = ref.watch(trainingWeekStreakProvider).valueOrNull ?? 0;
 
+    final week = _StatChip(
+      icon: Icons.event_available,
+      label: 'Deze week',
+      value: count == 0
+          ? 'Nog niks'
+          : '$count training${count == 1 ? '' : 'en'}',
+    );
+    if (streak < 2) return week;
     return Row(
       children: [
-        Expanded(
-          child: _StatChip(
-            icon: Icons.event_available,
-            label: 'Deze week',
-            value: count == 0
-                ? 'Nog niks'
-                : '$count training${count == 1 ? '' : 'en'}',
-          ),
-        ),
+        Expanded(child: week),
         const SizedBox(width: 12),
         Expanded(
           child: _StatChip(
             icon: Icons.local_fire_department,
             label: 'Reeks',
-            value: streak < 2 ? '—' : '$streak weken',
-            dim: streak < 2,
+            value: '$streak weken op rij',
           ),
         ),
       ],
@@ -200,19 +199,15 @@ class _StatChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    this.dim = false,
   });
   final IconData icon;
   final String label;
   final String value;
-  final bool dim;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fg = dim
-        ? theme.colorScheme.onSurfaceVariant
-        : theme.colorScheme.onSurface;
+    final fg = theme.colorScheme.onSurface;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(

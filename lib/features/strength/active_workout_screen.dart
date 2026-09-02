@@ -529,7 +529,8 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
             ),
           ),
           Expanded(
-            child: Center(
+            child: Align(
+              alignment: Alignment.bottomCenter,
               child: hasExercisePhoto(block.exercise.name)
                   ? ExerciseDemo(
                       exerciseName: block.exercise.name, maxHeight: 260)
@@ -539,6 +540,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                           .withValues(alpha: 0.25)),
             ),
           ),
+          const SizedBox(height: 12),
           // Done sets — plain, no actions mixed in.
           if (block.sets.isNotEmpty)
             Wrap(

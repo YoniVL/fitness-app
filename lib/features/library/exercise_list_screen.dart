@@ -136,6 +136,10 @@ class ExerciseListScreen extends ConsumerWidget {
               error: (e, _) => Center(child: Text('Fout: $e')),
               data: (list) => _ExerciseList(
                 list: list,
+                groups: {
+                  for (final g in muscleGroups.valueOrNull ?? const [])
+                    g.id: g
+                },
                 pickMode: pickMode,
                 onTap: pickMode
                     ? (ex) => Navigator.of(context).pop(ex.id)
@@ -151,9 +155,14 @@ class ExerciseListScreen extends ConsumerWidget {
 }
 
 class _ExerciseList extends StatelessWidget {
-  const _ExerciseList({required this.list, this.onTap, this.pickMode = false});
+  const _ExerciseList(
+      {required this.list,
+      required this.groups,
+      this.onTap,
+      this.pickMode = false});
 
   final List<Exercise> list;
+  final Map<int, MuscleGroup> groups;
   final void Function(Exercise)? onTap;
   final bool pickMode;
 
@@ -166,10 +175,19 @@ class _ExerciseList extends StatelessWidget {
       itemCount: list.length,
       itemBuilder: (context, index) {
         final ex = list[index];
+        final group = groups[ex.primaryMuscleGroupId];
+        final style = muscleGroupStyle(group?.iconKey ?? '');
         return ListTile(
-          leading: CircleAvatar(child: Icon(movementPatternIcon(ex.pattern))),
+          leading: CircleAvatar(
+            backgroundColor: style.color.withValues(alpha: 0.18),
+            foregroundColor: style.color,
+            child: Icon(style.icon, size: 20),
+          ),
           title: Text(ex.name),
-          subtitle: Text(ex.equipmentTags.map(Equipment.label).join(' · ')),
+          subtitle: Text([
+            if (group != null) group.name,
+            ex.equipmentTags.map(Equipment.label).join(' · '),
+          ].join(' · ')),
           trailing: onTap == null
               ? null
               : Icon(pickMode ? Icons.add : Icons.chevron_right),
