@@ -63,6 +63,15 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   - *3c*: rode "materiaal ontbreekt"-regel; **back-up** (`features/settings/
     backup.dart`, share_plus + file_picker + path_provider — hele `.db`
     exporteren/importeren); PR-lijst + streak-kaart op Voortgang.
+- **Iteratie 4 klaar** (d664fed, c43ad08):
+  - *4a*: Instellingen › Back-up › "Alle gegevens wissen" (`Backup.factoryReset()`);
+    opwarmset-tip is nu een setting (`warmup_suggestions`, **standaard uit**).
+  - *4b*: **Barlow**-koplettertype (`assets/fonts/`, OFL); kaarten opaak +
+    outline; `SectionHeader` + `Gap` in `theme.dart`; `movementPatternIcon()`
+    i.p.v. de weggehaalde `muscleGroupIcon`; Vandaag-scherm gevuld (datum,
+    week-strook, dag-oefeningen); oefeningpagina-header opgeschoond (⇄ + ⋮);
+    Voortgang-secties in kaarten; Logboek dempt/verwijdert onafgeronde sessies.
+  - Thema-/kleurkeuze bewust NIET gedaan → aparte afwerkings-iteratie.
 - **Iteratie 2b klaar**: programma-editor (`program_editor_screen.dart` +
   `program_editor_widgets.dart`, gedeeld met de builder). Potlood op elk
   krachtprogramma → dagen/oefeningen/sets/reps/rust bewerken, herschikken,
