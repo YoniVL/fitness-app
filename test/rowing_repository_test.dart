@@ -1,8 +1,11 @@
 import 'package:fitnesstracker/data/database/app_database.dart';
+import 'package:fitnesstracker/data/repositories/program_repository.dart';
 import 'package:fitnesstracker/data/repositories/rowing_repository.dart';
+import 'package:fitnesstracker/data/repositories/settings_repository.dart';
 import 'package:fitnesstracker/data/repositories/workout_session_repository.dart';
 import 'package:fitnesstracker/domain/models/program.dart';
 import 'package:fitnesstracker/domain/models/rowing.dart';
+import 'package:fitnesstracker/domain/models/rowing_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'helpers.dart';
@@ -109,6 +112,41 @@ void main() {
     expect(totals.durationSeconds, 20 * 60 + 16 * 60);
 
     expect(await rowing.weekStreak(), 1);
+  });
+
+  test('rowingDetail returns the plan segments for a plan session', () async {
+    final programs = ProgramRepository(
+        AppDatabase.instance, SettingsRepository(AppDatabase.instance));
+    final programId = await programs.createProgram(NewProgramDraft(
+      name: 'Plan',
+      category: ProgramCategory.rowGenerated,
+      discipline: Discipline.rowing,
+      equipmentProfile: const [],
+      daysPerWeek: 1,
+      rowingGoal: RowingGoal.uithouding,
+      days: [
+        NewProgramDayDraft(label: 'Wk 1', segments: [
+          NewRowSegmentDraft(
+              durationSeconds: 180, targetStrokeRate: 18, intensityLabel: 'Warming-up'),
+          NewRowSegmentDraft(
+              durationSeconds: 1200, targetStrokeRate: 22, intensityLabel: 'Endurance'),
+        ]),
+      ],
+    ));
+    final dayId = (await programs.daysForProgram(programId)).first.id;
+
+    final ids = await rowing.startSession(programDayId: dayId);
+    await rowing.finalize(ids.sessionId,
+        distanceM: 2000, duration: const Duration(minutes: 10));
+
+    final detail = await rowing.rowingDetail(ids.sessionId);
+    expect(detail!.planSegments, hasLength(2));
+    expect(detail.planSegments.last.intensityLabel, 'Endurance');
+
+    // A manual session has no plan segments.
+    final manualId = await rowing.logManualSession(
+        distanceM: 1000, duration: const Duration(minutes: 5));
+    expect((await rowing.rowingDetail(manualId))!.planSegments, isEmpty);
   });
 
   test('paceHistory skips sessions with no distance', () async {

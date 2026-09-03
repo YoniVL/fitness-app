@@ -42,11 +42,15 @@ class RowingSessionDetail {
     required this.session,
     required this.rowing,
     required this.samples,
+    this.planSegments = const [],
   });
 
   final WorkoutSession session;
   final RowingSession rowing;
   final List<RowingSample> samples;
+
+  /// The plan-day segments this session followed, if it came from a plan.
+  final List<ProgramRowSegment> planSegments;
 }
 
 /// New rowing session ids: the `workout_sessions` row and its `rowing_sessions`
@@ -207,10 +211,20 @@ class RowingRepository {
         where: 'rowing_session_id = ?',
         whereArgs: [rowingRows.first['id']],
         orderBy: 't_offset_ms');
+    final rowing = RowingSession.fromMap(rowingRows.first);
+    var planSegments = const <ProgramRowSegment>[];
+    if (rowing.programDayId != null) {
+      final segRows = await db.query('program_row_segments',
+          where: 'program_day_id = ?',
+          whereArgs: [rowing.programDayId],
+          orderBy: 'order_index');
+      planSegments = segRows.map(ProgramRowSegment.fromMap).toList();
+    }
     return RowingSessionDetail(
       session: WorkoutSession.fromMap(sessionRows.first),
-      rowing: RowingSession.fromMap(rowingRows.first),
+      rowing: rowing,
       samples: sampleRows.map(RowingSample.fromMap).toList(),
+      planSegments: planSegments,
     );
   }
 

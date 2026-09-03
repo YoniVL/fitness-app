@@ -126,7 +126,10 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     afstand/week (bar), gem. tempo per sessie (line), roei-streak. Queries +
     providers in `rowing_repository.dart` (`weeklyDistance`, `paceHistory`,
     `weekStreak`, `totalsSince`; `rowingProgressProviders` om te invalideren na
-    loggen). Roei-Vandaag week-strook toont sessies + afstand.
+    loggen). Roei-Vandaag week-strook toont sessies + afstand. Roei-sessiedetail
+    (`session_detail_screen.dart`): "Geplande sessie" = `IntervalProfile` van
+    `RowingSessionDetail.planSegments` + segmenttekst; sub-grafieken Slagtempo
+    (`stroke_rate`) en Hartslag (`heart_rate`) naast de tempo-grafiek.
   - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
     `flutter_ftms` echte koppeling + voorgrond-service. Stub
     `ble/ftms_rower_service.dart` verwijderd; API-notities in het plan.
