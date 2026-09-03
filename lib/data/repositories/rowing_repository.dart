@@ -53,6 +53,29 @@ class RowingSessionDetail {
 /// child, returned by [RowingRepository.startSession].
 typedef RowingSessionIds = ({int sessionId, int rowingSessionId});
 
+/// One (weekStart, metres, sessions) point for the weekly rowing chart.
+class RowingWeekPoint {
+  const RowingWeekPoint(this.weekStart, this.distanceM, this.sessions);
+  final DateTime weekStart;
+  final double distanceM;
+  final int sessions;
+}
+
+/// Average pace (sec/500 m) of one finished rowing session.
+class RowingPacePoint {
+  const RowingPacePoint(this.date, this.paceSec500);
+  final DateTime date;
+  final double paceSec500;
+}
+
+/// Totals over a recent window.
+class RowingTotals {
+  const RowingTotals(this.sessions, this.distanceM, this.durationSeconds);
+  final int sessions;
+  final double distanceM;
+  final int durationSeconds;
+}
+
 class RowingRepository {
   RowingRepository(this._appDb);
 
@@ -190,6 +213,99 @@ class RowingRepository {
       samples: sampleRows.map(RowingSample.fromMap).toList(),
     );
   }
+
+  // --- Progress ---------------------------------------------------
+
+  Future<List<Map<String, Object?>>> _finishedRows() async {
+    final db = await _appDb.database;
+    return db.rawQuery('''
+      SELECT ws.started_at AS started_at,
+             rs.total_distance_m AS distance_m,
+             rs.duration_seconds AS duration_seconds
+      FROM rowing_sessions rs
+      JOIN workout_sessions ws ON ws.id = rs.session_id
+      WHERE ws.ended_at IS NOT NULL
+      ORDER BY ws.started_at
+    ''');
+  }
+
+  static DateTime _weekOf(DateTime d) => DateTime(d.year, d.month, d.day)
+      .subtract(Duration(days: d.weekday - 1));
+
+  /// Distance + session count per ISO week (Monday), oldest first, last [weeks].
+  Future<List<RowingWeekPoint>> weeklyDistance({int weeks = 10}) async {
+    final rows = await _finishedRows();
+    if (rows.isEmpty) return const [];
+    final dist = <DateTime, double>{};
+    final count = <DateTime, int>{};
+    for (final r in rows) {
+      final wk = _weekOf(
+          DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int));
+      dist.update(wk, (v) => v + ((r['distance_m'] as num?)?.toDouble() ?? 0),
+          ifAbsent: () => (r['distance_m'] as num?)?.toDouble() ?? 0);
+      count.update(wk, (v) => v + 1, ifAbsent: () => 1);
+    }
+    final thisMonday = _weekOf(DateTime.now());
+    return [
+      for (var i = weeks - 1; i >= 0; i--)
+        () {
+          final wk = thisMonday.subtract(Duration(days: 7 * i));
+          return RowingWeekPoint(wk, dist[wk] ?? 0, count[wk] ?? 0);
+        }(),
+    ];
+  }
+
+  /// Average pace per finished session that covered distance, oldest first.
+  Future<List<RowingPacePoint>> paceHistory() async {
+    final rows = await _finishedRows();
+    final out = <RowingPacePoint>[];
+    for (final r in rows) {
+      final d = (r['distance_m'] as num?)?.toDouble() ?? 0;
+      final s = (r['duration_seconds'] as num?)?.toInt() ?? 0;
+      if (d <= 0 || s <= 0) continue;
+      out.add(RowingPacePoint(
+        DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int),
+        s / d * 500,
+      ));
+    }
+    return out;
+  }
+
+  /// Consecutive weeks (Monday start) ending at the current or last week with at
+  /// least one finished rowing session.
+  Future<int> weekStreak() async {
+    final rows = await _finishedRows();
+    if (rows.isEmpty) return 0;
+    final weeks = <DateTime>{
+      for (final r in rows)
+        _weekOf(DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int)),
+    };
+    var cursor = _weekOf(DateTime.now());
+    if (!weeks.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 7));
+    }
+    var streak = 0;
+    while (weeks.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 7));
+    }
+    return streak;
+  }
+
+  Future<RowingTotals> totalsSince(DateTime since) async {
+    final rows = await _finishedRows();
+    var n = 0;
+    var dist = 0.0;
+    var dur = 0;
+    for (final r in rows) {
+      final t = DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int);
+      if (t.isBefore(since)) continue;
+      n++;
+      dist += (r['distance_m'] as num?)?.toDouble() ?? 0;
+      dur += (r['duration_seconds'] as num?)?.toInt() ?? 0;
+    }
+    return RowingTotals(n, dist, dur);
+  }
 }
 
 final rowingRepositoryProvider = Provider<RowingRepository>(
@@ -201,3 +317,30 @@ final rowingSessionDetailProvider =
   (ref, sessionId) =>
       ref.watch(rowingRepositoryProvider).rowingDetail(sessionId),
 );
+
+final rowingWeeklyDistanceProvider = FutureProvider<List<RowingWeekPoint>>(
+  (ref) => ref.watch(rowingRepositoryProvider).weeklyDistance(),
+);
+
+final rowingPaceHistoryProvider = FutureProvider<List<RowingPacePoint>>(
+  (ref) => ref.watch(rowingRepositoryProvider).paceHistory(),
+);
+
+final rowingWeekStreakProvider = FutureProvider<int>(
+  (ref) => ref.watch(rowingRepositoryProvider).weekStreak(),
+);
+
+final rowingMonthTotalsProvider = FutureProvider<RowingTotals>(
+  (ref) => ref
+      .watch(rowingRepositoryProvider)
+      .totalsSince(DateTime.now().subtract(const Duration(days: 30))),
+);
+
+/// Every rowing-progress provider — invalidate them all after a session is
+/// logged or deleted.
+final rowingProgressProviders = <ProviderOrFamily>[
+  rowingWeeklyDistanceProvider,
+  rowingPaceHistoryProvider,
+  rowingWeekStreakProvider,
+  rowingMonthTotalsProvider,
+];

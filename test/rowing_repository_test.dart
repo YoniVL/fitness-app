@@ -85,4 +85,36 @@ void main() {
     expect(await sessions.activeSession(discipline: Discipline.strength),
         isNotNull);
   });
+
+  test('progress aggregates: weekly distance, pace history, totals, streak',
+      () async {
+    await rowing.logManualSession(
+        distanceM: 4000, duration: const Duration(minutes: 20));
+    await rowing.logManualSession(
+        distanceM: 3000, duration: const Duration(minutes: 16));
+
+    final weekly = await rowing.weeklyDistance();
+    expect(weekly, isNotEmpty);
+    expect(weekly.last.distanceM, 7000);
+    expect(weekly.last.sessions, 2);
+
+    final pace = await rowing.paceHistory();
+    expect(pace, hasLength(2));
+    expect(pace.first.paceSec500, closeTo(1200 / 4000 * 500, 0.01));
+
+    final totals = await rowing.totalsSince(
+        DateTime.now().subtract(const Duration(days: 7)));
+    expect(totals.sessions, 2);
+    expect(totals.distanceM, 7000);
+    expect(totals.durationSeconds, 20 * 60 + 16 * 60);
+
+    expect(await rowing.weekStreak(), 1);
+  });
+
+  test('paceHistory skips sessions with no distance', () async {
+    final ids = await rowing.startSession();
+    await rowing.finalize(ids.sessionId,
+        distanceM: 0, duration: const Duration(minutes: 5));
+    expect(await rowing.paceHistory(), isEmpty);
+  });
 }

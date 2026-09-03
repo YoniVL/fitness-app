@@ -70,6 +70,9 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
           notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         );
     ref.invalidate(recentSessionsProvider);
+    for (final p in rowingProgressProviders) {
+      ref.invalidate(p);
+    }
     if (mounted) Navigator.pop(context);
   }
 

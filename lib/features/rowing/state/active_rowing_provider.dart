@@ -300,6 +300,9 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       ref.invalidate(activeRowingProgramProvider);
     }
     ref.invalidate(recentSessionsProvider);
+    for (final p in rowingProgressProviders) {
+      ref.invalidate(p);
+    }
     state = const AsyncData(null);
     return s.session.id;
   }

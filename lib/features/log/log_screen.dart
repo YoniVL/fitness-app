@@ -13,6 +13,9 @@ class LogScreen extends ConsumerWidget {
 
   final Discipline discipline;
 
+  String get _base =>
+      discipline == Discipline.rowing ? '/rowing/log' : '/strength/log';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessions = ref.watch(recentSessionsProvider);
@@ -25,7 +28,7 @@ class LogScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.insights_outlined),
             tooltip: 'Voortgang',
-            onPressed: () => context.push('progress'),
+            onPressed: () => context.push('$_base/progress'),
           ),
         ],
       ),
@@ -68,7 +71,7 @@ class LogScreen extends ConsumerWidget {
                         .deleteSession(summary.session.id);
                     ref.invalidate(recentSessionsProvider);
                   },
-                  child: _SessionTile(summary: summary),
+                  child: _SessionTile(summary: summary, basePath: _base),
                 );
               },
             );
@@ -101,8 +104,9 @@ Future<bool> _confirmDelete(BuildContext context) async {
 }
 
 class _SessionTile extends StatelessWidget {
-  const _SessionTile({required this.summary});
+  const _SessionTile({required this.summary, required this.basePath});
   final SessionSummary summary;
+  final String basePath;
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +140,7 @@ class _SessionTile extends StatelessWidget {
         if (ongoing) 'bezig',
       ].join(' · ')),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push('session/${s.id}'),
+      onTap: () => context.push('$basePath/session/${s.id}'),
     );
     return ongoing
         ? Opacity(opacity: 0.55, child: tile)

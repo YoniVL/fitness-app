@@ -122,10 +122,21 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     plan-detail, workout-detail, live-scherm.
   - *R2d*: `rowing_active_screen.dart` = **landscape** (`SystemChrome` in
     init/dispose); cijfers links groot, intervalprofiel + segmentbanner rechts.
-  - **R3 (BLE)** = nog te doen: `flutter_ftms` echte koppeling + voorgrond-service.
-    De stub `ble/ftms_rower_service.dart` is verwijderd; API-notities in het plan.
+  - *R4*: roei-`progress_screen.dart` (`_RowingProgress`): 30-dagen-totalen,
+    afstand/week (bar), gem. tempo per sessie (line), roei-streak. Queries +
+    providers in `rowing_repository.dart` (`weeklyDistance`, `paceHistory`,
+    `weekStreak`, `totalsSince`; `rowingProgressProviders` om te invalideren na
+    loggen). Roei-Vandaag week-strook toont sessies + afstand.
+  - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
+    `flutter_ftms` echte koppeling + voorgrond-service. Stub
+    `ble/ftms_rower_service.dart` verwijderd; API-notities in het plan.
     Verificatie vereist de trainer (FS-057453).
-  - **R4** = roeien op Voortgang + week-strook.
+- **Bekende beperking**: een losse workout uit de catalogus (`startWorkout`)
+  bewaart z'n segmenten niet in de DB → na app-kill wordt het een vrije sessie
+  (afstand/tijd blijven kloppen). Plan-dagen (`startFromDay`) herstellen wel.
+- **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
+  betrouwbaar te resolven binnen de shells → overal absolute paden
+  (`/rowing/log/session/$id` enz.).
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
 
 ## Valkuilen (echt gebeurd)

@@ -10,6 +10,8 @@ import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/progression.dart';
+import '../../data/repositories/rowing_repository.dart';
+import '../../domain/rowing_format.dart';
 import '../rowing/log_rowing_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
 import '../strength/state/active_workout_provider.dart';
@@ -299,7 +301,25 @@ class _WeekStrip extends ConsumerWidget {
       label: 'Deze week',
       value: count == 0 ? 'Nog niks' : '$count $noun${count == 1 ? '' : 's'}',
     );
-    if (discipline == Discipline.rowing) return week;
+
+    if (discipline == Discipline.rowing) {
+      final wk = ref.watch(rowingWeeklyDistanceProvider).valueOrNull;
+      final km = wk == null || wk.isEmpty ? 0.0 : wk.last.distanceM;
+      if (km <= 0) return week;
+      return Row(
+        children: [
+          Expanded(child: week),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StatChip(
+              icon: Icons.straighten,
+              label: 'Afstand',
+              value: distanceLabel(km),
+            ),
+          ),
+        ],
+      );
+    }
 
     final streak = ref.watch(trainingWeekStreakProvider).valueOrNull ?? 0;
     if (streak < 2) return week;
