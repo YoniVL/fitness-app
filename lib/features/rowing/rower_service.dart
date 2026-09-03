@@ -3,6 +3,9 @@ import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/settings_repository.dart';
+import 'ble/ble_rower_service.dart';
+
 /// Live snapshot from the rower. Fields are null until the trainer reports them;
 /// the BLE service keeps the last-known value per field (FTMS sends partial
 /// frames). Absolute distance / pace from this trainer are estimates.
@@ -126,9 +129,18 @@ class FakeRowerService implements RowerService {
   }
 }
 
-/// The active rower data source. Swapped for a real BLE service in R3.
+/// Whether the hidden demo mode is on — then the simulated rower is used
+/// instead of the real Bluetooth trainer.
+final rowingDemoModeProvider = FutureProvider<bool>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingDemoMode(),
+);
+
+/// The active rower data source: the real [BleRowerService], or
+/// [FakeRowerService] when demo mode is on.
 final rowerServiceProvider = Provider<RowerService>((ref) {
-  final service = FakeRowerService();
+  final demo = ref.watch(rowingDemoModeProvider).valueOrNull ?? false;
+  final RowerService service =
+      demo ? FakeRowerService() : BleRowerService(ref);
   ref.onDispose(service.dispose);
   return service;
 });

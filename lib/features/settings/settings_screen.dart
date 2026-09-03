@@ -6,6 +6,8 @@ import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/taxonomy.dart';
 import '../exercises/exercise_media.dart';
+import '../rowing/ble/connect_sheet.dart';
+import '../rowing/rower_service.dart';
 import '../rowing/rowing_cues.dart';
 import 'backup.dart';
 
@@ -19,6 +21,7 @@ class SettingsScreen extends ConsumerWidget {
     final restAfter = ref.watch(defaultRestAfterExerciseProvider);
     final sound = ref.watch(restTimerSoundProvider);
     final cueSound = ref.watch(rowingCueSoundProvider);
+    final demoMode = ref.watch(rowingDemoModeProvider);
     final autoProgression = ref.watch(autoProgressionProvider);
     final warmup = ref.watch(warmupSuggestionsProvider);
 
@@ -118,6 +121,32 @@ class SettingsScreen extends ConsumerWidget {
                     .read(settingsRepositoryProvider)
                     .setBool(SettingsKeys.rowingCueSound, v);
                 ref.invalidate(rowingCueSoundProvider);
+              },
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.bluetooth),
+            title: const Text('Roeitrainer'),
+            subtitle: Text(
+                ref.watch(rowingDeviceNameProvider).valueOrNull ??
+                    'Geen trainer gekoppeld'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showConnectRowerSheet(context, ref),
+          ),
+          demoMode.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+            data: (on) => SwitchListTile(
+              title: const Text('Demo-modus'),
+              subtitle: const Text(
+                  'Gebruik gesimuleerde roeidata i.p.v. de Bluetooth-trainer'),
+              value: on,
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setBool(SettingsKeys.rowingDemoMode, v);
+                ref.invalidate(rowingDemoModeProvider);
+                ref.invalidate(rowerServiceProvider);
               },
             ),
           ),

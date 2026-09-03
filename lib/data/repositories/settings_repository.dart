@@ -85,8 +85,14 @@ class SettingsRepository {
       ? remove(SettingsKeys.activeRowingProgramId)
       : setInt(SettingsKeys.activeRowingProgramId, id);
 
-  Future<bool> rowingDemoMode() =>
-      getBool(SettingsKeys.rowingDemoMode, false);
+  /// Whether the simulated rower is used instead of the Bluetooth trainer.
+  /// Until the user makes an explicit choice it defaults to on when no trainer
+  /// is paired (so "losse roeisessie" still has data), off once one is.
+  Future<bool> rowingDemoMode() async {
+    final raw = await getString(SettingsKeys.rowingDemoMode);
+    if (raw != null) return raw == 'true' || raw == '1';
+    return (await getString(SettingsKeys.rowingDeviceId)) == null;
+  }
 }
 
 class SettingsKeys {

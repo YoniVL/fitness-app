@@ -166,9 +166,16 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     per rij. Roei-Vandaag-dagkaart toont het dagprofiel + type-chip
     (`ProgramDay.rowSessionType`). Builder dedupt de plannaam (` (2)` enz.).
     "1 blok" i.p.v. "1 blokken".
-  - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
-    `flutter_ftms` echte koppeling. **Geen voorgrondservice** (bewuste keuze):
-    sessie pauzeert bij achtergrond. Verificatie vereist de trainer (FS-057453).
+  - *R3*: **echte BLE** — `ble/ble_rower_service.dart` (`BleRowerService implements
+    RowerService`) via `flutter_ftms` + `flutter_blue_plus` (`autoConnect` doet
+    de herverbinding), `ble/connect_sheet.dart` (scan + koppelen + vergeten),
+    Instellingen-sectie **Roeitrainer** + **Demo-modus**-schakelaar. Status-chip
+    op het live-scherm opent de koppel-sheet. `rowerServiceProvider` kiest op
+    `rowingDemoModeProvider`; demo staat standaard **aan** tot een trainer
+    gekoppeld is (dan uit), zodat "losse roeisessie" altijd data heeft. **Geen
+    voorgrondservice** (bewuste keuze): sessie pauzeert bij achtergrond.
+    Op toestel geverifieerd t/m de scan (permissie-prompt + FTMS-scan starten);
+    live data + herverbinden vereist de trainer (FS-057453).
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).

@@ -6,6 +6,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
+import 'ble/connect_sheet.dart';
 import 'rower_service.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
@@ -61,7 +62,16 @@ class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen>
         toolbarHeight: 44,
         title: const Text('Roeisessie'),
         actions: [
-          Center(child: _StatusChip(status: status)),
+          Center(
+            child: InkWell(
+              onTap: () => showConnectRowerSheet(context, ref),
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: _StatusChip(status: status),
+              ),
+            ),
+          ),
           PopupMenuButton<String>(
             onSelected: (v) async {
               if (v != 'discard') return;
