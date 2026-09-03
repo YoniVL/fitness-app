@@ -287,9 +287,7 @@ class _NowNextCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final seg = state.currentSegment!;
-    final total = seg.durationSeconds;
     final remaining = state.segmentRemaining ?? Duration.zero;
-    final progress = total == 0 ? 0.0 : 1 - remaining.inSeconds / total;
     final drill = RowDrill.fromKey(seg.drillKey);
     final next = state.segmentIndex + 1 < state.segments.length
         ? state.segments[state.segmentIndex + 1]
@@ -307,49 +305,52 @@ class _NowNextCard extends StatelessWidget {
           Container(width: 6, color: zone),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Text(seg.intensityLabel,
-                            style: theme.textTheme.titleLarge,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                                color: scheme.onSurfaceVariant),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
+                      const SizedBox(width: 12),
                       Text(hmsLabel(remaining),
-                          style: theme.textTheme.headlineMedium
+                          style: theme.textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w600)),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      minHeight: 8,
-                      backgroundColor: scheme.surfaceContainerHighest,
-                      color: zone,
+                  const SizedBox(height: 6),
+                  if (seg.targetStrokeRate != null)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text('${seg.targetStrokeRate}',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                                fontWeight: FontWeight.w700, height: 1.0)),
+                        const SizedBox(width: 6),
+                        Text('spm',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                                color: scheme.onSurfaceVariant)),
+                      ],
                     ),
-                  ),
-                  if (seg.targetStrokeRate != null) ...[
-                    const SizedBox(height: 8),
-                    Text('doel ${seg.targetStrokeRate} spm',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant)),
-                  ],
                   if (drill != null)
-                    Text(drill.tip,
-                        style: theme.textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                  const Divider(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(drill.tip,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  const Divider(height: 22),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
