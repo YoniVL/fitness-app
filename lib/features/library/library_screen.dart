@@ -71,6 +71,13 @@ class LibraryScreen extends ConsumerWidget {
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/rowing/builder'),
       ),
+      ListTile(
+        leading: const Icon(Icons.list_alt),
+        title: const Text('Roei-workouts'),
+        subtitle: const Text('Losse sessies: intervallen, piramides, duurstukken'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/rowing/library/workouts'),
+      ),
       const Divider(),
       _sectionHeader(context, 'Roeiprogramma\'s'),
       rowing.when(

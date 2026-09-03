@@ -6,8 +6,16 @@ import '../../data/repositories/program_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_plan_generator.dart';
+import 'widgets/interval_profile.dart';
+import 'widgets/week_load_chart.dart';
 
-const _bands = <(int, int)>[(15, 25), (20, 30), (25, 40), (30, 45)];
+const _bands = <(int, int)>[
+  (15, 25),
+  (20, 30),
+  (25, 40),
+  (30, 45),
+  (45, 60),
+];
 
 class RowingBuilderScreen extends ConsumerStatefulWidget {
   const RowingBuilderScreen({super.key});
@@ -22,7 +30,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
   int _sessions = 3;
   RowingGoal _goal = RowingGoal.uithouding;
   ProgramLevel _level = ProgramLevel.medium;
-  (int, int) _band = _bands[1];
+  final Set<(int, int)> _selectedBands = {_bands[1]};
   int _weeks = 8;
 
   GeneratedRowingPlan? _plan;
@@ -39,8 +47,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
       sessionsPerWeek: _sessions,
       goal: _goal,
       level: _level,
-      minMinutes: _band.$1,
-      maxMinutes: _band.$2,
+      bands: _selectedBands.isEmpty ? {_bands[1]} : _selectedBands,
       weeks: _weeks,
       name: _name.text,
     ));
@@ -135,15 +142,17 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             onSelectionChanged: (s) => setState(() => _level = s.first),
           ),
           const SizedBox(height: 16),
-          _label('Sessieduur'),
+          _label('Sessieduur (meerdere mag — meer variatie)'),
           Wrap(
             spacing: 8,
             children: [
               for (final b in _bands)
-                ChoiceChip(
+                FilterChip(
                   label: Text('${b.$1}–${b.$2} min'),
-                  selected: _band == b,
-                  onSelected: (_) => setState(() => _band = b),
+                  selected: _selectedBands.contains(b),
+                  onSelected: (v) => setState(() {
+                    v ? _selectedBands.add(b) : _selectedBands.remove(b);
+                  }),
                 ),
             ],
           ),
@@ -193,11 +202,19 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
     for (final s in plan.sessions) {
       byWeek.putIfAbsent(s.weekIndex, () => []).add(s);
     }
+    final weekMinutes = [
+      for (final w in byWeek.keys)
+        (byWeek[w]!.fold(0, (s, x) => s + x.totalSeconds) / 60).round(),
+    ];
     return [
       const Divider(height: 32),
       Text('${plan.weeks} weken · ${plan.sessionsPerWeek}×/week',
           style: theme.textTheme.titleMedium),
+      const SizedBox(height: 4),
+      Text('Trainingsminuten per week', style: theme.textTheme.labelMedium),
       const SizedBox(height: 8),
+      WeekLoadChart(minutesPerWeek: weekMinutes),
+      const SizedBox(height: 12),
       for (final week in byWeek.keys)
         Card(
           child: Padding(
@@ -205,18 +222,28 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Week ${week + 1}',
-                    style: theme.textTheme.titleSmall),
-                const SizedBox(height: 4),
+                Text('Week ${week + 1}', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 6),
                 for (final s in byWeek[week]!)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: Text(s.type.label)),
-                        Text('~${(s.totalSeconds / 60).round()} min',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant)),
+                        Row(
+                          children: [
+                            Expanded(child: Text(s.label.split(' · ').last)),
+                            Text('~${(s.totalSeconds / 60).round()} min',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color:
+                                        theme.colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        IntervalProfile(
+                          blocks: profileFromGenerated(s.segments),
+                          height: 34,
+                        ),
                       ],
                     ),
                   ),

@@ -41,7 +41,7 @@ enum RowingGoal {
 
 /// One session archetype. The generator turns each into a list of segments.
 enum RowSessionType {
-  duur,
+  endurance,
   drempel,
   intervalKort,
   intervalLang,
@@ -51,7 +51,7 @@ enum RowSessionType {
   herstel;
 
   String get label => switch (this) {
-        RowSessionType.duur => 'Duurloop',
+        RowSessionType.endurance => 'Endurance',
         RowSessionType.drempel => 'Drempel',
         RowSessionType.intervalKort => 'Korte intervallen',
         RowSessionType.intervalLang => 'Lange intervallen',

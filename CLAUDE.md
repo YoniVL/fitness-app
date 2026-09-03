@@ -5,9 +5,21 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
 
 ## Stack
 - Flutter 3.47 / Dart 3.13, `flutter_riverpod` (v2, geen codegen), `sqflite`,
-  `go_router` (StatefulShellRoute, 3 tabs), `fl_chart`, `flutter_ftms`.
+  `go_router`, `fl_chart`, `flutter_ftms`, `flutter_foreground_task`, `audioplayers`.
 - SDK op `C:\src\flutter`; Android SDK op `%LOCALAPPDATA%\Android\Sdk`; JDK 17.
 - Toestel: Samsung SM-S938B (`RZCY30HVGJF`), Android 16.
+- **App vastgezet op portret** (`main()`); alleen `rowing_active_screen.dart`
+  draait naar landscape.
+
+## Navigatie (sinds iteratie 5·R1b)
+- `initialLocation: '/'` → `DisciplineChooserScreen` (keuze Krachttraining / Roeien).
+  **Niet gepersisteerd** — elke koude start toont het keuzescherm.
+- Twee `StatefulShellRoute`s: `/strength/{today,library,log}` en
+  `/rowing/{today,library,log}`, elk met eigen Vandaag/Bibliotheek/Logboek(+
+  progress/session). `HomeShell(discipline:)` + `DisciplineSwitchButton` (⇄ → `/`).
+- Top-level (geen bottom-nav): `/settings`, `/program/builder`, `/rowing/builder`,
+  `/workout/active`, `/rowing/active`.
+- Schermen krijgen `discipline` via de router; sessies gefilterd per onderdeel.
 
 ## Architectuur
 - `lib/domain/models/` — plain Dart models met `fromMap`/`toMap`.
@@ -82,15 +94,38 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   Logboek): streak-kaart, sets/week (fl_chart bar), sets/spiergroep 30d, beste
   set per oefening over tijd (line), persoonlijke records. Reps/sets-gebaseerd.
 - **Oefening-demo's** (`features/exercises/exercise_media.dart`): 2 gebundelde
-  foto's per oefening (start/eind), langzame cross-fade = de beweging
-  (`ExerciseDemo`). ~63 oefeningen gemapt in `_photoSlugs`; assets in
-  `assets/exercise_media/<slug>_{0,1}.jpg` (~3,8 MB, downscaled naar 560px).
+  foto's per oefening (start/eind). In de oefeningenlijst = kleine ronde
+  fotothumbnail (`ExerciseThumb`, per oefening het duidelijkste frame via
+  `_thumbUsesStartFrame`); in het detail = trage cross-fade (`ExerciseDemo`).
+  63 oefeningen in `_photoSlugs`; assets `assets/exercise_media/<slug>_{0,1}.jpg`.
   Bron: everkinetic via github.com/yuhonas/free-exercise-db, **CC BY-SA 3.0** —
-  bronvermelding staat in Instellingen › Credits (moet blijven staan). Oefeningen
-  zonder foto: geen demo (fallback = dumbbell-icoon in de pager). Eerdere
-  zelf-getekende stick-figuur/silhouet-pogingen zijn verworpen en verwijderd.
-- **Roeien/BLE**: alleen schema + `lib/features/rowing/ble/ftms_rower_service.dart`
-  stub. UI = latere iteratie — het grootste openstaande stuk.
+  bronvermelding in Instellingen › Credits (moet blijven staan). De
+  `movementPatternIcon()`/`muscleGroupStyle()`-iconen zijn verwijderd.
+- **Iteratie 5 — Roeien** (in uitvoering, commits vanaf `058b10d`):
+  - *R0*: `rowing_repository.dart` + `rowing_format.dart`; roeisessie handmatig
+    loggen (`log_rowing_sheet.dart`); roei-sessiedetail met tempografiek.
+  - *R1*: roeiplan-generator + `rowing_builder_screen.dart`; schema v5
+    (`program_row_segments.drill_key`, `programs.goal`).
+  - *R2*: `rower_service.dart` (`RowerService` + `FakeRowerService` sim),
+    `active_rowing_provider.dart`, `rowing_active_screen.dart` (`/rowing/active`);
+    apart roei-slot (`activeRowingProgramProvider`, `advanceRowingIfCurrentDay`,
+    `SettingsKeys.activeRowingProgramId`).
+  - *R1b*: app-split (zie Navigatie hierboven).
+  - *R2b*: **workout-catalogus** `lib/domain/rowing_workouts.dart` (~40 benoemde
+    workouts: `RowWorkout`/`RowBlock`/`RowIntensity`); de generator trekt hieruit;
+    sessieduur = meerkeuze-banden (`RowingPlanInput.bands`, incl. 45–60);
+    ~12 preset-plannen; "Duurloop" → **"Endurance"**. Bladerbaar:
+    `workout_library_screen.dart` (`/rowing/library/workouts`). Schema **v6** =
+    roeisjablonen herseeden.
+  - *R2c*: `interval_profile.dart` (blokjes: breedte=duur, hoogte/kleur=
+    slagtempo/zone) + `week_load_chart.dart` (balk per week) in builder-preview,
+    plan-detail, workout-detail, live-scherm.
+  - *R2d*: `rowing_active_screen.dart` = **landscape** (`SystemChrome` in
+    init/dispose); cijfers links groot, intervalprofiel + segmentbanner rechts.
+  - **R3 (BLE)** = nog te doen: `flutter_ftms` echte koppeling + voorgrond-service.
+    De stub `ble/ftms_rower_service.dart` is verwijderd; API-notities in het plan.
+    Verificatie vereist de trainer (FS-057453).
+  - **R4** = roeien op Voortgang + week-strook.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
 
 ## Valkuilen (echt gebeurd)

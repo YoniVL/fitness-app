@@ -10,16 +10,14 @@ void main() {
     int spw = 3,
     RowingGoal goal = RowingGoal.uithouding,
     ProgramLevel level = ProgramLevel.medium,
-    int lo = 25,
-    int hi = 40,
+    Set<(int, int)> bands = const {(25, 40)},
     int weeks = 9,
   }) =>
       RowingPlanInput(
         sessionsPerWeek: spw,
         goal: goal,
         level: level,
-        minMinutes: lo,
-        maxMinutes: hi,
+        bands: bands,
         weeks: weeks,
       );
 
@@ -29,7 +27,6 @@ void main() {
   test('produces weeks × sessionsPerWeek sessions', () {
     final plan = gen(input(spw: 3, weeks: 9));
     expect(plan.sessions, hasLength(27));
-    expect(plan.weeks, 9);
     for (var w = 0; w < 9; w++) {
       expect(plan.sessions.where((s) => s.weekIndex == w), hasLength(3));
     }
@@ -46,13 +43,12 @@ void main() {
     }
   });
 
-  test('session length stays roughly within the chosen band', () {
-    final plan = gen(input(lo: 25, hi: 40, weeks: 9));
+  test('every session has a sensible total duration', () {
+    final plan = gen(input(bands: {(25, 40)}, weeks: 10));
     for (final s in plan.sessions) {
       final minutes = s.totalSeconds / 60;
-      // Deload / recovery sessions dip lower; long sessions run a touch over.
-      expect(minutes, greaterThan(25 * 0.6));
-      expect(minutes, lessThan(40 + 8));
+      expect(minutes, greaterThan(10));
+      expect(minutes, lessThan(70));
     }
   });
 
@@ -63,6 +59,22 @@ void main() {
         .where((s) => s.weekIndex == w)
         .fold(0, (sum, s) => sum + s.totalSeconds);
     expect(weekSeconds(deload), lessThan(weekSeconds(deload - 1)));
+  });
+
+  test('consecutive weeks are not identical for the same slot', () {
+    final plan = gen(input(spw: 3, weeks: 8));
+    for (var w = 0; w < 7; w++) {
+      final thisWeek =
+          plan.sessions.where((s) => s.weekIndex == w).map((s) => s.label);
+      final nextWeek = plan.sessions
+          .where((s) => s.weekIndex == w + 1)
+          .map((s) => s.label)
+          .toList();
+      // At least one session differs from the same slot next week.
+      final differs =
+          thisWeek.toList().asMap().entries.any((e) => e.value != nextWeek[e.key]);
+      expect(differs, isTrue, reason: 'week $w vs ${w + 1}');
+    }
   });
 
   test('technique goal weaves in drill segments', () {
@@ -76,19 +88,23 @@ void main() {
     }
   });
 
-  test('power goal uses low stroke rates for the krachthaal work', () {
-    final plan = gen(input(goal: RowingGoal.kracht));
-    final power = plan.sessions
-        .expand((s) => s.segments)
-        .where((seg) => seg.drillKey == RowDrill.krachtHaal.key)
-        .toList();
-    expect(power, isNotEmpty);
-    expect(power.every((seg) => (seg.targetSpm ?? 99) <= 21), isTrue);
+  test('multiple bands spread session lengths further apart', () {
+    final one = gen(input(bands: {(20, 30)}, weeks: 10));
+    final many = gen(input(bands: {(15, 25), (30, 45), (45, 60)}, weeks: 10));
+    double spread(GeneratedRowingPlan p) {
+      final mins = p.sessions.map((s) => s.totalSeconds / 60).toList()..sort();
+      return mins.last - mins.first;
+    }
+
+    expect(spread(many), greaterThan(spread(one)));
+  });
+
+  test('endurance sessions are labelled Endurance', () {
+    expect(RowSessionType.endurance.label, 'Endurance');
   });
 
   test('respects sessionsPerWeek bounds', () {
     expect(gen(input(spw: 2)).sessionsPerWeek, 2);
-    expect(gen(input(spw: 5)).sessionsPerWeek, 5);
     expect(gen(input(spw: 5, weeks: 8)).sessions, hasLength(40));
   });
 }

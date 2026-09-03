@@ -574,77 +574,117 @@ class _Seg {
   final bool rest;
 }
 
-/// The five preset plans shown in the library, each a fixed-seed run of the
-/// generator so they stay realistic and consistent.
-const _presetPlans = <(String, RowingPlanInput)>[
-  (
-    'Vetverlies · 3×/week',
-    RowingPlanInput(
-      sessionsPerWeek: 3,
-      goal: RowingGoal.vetverlies,
-      level: ProgramLevel.beginner,
-      minMinutes: 25,
-      maxMinutes: 35,
-      weeks: 9,
-      name: 'Vetverlies · 3×/week',
-    ),
+/// The preset plans shown in the library — each a fixed-seed run of the
+/// generator so they stay realistic and consistent across installs.
+final _presetPlans = <RowingPlanInput>[
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.vetverlies,
+    level: ProgramLevel.beginner,
+    bands: {(20, 30), (25, 40)},
+    weeks: 9,
+    name: 'Vetverlies · 3×/week · beginner',
   ),
-  (
-    'Uithouding opbouwen · 3×/week',
-    RowingPlanInput(
-      sessionsPerWeek: 3,
-      goal: RowingGoal.uithouding,
-      level: ProgramLevel.medium,
-      minMinutes: 30,
-      maxMinutes: 45,
-      weeks: 10,
-      name: 'Uithouding opbouwen · 3×/week',
-    ),
+  const RowingPlanInput(
+    sessionsPerWeek: 4,
+    goal: RowingGoal.vetverlies,
+    level: ProgramLevel.medium,
+    bands: {(25, 40), (30, 45), (45, 60)},
+    weeks: 12,
+    name: 'Vetverlies · 4×/week · opbouw',
   ),
-  (
-    'Kort & krachtig · 4×/week',
-    RowingPlanInput(
-      sessionsPerWeek: 4,
-      goal: RowingGoal.kracht,
-      level: ProgramLevel.medium,
-      minMinutes: 18,
-      maxMinutes: 25,
-      weeks: 8,
-      name: 'Kort & krachtig · 4×/week',
-    ),
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.uithouding,
+    level: ProgramLevel.medium,
+    bands: {(30, 45), (45, 60)},
+    weeks: 10,
+    name: 'Uithouding opbouwen · 3×/week',
   ),
-  (
-    'Techniek & basis · 3×/week',
-    RowingPlanInput(
-      sessionsPerWeek: 3,
-      goal: RowingGoal.techniek,
-      level: ProgramLevel.beginner,
-      minMinutes: 20,
-      maxMinutes: 30,
-      weeks: 8,
-      name: 'Techniek & basis · 3×/week',
-    ),
+  const RowingPlanInput(
+    sessionsPerWeek: 4,
+    goal: RowingGoal.uithouding,
+    level: ProgramLevel.advanced,
+    bands: {(30, 45), (45, 60)},
+    weeks: 12,
+    name: 'Uithouding · 4×/week · gevorderd',
   ),
-  (
-    'Algemene conditie · 2×/week',
-    RowingPlanInput(
-      sessionsPerWeek: 2,
-      goal: RowingGoal.algemeen,
-      level: ProgramLevel.beginner,
-      minMinutes: 20,
-      maxMinutes: 30,
-      weeks: 8,
-      name: 'Algemene conditie · 2×/week',
-    ),
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.kracht,
+    level: ProgramLevel.medium,
+    bands: {(20, 30), (25, 40)},
+    weeks: 8,
+    name: 'Kracht & vermogen · 3×/week',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 4,
+    goal: RowingGoal.kracht,
+    level: ProgramLevel.advanced,
+    bands: {(20, 30), (25, 40)},
+    weeks: 8,
+    name: 'Kort & krachtig · 4×/week',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.techniek,
+    level: ProgramLevel.beginner,
+    bands: {(15, 25), (20, 30)},
+    weeks: 8,
+    name: 'Techniek & basis · 3×/week',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.techniek,
+    level: ProgramLevel.medium,
+    bands: {(20, 30), (25, 40)},
+    weeks: 10,
+    name: 'Techniek verfijnen · 3×/week',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 2,
+    goal: RowingGoal.algemeen,
+    level: ProgramLevel.beginner,
+    bands: {(20, 30)},
+    weeks: 8,
+    name: 'Algemene conditie · 2×/week',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.algemeen,
+    level: ProgramLevel.medium,
+    bands: {(20, 30), (25, 40)},
+    weeks: 10,
+    name: 'Algemene conditie · 3×/week',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 4,
+    goal: RowingGoal.algemeen,
+    level: ProgramLevel.medium,
+    bands: {(20, 30), (25, 40), (30, 45)},
+    weeks: 12,
+    name: 'Allround · 4×/week · 12 weken',
+  ),
+  const RowingPlanInput(
+    sessionsPerWeek: 3,
+    goal: RowingGoal.uithouding,
+    level: ProgramLevel.beginner,
+    bands: {(20, 30), (25, 40)},
+    weeks: 8,
+    name: 'Instap uithouding · 3×/week',
   ),
 ];
 
 Future<void> seedRowingTemplates(DatabaseExecutor db) async {
   await _insertLooseSession(
     db,
-    'Steady 20 min',
+    'Endurance 20 min',
     ProgramCategory.rowSteady,
-    const [_Seg(1200, 'Duur', spm: 22)],
+    const [
+      _Seg(180, 'Warming-up', spm: 18),
+      _Seg(1020, 'Endurance', spm: 21),
+      _Seg(120, 'Uitroeien', spm: 16),
+    ],
   );
   await _insertLooseSession(
     db,
@@ -682,8 +722,8 @@ Future<void> seedRowingTemplates(DatabaseExecutor db) async {
   );
 
   for (var i = 0; i < _presetPlans.length; i++) {
-    final (_, input) = _presetPlans[i];
-    final plan = RowingPlanGenerator(rng: Random(1000 + i)).generate(input);
+    final plan =
+        RowingPlanGenerator(rng: Random(1000 + i)).generate(_presetPlans[i]);
     await _insertRowingPlan(db, plan, isTemplate: true);
   }
 }

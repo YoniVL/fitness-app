@@ -12,6 +12,7 @@ import '../features/program_builder/program_editor_screen.dart';
 import '../features/progress/progress_screen.dart';
 import '../features/rowing/rowing_active_screen.dart';
 import '../features/rowing/rowing_builder_screen.dart';
+import '../features/rowing/workout_library_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/strength/active_workout_screen.dart';
 import '../features/today/today_screen.dart';
@@ -39,6 +40,11 @@ StatefulShellRoute _disciplineShell(Discipline discipline) {
               GoRoute(
                 path: 'exercises',
                 builder: (context, state) => const ExerciseListScreen(),
+              ),
+            if (discipline == Discipline.rowing)
+              GoRoute(
+                path: 'workouts',
+                builder: (context, state) => const WorkoutLibraryScreen(),
               ),
             GoRoute(
               path: 'program/:id',

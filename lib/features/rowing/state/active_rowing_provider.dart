@@ -168,6 +168,25 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     });
   }
 
+  /// Starts a session from a one-off workout (from the catalogue, not a plan).
+  Future<void> startWorkout(List<ProgramRowSegment> segments) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final ids = await _rowing.startSession();
+      final session = WorkoutSession(
+        id: ids.sessionId,
+        discipline: Discipline.rowing,
+        startedAt: DateTime.now(),
+      );
+      _startEngine();
+      return ActiveRowingState(
+        session: session,
+        rowingSessionId: ids.rowingSessionId,
+        segments: segments,
+      );
+    });
+  }
+
   void _startEngine() {
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());

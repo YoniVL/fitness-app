@@ -225,3 +225,11 @@ Future<void> migrateV4toV5(Database db) async {
       where: "discipline = 'rowing' AND is_template = 1");
   await seedRowingTemplates(db);
 }
+
+/// v5 -> v6: rebuild the rowing templates from the new workout catalogue
+/// (~40 named workouts) + the expanded set of ~12 preset plans.
+Future<void> migrateV5toV6(Database db) async {
+  await db.delete('programs',
+      where: "discipline = 'rowing' AND is_template = 1");
+  await seedRowingTemplates(db);
+}

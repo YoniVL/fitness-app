@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'models/program.dart';
 import 'models/rowing_plan.dart';
+import 'rowing_workouts.dart';
 
 /// One segment of a generated rowing session.
 class GeneratedRowSegment {
@@ -18,6 +19,14 @@ class GeneratedRowSegment {
   final String intensityLabel;
   final bool isRest;
   final String? drillKey;
+
+  factory GeneratedRowSegment.fromBlock(RowBlock b) => GeneratedRowSegment(
+        durationSeconds: b.seconds,
+        targetSpm: b.spm,
+        intensityLabel: b.label,
+        isRest: b.isRest,
+        drillKey: b.drillKey,
+      );
 }
 
 /// One session (= one `program_day`) of a generated plan.
@@ -45,8 +54,6 @@ class GeneratedRowingPlan {
     required this.level,
     required this.sessionsPerWeek,
     required this.weeks,
-    required this.minMinutes,
-    required this.maxMinutes,
     required this.sessions,
   });
 
@@ -55,8 +62,6 @@ class GeneratedRowingPlan {
   final ProgramLevel level;
   final int sessionsPerWeek;
   final int weeks;
-  final int minMinutes;
-  final int maxMinutes;
   final List<GeneratedRowSession> sessions;
 }
 
@@ -65,8 +70,7 @@ class RowingPlanInput {
     required this.sessionsPerWeek,
     required this.goal,
     required this.level,
-    required this.minMinutes,
-    required this.maxMinutes,
+    required this.bands,
     this.weeks = 8,
     this.name,
   });
@@ -74,15 +78,16 @@ class RowingPlanInput {
   final int sessionsPerWeek;
   final RowingGoal goal;
   final ProgramLevel level;
-  final int minMinutes;
-  final int maxMinutes;
+
+  /// One or more selected session-length bands, e.g. `{(20, 30), (30, 45)}`.
+  final Set<(int, int)> bands;
   final int weeks;
   final String? name;
 }
 
-/// Builds a multi-week rowing plan: a weekly mix of session archetypes driven by
-/// [RowingGoal], with volume/intensity periodised over the weeks (a deload near
-/// the middle and a taper at the end).
+/// Builds a multi-week rowing plan by drawing named workouts from
+/// [rowWorkouts]: a weekly mix of session archetypes driven by [RowingGoal],
+/// periodised over the weeks (a deload near the middle, a taper at the end).
 class RowingPlanGenerator {
   RowingPlanGenerator({Random? rng}) : _rng = rng ?? Random();
 
@@ -91,28 +96,37 @@ class RowingPlanGenerator {
   GeneratedRowingPlan generate(RowingPlanInput input) {
     final spw = input.sessionsPerWeek.clamp(2, 5);
     final weeks = input.weeks.clamp(4, 16);
-    final lo = min(input.minMinutes, input.maxMinutes);
-    final hi = max(input.minMinutes, input.maxMinutes);
+    final bands = (input.bands.isEmpty ? {(20, 30)} : input.bands).toList()
+      ..sort((a, b) => a.$1.compareTo(b.$1));
+
+    // Remember the last workout id picked per (slot, type) so weeks vary.
+    final lastPick = <String, String>{};
 
     final sessions = <GeneratedRowSession>[];
     for (var w = 0; w < weeks; w++) {
-      final deload = w == weeks ~/ 2 && weeks >= 6;
+      final deload = weeks >= 6 && w == weeks ~/ 2;
       final types = _weeklyTypes(input.goal, spw, deload: deload);
-      final wf = _weekFactor(w, weeks);
-      final progress = weeks <= 1 ? 1.0 : w / (weeks - 1);
+      final weekProgress = weeks <= 1 ? 1.0 : w / (weeks - 1);
+      final buildFactor = deload
+          ? 0.4
+          : (w == weeks - 1 ? 0.8 : 0.75 + 0.25 * weekProgress);
 
-      for (final type in types) {
-        final targetSec =
-            (_targetMinutes(type, lo, hi) * wf).round().clamp(
-                  (lo * 0.7).round(),
-                  hi + 3,
-                ) *
-                60;
+      for (var slot = 0; slot < types.length; slot++) {
+        final type = types[slot];
+        // Deload week: short, easy — always the smallest sessions.
+        final band = deload ? (12, 20) : _bandForWeek(bands, weekProgress, false);
+        final workout = _pickWorkout(
+          type,
+          band,
+          slotKey: '$slot-${type.name}',
+          lastPick: lastPick,
+        );
+        final blocks = workout.blocks(input.level, buildFactor);
         sessions.add(GeneratedRowSession(
           weekIndex: w,
           type: type,
-          label: 'Wk ${w + 1} · ${type.label}',
-          segments: _buildSession(type, targetSec, input.level, progress),
+          label: 'Wk ${w + 1} · ${workout.name}',
+          segments: blocks.map(GeneratedRowSegment.fromBlock).toList(),
         ));
       }
     }
@@ -125,302 +139,100 @@ class RowingPlanGenerator {
       level: input.level,
       sessionsPerWeek: spw,
       weeks: weeks,
-      minMinutes: lo,
-      maxMinutes: hi,
       sessions: sessions,
     );
   }
 
-  // --- Weekly structure -------------------------------------------------
+  // --- Weekly structure ---------------------------------------------
 
   List<RowSessionType> _weeklyTypes(RowingGoal goal, int spw,
       {required bool deload}) {
     final base = switch (goal) {
       RowingGoal.vetverlies => [
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.intervalKort,
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.herstel,
           RowSessionType.drempel,
         ],
       RowingGoal.uithouding => [
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.drempel,
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.intervalLang,
           RowSessionType.herstel,
         ],
       RowingGoal.kracht => [
           RowSessionType.krachtStroken,
           RowSessionType.intervalKort,
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.drempel,
           RowSessionType.herstel,
         ],
       RowingGoal.techniek => [
           RowSessionType.techniek,
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.techniek,
           RowSessionType.herstel,
           RowSessionType.drempel,
         ],
       RowingGoal.algemeen => [
-          RowSessionType.duur,
+          RowSessionType.endurance,
           RowSessionType.intervalKort,
-          RowSessionType.drempel,
-          RowSessionType.duur,
+          RowSessionType.piramide,
+          RowSessionType.endurance,
           RowSessionType.herstel,
         ],
     };
     var types = base.take(spw).toList();
     if (deload) {
-      // Deload week: everything easy — only steady + recovery.
       types = types
           .map((t) => t == RowSessionType.herstel
               ? RowSessionType.herstel
-              : RowSessionType.duur)
+              : RowSessionType.endurance)
           .toList();
     }
     return types;
   }
 
-  /// 0.68 on the deload week, 0.8 in the final taper week, otherwise a gentle
-  /// ramp from 0.85 to 1.0.
-  double _weekFactor(int w, int weeks) {
-    if (weeks >= 6 && w == weeks ~/ 2) return 0.68;
-    if (w == weeks - 1) return 0.8;
-    final peak = max(1, weeks - 2);
-    final t = (w / peak).clamp(0.0, 1.0);
-    return 0.85 + 0.15 * t;
+  /// Early weeks favour the shorter bands, later weeks the longer ones.
+  (int, int) _bandForWeek(
+      List<(int, int)> bands, double weekProgress, bool deload) {
+    if (bands.length == 1) return bands.first;
+    if (deload) return bands.first;
+    // Index scales with progress, with a little jitter.
+    final t = (weekProgress + (_rng.nextDouble() - 0.5) * 0.3).clamp(0.0, 1.0);
+    final idx = (t * (bands.length - 1)).round().clamp(0, bands.length - 1);
+    return bands[idx];
   }
 
-  /// The unscaled minutes target for a session type, positioned within the
-  /// user's [lo]..[hi] band.
-  double _targetMinutes(RowSessionType type, int lo, int hi) {
-    final pos = switch (type) {
-      RowSessionType.duur => 0.95,
-      RowSessionType.intervalLang => 0.7,
-      RowSessionType.drempel => 0.7,
-      RowSessionType.piramide => 0.6,
-      RowSessionType.intervalKort => 0.55,
-      RowSessionType.krachtStroken => 0.55,
-      RowSessionType.techniek => 0.5,
-      RowSessionType.herstel => 0.25,
-    };
-    return lo + (hi - lo) * pos;
-  }
-
-  // --- Session builders ------------------------------------------------
-
-  List<GeneratedRowSegment> _buildSession(
-      RowSessionType type, int targetSec, ProgramLevel level, double progress) {
-    return switch (type) {
-      RowSessionType.duur => _steady(targetSec, level),
-      RowSessionType.herstel => _recovery(targetSec),
-      RowSessionType.drempel => _threshold(targetSec, level, progress),
-      RowSessionType.intervalKort => _shortIntervals(targetSec, level, progress),
-      RowSessionType.intervalLang => _longIntervals(targetSec, level, progress),
-      RowSessionType.piramide => _pyramid(targetSec, level, progress),
-      RowSessionType.krachtStroken => _powerStrokes(targetSec, level),
-      RowSessionType.techniek => _technique(targetSec, level, progress),
-    };
-  }
-
-  int _lerpInt(num a, num b, double t) => (a + (b - a) * t).round();
-
-  GeneratedRowSegment _warmup([int seconds = 180]) => GeneratedRowSegment(
-      durationSeconds: seconds, targetSpm: 18, intensityLabel: 'Warming-up');
-
-  GeneratedRowSegment _cooldown([int seconds = 120]) => GeneratedRowSegment(
-      durationSeconds: seconds, targetSpm: 16, intensityLabel: 'Uitroeien');
-
-  GeneratedRowSegment _rest(int seconds) => GeneratedRowSegment(
-      durationSeconds: seconds,
-      targetSpm: 18,
-      intensityLabel: 'Rust',
-      isRest: true);
-
-  int _steadySpm(ProgramLevel l) => switch (l) {
-        ProgramLevel.beginner => 20,
-        ProgramLevel.medium => 21,
-        ProgramLevel.advanced => 22,
-      };
-
-  List<GeneratedRowSegment> _steady(int targetSec, ProgramLevel level) {
-    final main = (targetSec - 180 - 120).clamp(300, 100000);
-    return [
-      _warmup(),
-      GeneratedRowSegment(
-          durationSeconds: main,
-          targetSpm: _steadySpm(level),
-          intensityLabel: 'Duur'),
-      _cooldown(),
-    ];
-  }
-
-  List<GeneratedRowSegment> _recovery(int targetSec) {
-    final main = (targetSec - 120).clamp(240, 100000);
-    return [
-      _warmup(120),
-      GeneratedRowSegment(
-          durationSeconds: main, targetSpm: 17, intensityLabel: 'Rustig'),
-    ];
-  }
-
-  List<GeneratedRowSegment> _intervalSet({
-    required int targetSec,
-    required int workSec,
-    required int workSpm,
-    required int restSec,
-    required String workLabel,
-    required int minReps,
-    required int maxReps,
-    int warmupSec = 180,
-    int cooldownSec = 120,
+  RowWorkout _pickWorkout(
+    RowSessionType type,
+    (int, int) band, {
+    required String slotKey,
+    required Map<String, String> lastPick,
   }) {
-    final available = (targetSec - warmupSec - cooldownSec).clamp(60, 100000);
-    final unit = workSec + restSec;
-    final reps = (available / unit).round().clamp(minReps, maxReps);
-    final out = <GeneratedRowSegment>[_warmup(warmupSec)];
-    for (var i = 0; i < reps; i++) {
-      out.add(GeneratedRowSegment(
-          durationSeconds: workSec,
-          targetSpm: workSpm,
-          intensityLabel: '$workLabel ${i + 1}/$reps'));
-      if (i < reps - 1) out.add(_rest(restSec));
+    var candidates = workoutsOfType(type)
+        .where((w) =>
+            w.approxMinutes >= band.$1 - 4 && w.approxMinutes <= band.$2 + 6)
+        .toList();
+    if (candidates.isEmpty) {
+      // Nothing in range: take the whole type, closest by duration.
+      candidates = workoutsOfType(type).toList()
+        ..sort((a, b) => (a.approxMinutes - band.$2)
+            .abs()
+            .compareTo((b.approxMinutes - band.$2).abs()));
+      candidates = candidates.take(3).toList();
     }
-    out.add(_cooldown(cooldownSec));
-    return out;
-  }
-
-  List<GeneratedRowSegment> _threshold(
-      int targetSec, ProgramLevel level, double progress) {
-    final workSec = _lerpInt(240, 360, progress) + (level.index * 30);
-    final restSec = (workSec *
-            switch (level) {
-              ProgramLevel.beginner => 0.5,
-              ProgramLevel.medium => 0.4,
-              ProgramLevel.advanced => 0.35,
-            })
-        .round();
-    return _intervalSet(
-      targetSec: targetSec,
-      workSec: workSec,
-      workSpm: 24 + level.index,
-      restSec: restSec,
-      workLabel: 'Drempel',
-      minReps: 2,
-      maxReps: 5,
-    );
-  }
-
-  List<GeneratedRowSegment> _shortIntervals(
-      int targetSec, ProgramLevel level, double progress) {
-    final workSec = _lerpInt(45, 75, progress);
-    final restSec = (workSec *
-            switch (level) {
-              ProgramLevel.beginner => 1.3,
-              ProgramLevel.medium => 1.0,
-              ProgramLevel.advanced => 0.8,
-            })
-        .round();
-    return _intervalSet(
-      targetSec: targetSec,
-      workSec: workSec,
-      workSpm: 27 + level.index,
-      restSec: restSec,
-      workLabel: 'Hard',
-      minReps: 5,
-      maxReps: 10,
-    );
-  }
-
-  List<GeneratedRowSegment> _longIntervals(
-      int targetSec, ProgramLevel level, double progress) {
-    final workSec = _lerpInt(180, 240, progress);
-    return _intervalSet(
-      targetSec: targetSec,
-      workSec: workSec,
-      workSpm: 25 + level.index,
-      restSec: (workSec * 0.5).round(),
-      workLabel: 'Interval',
-      minReps: 3,
-      maxReps: 6,
-    );
-  }
-
-  List<GeneratedRowSegment> _pyramid(
-      int targetSec, ProgramLevel level, double progress) {
-    final scale = 0.8 + progress * 0.4;
-    final steps = <(int, int, String)>[
-      ((60 * scale).round(), 22 + level.index, 'Opbouw'),
-      ((120 * scale).round(), 24 + level.index, 'Middel'),
-      ((180 * scale).round(), 26 + level.index, 'Piek'),
-      ((120 * scale).round(), 24 + level.index, 'Middel'),
-      ((60 * scale).round(), 22 + level.index, 'Afbouw'),
-    ];
-    final out = <GeneratedRowSegment>[_warmup()];
-    for (var i = 0; i < steps.length; i++) {
-      final (dur, spm, label) = steps[i];
-      out.add(GeneratedRowSegment(
-          durationSeconds: dur, targetSpm: spm, intensityLabel: label));
-      if (i < steps.length - 1) out.add(_rest(60));
+    if (candidates.isEmpty) {
+      // Type has no workouts at all (shouldn't happen) — fall back to endurance.
+      candidates = workoutsOfType(RowSessionType.endurance).toList();
     }
-    out.add(_cooldown());
-    return out;
-  }
-
-  List<GeneratedRowSegment> _powerStrokes(int targetSec, ProgramLevel level) {
-    final spm = 18 + level.index;
-    return _intervalSet(
-      targetSec: targetSec,
-      workSec: 40,
-      workSpm: spm,
-      restSec: 40,
-      workLabel: 'Krachthaal',
-      minReps: 6,
-      maxReps: 14,
-    ).map((s) => s.intensityLabel.startsWith('Krachthaal')
-        ? GeneratedRowSegment(
-            durationSeconds: s.durationSeconds,
-            targetSpm: s.targetSpm,
-            intensityLabel: s.intensityLabel,
-            drillKey: RowDrill.krachtHaal.key)
-        : s).toList();
-  }
-
-  List<GeneratedRowSegment> _technique(
-      int targetSec, ProgramLevel level, double progress) {
-    final drills = [
-      RowDrill.benenOnly,
-      RowDrill.armenOnly,
-      RowDrill.armenRomp,
-      RowDrill.pauzeHaal,
-      RowDrill.opbouwHaal,
-      RowDrill.omgekeerdeRatio,
-    ]..shuffle(_rng);
-
-    final drillSec = _lerpInt(90, 150, progress);
-    final steadySec = 210;
-    final available =
-        (targetSec - 120 - steadySec - 120).clamp(drillSec, 100000);
-    final n = (available / drillSec).round().clamp(3, drills.length);
-
-    final out = <GeneratedRowSegment>[_warmup(120)];
-    for (var i = 0; i < n; i++) {
-      final d = drills[i % drills.length];
-      out.add(GeneratedRowSegment(
-        durationSeconds: drillSec,
-        targetSpm: 18,
-        intensityLabel: 'Techniek — ${d.label}',
-        drillKey: d.key,
-      ));
-    }
-    out.add(GeneratedRowSegment(
-        durationSeconds: steadySec,
-        targetSpm: _steadySpm(level),
-        intensityLabel: 'Duur'));
-    out.add(_cooldown());
-    return out;
+    final prev = lastPick[slotKey];
+    final fresh = candidates.where((w) => w.id != prev).toList();
+    final pool = fresh.isNotEmpty ? fresh : candidates;
+    final chosen = pool[_rng.nextInt(pool.length)];
+    lastPick[slotKey] = chosen.id;
+    return chosen;
   }
 }

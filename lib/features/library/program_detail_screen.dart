@@ -8,6 +8,8 @@ import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../rowing/state/active_rowing_provider.dart';
+import '../rowing/widgets/interval_profile.dart';
+import '../rowing/widgets/week_load_chart.dart';
 import '../strength/state/active_workout_provider.dart';
 
 class _DayView {
@@ -320,6 +322,19 @@ class _RowingPlanBody extends ConsumerWidget {
                   ),
           ),
         ],
+        if (isPlan && groups.length > 1) ...[
+          const SizedBox(height: 16),
+          Text('Trainingsminuten per week', style: theme.textTheme.labelMedium),
+          const SizedBox(height: 8),
+          WeekLoadChart(minutesPerWeek: [
+            for (final g in groups.values)
+              (g
+                          .expand((d) => d.segments)
+                          .fold(0, (s, seg) => s + seg.durationSeconds) /
+                      60)
+                  .round(),
+          ]),
+        ],
         const SizedBox(height: 12),
         for (final entry in groups.entries) ...[
           if (entry.key.isNotEmpty)
@@ -366,7 +381,19 @@ class _RowSessionCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         title: Text(title),
-        subtitle: Text('~$totalMin min · $workBlocks blokken'),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IntervalProfile(
+                  blocks: profileFromSegments(segs), height: 38),
+              const SizedBox(height: 6),
+              Text('~$totalMin min · $workBlocks blokken',
+                  style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         children: [
           for (final seg in segs)
