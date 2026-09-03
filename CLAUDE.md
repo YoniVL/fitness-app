@@ -158,6 +158,10 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     (`rowingPaceHistoryProvider` is nu een `.family<Set<String>?>`); sectie
     **Testen** (`benchmarkHistory` → 500/2000/5000 m, tijd-over-tijd + PR-chip).
     Handmatig loggen: "Soort"-dropdown (`kind`) + datum/tijd-kiezer (`when`).
+  - *R5e*: `workout_library_screen.dart` = typefilter-chips + mini-`IntervalProfile`
+    per rij. Roei-Vandaag-dagkaart toont het dagprofiel + type-chip
+    (`ProgramDay.rowSessionType`). Builder dedupt de plannaam (` (2)` enz.).
+    "1 blok" i.p.v. "1 blokken".
   - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
     `flutter_ftms` echte koppeling. **Geen voorgrondservice** (bewuste keuze):
     sessie pauzeert bij achtergrond. Verificatie vereist de trainer (FS-057453).

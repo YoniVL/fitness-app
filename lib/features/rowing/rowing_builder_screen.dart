@@ -58,9 +58,19 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
     final plan = _plan;
     if (plan == null) return;
     setState(() => _busy = true);
+
+    // Keep the plan name unique in the library.
+    final existing = (await ref.read(rowingProgramsProvider.future))
+        .map((p) => p.name)
+        .toSet();
+    var name = plan.name;
+    for (var n = 2; existing.contains(name); n++) {
+      name = '${plan.name} ($n)';
+    }
+
     final id = await ref.read(programRepositoryProvider).createProgram(
           NewProgramDraft(
-            name: plan.name,
+            name: name,
             category: ProgramCategory.rowGenerated,
             discipline: Discipline.rowing,
             equipmentProfile: const [],

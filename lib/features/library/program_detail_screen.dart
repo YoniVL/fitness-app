@@ -390,7 +390,9 @@ class _RowSessionCard extends StatelessWidget {
               IntervalProfile(
                   blocks: profileFromSegments(segs), height: 38),
               const SizedBox(height: 6),
-              Text('~$totalMin min · $workBlocks blokken',
+              Text(
+                  '~$totalMin min · '
+                  '$workBlocks ${workBlocks == 1 ? 'blok' : 'blokken'}',
                   style: theme.textTheme.bodySmall),
             ],
           ),

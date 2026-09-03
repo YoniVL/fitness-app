@@ -8,13 +8,18 @@ import '../../data/repositories/exercise_repository.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
-import '../../domain/models/program.dart';
-import '../../domain/progression.dart';
 import '../../data/repositories/rowing_repository.dart';
+import '../../domain/models/program.dart';
+import '../../domain/models/rowing_plan.dart';
+import '../../domain/progression.dart';
 import '../../domain/rowing_format.dart';
 import '../rowing/log_rowing_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
+import '../rowing/widgets/interval_profile.dart';
 import '../strength/state/active_workout_provider.dart';
+
+/// "3 blokken" / "1 blok".
+String _blocks(int n) => n == 1 ? '1 blok' : '$n blokken';
 
 /// (name, "N×M") for each exercise of a program day.
 final _dayPreviewProvider =
@@ -32,16 +37,16 @@ final _dayPreviewProvider =
   ];
 });
 
-/// (minutes, work-block count) for a rowing program day.
-final _rowDayInfoProvider =
-    FutureProvider.family<(int minutes, int blocks), int>((ref, dayId) async {
+/// (minutes, work-block count, segments) for a rowing program day.
+final _rowDayInfoProvider = FutureProvider.family<
+    (int minutes, int blocks, List<ProgramRowSegment> segs), int>((ref, dayId) async {
   final segs = await ref.watch(programRepositoryProvider).rowSegmentsForDay(dayId);
   const framing = {'Warming-up', 'Uitroeien'};
   final seconds = segs.fold(0, (s, seg) => s + seg.durationSeconds);
   final blocks = segs
       .where((s) => !s.isRest && !framing.contains(s.intensityLabel))
       .length;
-  return ((seconds / 60).round(), blocks);
+  return ((seconds / 60).round(), blocks, segs);
 });
 
 /// Finished sessions of [discipline] in the current ISO week.
@@ -400,17 +405,40 @@ class _RowingDayCard extends ConsumerWidget {
           children: [
             Text(active.program.name, style: theme.textTheme.labelMedium),
             const SizedBox(height: 4),
-            Text(day.label.split(' · ').last,
-                style: theme.textTheme.headlineSmall),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(day.label.split(' · ').last,
+                      style: theme.textTheme.headlineSmall),
+                ),
+                if (RowSessionType.fromName(day.rowSessionType)
+                    case final t?)
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    label: Text(t.label),
+                  ),
+              ],
+            ),
             Text(
               planDone
                   ? 'Plan afgerond — begin opnieuw of kies een nieuw plan'
                   : info.maybeWhen(
                       data: (i) =>
-                          'Sessie $sessionNr · ~${i.$1} min · ${i.$2} blokken',
+                          'Sessie $sessionNr · ~${i.$1} min · ${_blocks(i.$2)}',
                       orElse: () => 'Sessie $sessionNr'),
               style: theme.textTheme.bodySmall,
             ),
+            if (!planDone)
+              info.maybeWhen(
+                data: (i) => Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: IntervalProfile(
+                    blocks: profileFromSegments(i.$3),
+                    height: 32,
+                  ),
+                ),
+                orElse: () => const SizedBox.shrink(),
+              ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,

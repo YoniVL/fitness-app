@@ -30,8 +30,15 @@ List<ProgramRowSegment> workoutSegments(RowWorkout w) {
   ];
 }
 
-class WorkoutLibraryScreen extends StatelessWidget {
+class WorkoutLibraryScreen extends StatefulWidget {
   const WorkoutLibraryScreen({super.key});
+
+  @override
+  State<WorkoutLibraryScreen> createState() => _WorkoutLibraryScreenState();
+}
+
+class _WorkoutLibraryScreenState extends State<WorkoutLibraryScreen> {
+  RowSessionType? _filter;
 
   @override
   Widget build(BuildContext context) {
@@ -39,35 +46,104 @@ class WorkoutLibraryScreen extends StatelessWidget {
     for (final w in rowWorkouts) {
       byType.putIfAbsent(w.type, () => []).add(w);
     }
+    final types = RowSessionType.values
+        .where((t) => byType[t]?.isNotEmpty ?? false)
+        .toList();
+    final shown = _filter == null ? types : [_filter!];
+
     return Scaffold(
       appBar: AppBar(
         leading: const DisciplineSwitchButton(),
         title: const Text('Workouts'),
       ),
-      body: ListView(
+      body: Column(
         children: [
-          for (final type in RowSessionType.values)
-            if (byType[type]?.isNotEmpty ?? false) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Text(type.label,
-                    style: Theme.of(context).textTheme.titleMedium),
-              ),
-              for (final w in byType[type]!)
-                ListTile(
-                  title: Text(w.name),
-                  subtitle: Text('~${w.approxMinutes} min · ${w.focus}'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => showModalBottomSheet<void>(
-                    context: context,
-                    showDragHandle: true,
-                    isScrollControlled: true,
-                    builder: (_) => _WorkoutSheet(workout: w),
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: const Text('Alles'),
+                    selected: _filter == null,
+                    onSelected: (_) => setState(() => _filter = null),
                   ),
                 ),
-            ],
-          const SizedBox(height: 24),
+                for (final t in types)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(t.label),
+                      selected: _filter == t,
+                      onSelected: (_) => setState(() => _filter = t),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final type in shown) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                    child: Text(type.label,
+                        style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  for (final w in byType[type]!)
+                    _WorkoutRow(workout: w),
+                ],
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _WorkoutRow extends StatelessWidget {
+  const _WorkoutRow({required this.workout});
+  final RowWorkout workout;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (_) => _WorkoutSheet(workout: workout),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(workout.name, style: theme.textTheme.bodyLarge),
+                  const SizedBox(height: 2),
+                  Text('~${workout.approxMinutes} min · ${workout.focus}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 8),
+                  IntervalProfile(
+                    blocks: profileFromSegments(workoutSegments(workout)),
+                    height: 26,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
       ),
     );
   }
