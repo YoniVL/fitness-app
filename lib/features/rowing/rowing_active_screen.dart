@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
@@ -17,18 +18,34 @@ class RowingActiveScreen extends ConsumerStatefulWidget {
   ConsumerState<RowingActiveScreen> createState() => _RowingActiveScreenState();
 }
 
-class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen> {
+class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen>
+    with WidgetsBindingObserver {
+  static const _landscape = [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    WidgetsBinding.instance.addObserver(this);
+    SystemChrome.setPreferredOrientations(_landscape);
+    WakelockPlus.enable();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android drops the orientation lock while backgrounded — re-assert it.
+    if (state == AppLifecycleState.resumed) {
+      SystemChrome.setPreferredOrientations(_landscape);
+      WakelockPlus.enable();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    WakelockPlus.disable();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
@@ -119,11 +136,7 @@ class _Body extends ConsumerWidget {
     final live = state.live;
     final notifier = ref.read(activeRowingProvider.notifier);
     final hasSegments = state.segments.isNotEmpty;
-
-    final secondary = <String>[
-      if ((live?.powerW ?? 0) > 0) powerLabel(live!.powerW),
-      if (live?.heartRate != null) '${live!.heartRate} bpm',
-    ].join('   ·   ');
+    final hr = live?.heartRate ?? 0;
 
     final numbers = Column(
       mainAxisSize: MainAxisSize.min,
@@ -157,34 +170,60 @@ class _Body extends ConsumerWidget {
                 size: _StatSize.big,
               ),
             ),
+            if (hr > 0)
+              Expanded(
+                child: _Stat(
+                  label: 'Hartslag',
+                  value: '$hr',
+                  size: _StatSize.big,
+                ),
+              ),
           ],
         ),
-        if (secondary.isNotEmpty) ...[
+        if ((live?.powerW ?? 0) > 0) ...[
           const SizedBox(height: 14),
-          Text(secondary,
+          Text('${powerLabel(live!.powerW)} vermogen',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ],
     );
 
-    final controls = Row(
+    final pauseHint = switch (state.pausedReason) {
+      PauseReason.idle => 'Gepauzeerd — geen data van de trainer',
+      PauseReason.background => 'Gepauzeerd — tik Hervat om verder te gaan',
+      _ => null,
+    };
+
+    final controls = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: notifier.togglePause,
-            icon: Icon(state.paused ? Icons.play_arrow : Icons.pause),
-            label: Text(state.paused ? 'Hervat' : 'Pauze'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: notifier.togglePause,
+                icon: Icon(state.paused ? Icons.play_arrow : Icons.pause),
+                label: Text(state.paused ? 'Hervat' : 'Pauze'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _finish(context, ref),
+                icon: const Icon(Icons.flag),
+                label: const Text('Afronden'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: () => _finish(context, ref),
-            icon: const Icon(Icons.flag),
-            label: const Text('Afronden'),
+        if (pauseHint != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(pauseHint,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
-        ),
       ],
     );
 
@@ -210,7 +249,7 @@ class _Body extends ConsumerWidget {
                         IntervalProfile(
                           blocks: profileFromSegments(state.segments),
                           height: 40,
-                          progressFraction: _sessionProgress(),
+                          progressFraction: state.segmentProgressFraction,
                         ),
                         const SizedBox(height: 10),
                         Expanded(child: _NowNextCard(state: state)),
@@ -233,12 +272,6 @@ class _Body extends ConsumerWidget {
               ),
       ),
     );
-  }
-
-  double _sessionProgress() {
-    final total = state.plannedTotalSeconds;
-    if (total <= 0) return 0;
-    return (state.elapsed.inSeconds / total).clamp(0.0, 1.0);
   }
 
   Future<void> _finish(BuildContext context, WidgetRef ref) async {
@@ -364,7 +397,7 @@ class _NowNextCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           next == null
-                              ? 'Sessie afronden'
+                              ? 'Laatste blok'
                               : [
                                   next.intensityLabel,
                                   if (next.targetStrokeRate != null)

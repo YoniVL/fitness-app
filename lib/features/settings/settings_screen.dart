@@ -6,6 +6,7 @@ import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/taxonomy.dart';
 import '../exercises/exercise_media.dart';
+import '../rowing/rowing_cues.dart';
 import 'backup.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -17,6 +18,7 @@ class SettingsScreen extends ConsumerWidget {
     final restBetween = ref.watch(defaultRestBetweenSetsProvider);
     final restAfter = ref.watch(defaultRestAfterExerciseProvider);
     final sound = ref.watch(restTimerSoundProvider);
+    final cueSound = ref.watch(rowingCueSoundProvider);
     final autoProgression = ref.watch(autoProgressionProvider);
     final warmup = ref.watch(warmupSuggestionsProvider);
 
@@ -98,6 +100,24 @@ class SettingsScreen extends ConsumerWidget {
                     .read(settingsRepositoryProvider)
                     .setBool(SettingsKeys.restTimerSound, v);
                 ref.invalidate(restTimerSoundProvider);
+              },
+            ),
+          ),
+          const Divider(),
+          _sectionHeader(context, 'Roeien'),
+          cueSound.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+            data: (on) => SwitchListTile(
+              title: const Text('Piep bij segmentwissel'),
+              subtitle: const Text(
+                  'Een korte toon 10 sec vóór en bij elke wissel tijdens een sessie'),
+              value: on,
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setBool(SettingsKeys.rowingCueSound, v);
+                ref.invalidate(rowingCueSoundProvider);
               },
             ),
           ),

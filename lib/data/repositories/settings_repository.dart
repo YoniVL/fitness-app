@@ -101,6 +101,7 @@ class SettingsKeys {
   static const rowingDeviceId = 'rowing_device_id';
   static const rowingDeviceName = 'rowing_device_name';
   static const rowingDemoMode = 'rowing_demo_mode';
+  static const rowingCueSound = 'rowing_cue_sound';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(

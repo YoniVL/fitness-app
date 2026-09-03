@@ -138,15 +138,25 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     Schema **v7**: `program_days.row_session_type`,
     `program_row_segments.zone` (intensiteit los van rauwe spm — endurance blijft
     groen), `rowing_sessions.{segments_json,kind,active_elapsed_ms}`, reseed.
+  - *R5b*: live-scherm — `rowing_cues.dart` (piep 10 s vóór + bij elke
+    segmentwissel, gegate op `SettingsKeys.rowingCueSound`; **enkel piep**, geen
+    trilling/notificatie/achtergrondservice). `wakelock_plus` houdt het scherm
+    aan; landscape herbevestigd op `resumed`. **Auto-pauze**: `PauseReason`
+    `{none,user,idle,background}` — `idle` na 8 s geen trainerdata (hervat
+    vanzelf bij nieuwe data), `background` bij app naar achtergrond
+    (`main.dart` `didChangeAppLifecycleState`, hervat handmatig). Marker op het
+    profiel volgt de segmentcursor (`ActiveRowingState.segmentProgressFraction`).
+    HR als grote stat; "Laatste blok" i.p.v. "Sessie afronden".
+    `FakeRowerService` valt elke ~45 s even stil voor de demo.
+  - *R5c*: een losse catalogus-workout (`startWorkout`) bewaart z'n segmenten als
+    JSON in `rowing_sessions.segments_json` → structuur overleeft app-kill.
+    `active_elapsed_ms` wordt elke 10 s weggeschreven zodat een rehydrate niet
+    de tijd-weg meetelt. `finish()` neemt `max(live, verste sample)` voor
+    afstand/energie en middelt alleen `> 0`-waarden.
+    `RowingSessionDetail.planSegments` leest ook uit `segments_json`.
   - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
     `flutter_ftms` echte koppeling. **Geen voorgrondservice** (bewuste keuze):
     sessie pauzeert bij achtergrond. Verificatie vereist de trainer (FS-057453).
-- *R5c*: een losse catalogus-workout (`startWorkout`) bewaart z'n segmenten als
-  JSON in `rowing_sessions.segments_json` → structuur overleeft app-kill.
-  `active_elapsed_ms` wordt elke 10 s weggeschreven zodat een rehydrate niet de
-  tijd-weg meetelt. `finish()` neemt `max(live, verste sample)` voor afstand/
-  energie en middelt alleen `> 0`-waarden. `RowingSessionDetail.planSegments`
-  leest ook uit `segments_json`.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).

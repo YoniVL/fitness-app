@@ -9,6 +9,21 @@ import '../../../domain/models/program.dart';
 import '../../../domain/models/rowing.dart';
 import '../../../domain/models/workout_session.dart';
 import '../rower_service.dart';
+import '../rowing_cues.dart';
+
+/// Why the session clock is stopped.
+enum PauseReason {
+  none,
+
+  /// The user tapped Pauze.
+  user,
+
+  /// No data from the trainer for a while — auto-resumes when it returns.
+  idle,
+
+  /// The app went to the background — stays paused until the user resumes.
+  background,
+}
 
 class ActiveRowingState {
   const ActiveRowingState({
@@ -19,7 +34,7 @@ class ActiveRowingState {
     this.elapsed = Duration.zero,
     this.segmentElapsed = Duration.zero,
     this.live,
-    this.paused = false,
+    this.pausedReason = PauseReason.none,
   });
 
   final WorkoutSession session;
@@ -31,9 +46,23 @@ class ActiveRowingState {
   final Duration elapsed;
   final Duration segmentElapsed;
   final RowerSnapshot? live;
-  final bool paused;
+  final PauseReason pausedReason;
+
+  bool get paused => pausedReason != PauseReason.none;
 
   bool get isFreeRow => segments.isEmpty;
+
+  /// 0..1 position within the planned session, by the segment cursor (not wall
+  /// clock) so the profile marker lines up with the current block.
+  double get segmentProgressFraction {
+    final total = plannedTotalSeconds;
+    if (total <= 0) return 0;
+    var before = 0;
+    for (var i = 0; i < segmentIndex && i < segments.length; i++) {
+      before += segments[i].durationSeconds;
+    }
+    return ((before + segmentElapsed.inSeconds) / total).clamp(0.0, 1.0);
+  }
 
   ProgramRowSegment? get currentSegment =>
       segmentIndex >= 0 && segmentIndex < segments.length
@@ -57,7 +86,7 @@ class ActiveRowingState {
     Duration? elapsed,
     Duration? segmentElapsed,
     RowerSnapshot? live,
-    bool? paused,
+    PauseReason? pausedReason,
   }) =>
       ActiveRowingState(
         session: session,
@@ -67,7 +96,7 @@ class ActiveRowingState {
         elapsed: elapsed ?? this.elapsed,
         segmentElapsed: segmentElapsed ?? this.segmentElapsed,
         live: live ?? this.live,
-        paused: paused ?? this.paused,
+        pausedReason: pausedReason ?? this.pausedReason,
       );
 }
 
@@ -84,6 +113,16 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   StreamSubscription<RowerSnapshot>? _sub;
   final List<RowingSample> _pending = [];
   int _lastSampleSecond = -3;
+
+  /// When the trainer last sent data (null until the first frame). Drives the
+  /// "no input → auto-pause" behaviour.
+  DateTime? _lastDataAt;
+  static const _idleTimeout = Duration(seconds: 8);
+
+  /// The segment index we've already played the pre-switch beep for.
+  int _preBeepedFor = -1;
+
+  RowingCues get _cues => ref.read(rowingCuesProvider);
 
   @override
   Future<ActiveRowingState?> build() async {
@@ -214,12 +253,27 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   void _onSnapshot(RowerSnapshot snap) {
     final s = state.valueOrNull;
     if (s == null) return;
-    state = AsyncData(s.copyWith(live: snap));
+    _lastDataAt = DateTime.now();
+    // Data is flowing again → lift an idle auto-pause (not a user/background one).
+    final reason = s.pausedReason == PauseReason.idle
+        ? PauseReason.none
+        : s.pausedReason;
+    state = AsyncData(s.copyWith(live: snap, pausedReason: reason));
   }
 
   void _tick() {
     final s = state.valueOrNull;
-    if (s == null || s.paused) return;
+    if (s == null) return;
+
+    // Auto-pause when the trainer has gone quiet (only once it has ever sent
+    // data — don't rush the initial connection).
+    if (!s.paused &&
+        _lastDataAt != null &&
+        DateTime.now().difference(_lastDataAt!) > _idleTimeout) {
+      state = AsyncData(s.copyWith(pausedReason: PauseReason.idle));
+      return;
+    }
+    if (s.paused) return;
 
     var elapsed = s.elapsed + const Duration(seconds: 1);
     var segElapsed = s.segmentElapsed + const Duration(seconds: 1);
@@ -231,6 +285,13 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         !s.onLastSegment) {
       idx += 1;
       segElapsed = Duration.zero;
+      _cues.onSwitch();
+    } else if (seg != null &&
+        !s.onLastSegment &&
+        _preBeepedFor != idx &&
+        seg.durationSeconds - segElapsed.inSeconds <= 10) {
+      _preBeepedFor = idx;
+      _cues.preSwitch();
     }
 
     state = AsyncData(s.copyWith(
@@ -243,6 +304,14 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     if (elapsed.inSeconds % 10 == 0) {
       _rowing.checkpointElapsed(s.session.id, elapsed);
     }
+  }
+
+  /// The app went to the background — pause and stay paused until the user
+  /// taps Hervat (per the iteration-5 plan: no background running).
+  void markBackgrounded() {
+    final s = state.valueOrNull;
+    if (s == null || s.paused) return;
+    state = AsyncData(s.copyWith(pausedReason: PauseReason.background));
   }
 
   void _maybeSample(RowerSnapshot? live, Duration elapsed) {
@@ -277,7 +346,11 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   void togglePause() {
     final s = state.valueOrNull;
     if (s == null) return;
-    state = AsyncData(s.copyWith(paused: !s.paused));
+    // Any tap on a paused session resumes it; otherwise pause it manually.
+    state = AsyncData(s.copyWith(
+        pausedReason: s.paused ? PauseReason.none : PauseReason.user));
+    if (!s.paused) return;
+    _lastDataAt = DateTime.now(); // don't instantly re-idle-pause on resume
   }
 
   Future<int?> finish({String? notes}) async {

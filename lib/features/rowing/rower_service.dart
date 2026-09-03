@@ -99,6 +99,9 @@ class FakeRowerService implements RowerService {
 
   void _tick() {
     _elapsed += 1;
+    // Simulate the rower stopping for ~12 s every ~45 s so the app's
+    // "no data → auto-pause" path is visible in the demo.
+    if (_elapsed > 20 && _elapsed % 45 >= 33) return;
     // Pace drifts, mean-reverting to ~2:15.
     _pace += (_rng.nextDouble() - 0.5) * 4 + (135 - _pace) * 0.05;
     _pace = _pace.clamp(95, 175);

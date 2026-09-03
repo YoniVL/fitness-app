@@ -56,10 +56,29 @@ void main() {
 
   test('copyWith keeps identity fields', () {
     final s = _state([_seg(0, 60)]);
-    final n = s.copyWith(segmentIndex: 5, paused: true);
+    final n = s.copyWith(segmentIndex: 5, pausedReason: PauseReason.user);
     expect(n.session.id, s.session.id);
     expect(n.rowingSessionId, s.rowingSessionId);
     expect(n.segmentIndex, 5);
     expect(n.paused, isTrue);
+  });
+
+  test('paused reflects the pause reason', () {
+    final s = _state([_seg(0, 60)]);
+    expect(s.paused, isFalse);
+    expect(s.copyWith(pausedReason: PauseReason.idle).paused, isTrue);
+    expect(s.copyWith(pausedReason: PauseReason.background).paused, isTrue);
+    expect(s.copyWith(pausedReason: PauseReason.none).paused, isFalse);
+  });
+
+  test('segmentProgressFraction tracks the segment cursor', () {
+    final segs = [_seg(0, 100), _seg(1, 100), _seg(2, 200)];
+    // Start of segment 1 = 100/400.
+    expect(_state(segs, index: 1).segmentProgressFraction, 0.25);
+    // 50 s into segment 1 = 150/400.
+    expect(
+        _state(segs, index: 1, segElapsed: const Duration(seconds: 50))
+            .segmentProgressFraction,
+        0.375);
   });
 }
