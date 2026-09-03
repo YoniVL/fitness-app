@@ -13,6 +13,9 @@ class RowingSession {
     required this.avgPower,
     required this.durationSeconds,
     this.programDayId,
+    this.segmentsJson,
+    this.kind,
+    this.activeElapsedMs,
   });
 
   final int id;
@@ -24,6 +27,16 @@ class RowingSession {
   final int durationSeconds;
   final int? programDayId;
 
+  /// JSON blob of the segments for an ad-hoc (catalogue) workout not backed by
+  /// a `program_day`, so the structure survives an app restart.
+  final String? segmentsJson;
+
+  /// `RowSessionType.name` for progress filtering (endurance/interval/test/…).
+  final String? kind;
+
+  /// Real elapsed time (excl. pauses), persisted live for a robust rehydrate.
+  final int? activeElapsedMs;
+
   factory RowingSession.fromMap(Map<String, Object?> map) => RowingSession(
         id: map['id'] as int,
         sessionId: map['session_id'] as int,
@@ -33,6 +46,9 @@ class RowingSession {
         avgPower: (map['avg_power'] as num?)?.toDouble() ?? 0,
         durationSeconds: map['duration_seconds'] as int? ?? 0,
         programDayId: map['program_day_id'] as int?,
+        segmentsJson: map['segments_json'] as String?,
+        kind: map['kind'] as String?,
+        activeElapsedMs: map['active_elapsed_ms'] as int?,
       );
 
   Map<String, Object?> toMap() => {
@@ -44,6 +60,9 @@ class RowingSession {
         'avg_power': avgPower,
         'duration_seconds': durationSeconds,
         'program_day_id': programDayId,
+        'segments_json': segmentsJson,
+        'kind': kind,
+        'active_elapsed_ms': activeElapsedMs,
       };
 }
 

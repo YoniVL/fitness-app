@@ -128,7 +128,7 @@ class _WorkoutSheet extends ConsumerWidget {
                 Navigator.pop(context);
                 await ref
                     .read(activeRowingProvider.notifier)
-                    .startWorkout(segments);
+                    .startWorkout(segments, kind: workout.type.name);
                 if (context.mounted) context.push('/rowing/active');
               },
             ),

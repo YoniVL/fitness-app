@@ -1,9 +1,43 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing.dart';
 import '../../domain/models/workout_session.dart';
 import '../database/app_database.dart';
+
+/// Compact JSON for the segments of an ad-hoc (catalogue) rowing workout, so
+/// the structure survives an app restart (there is no `program_day` to reload).
+String encodeRowSegments(List<ProgramRowSegment> segs) => jsonEncode([
+      for (final s in segs)
+        {
+          'd': s.durationSeconds,
+          'spm': s.targetStrokeRate,
+          'label': s.intensityLabel,
+          'rest': s.isRest,
+          'drill': s.drillKey,
+          'zone': s.zone,
+        }
+    ]);
+
+List<ProgramRowSegment> decodeRowSegments(String json) {
+  final list = (jsonDecode(json) as List).cast<Map<String, Object?>>();
+  return [
+    for (var i = 0; i < list.length; i++)
+      ProgramRowSegment(
+        id: 0,
+        programDayId: 0,
+        orderIndex: i,
+        durationSeconds: (list[i]['d'] as num).toInt(),
+        targetStrokeRate: (list[i]['spm'] as num?)?.toInt(),
+        intensityLabel: list[i]['label'] as String? ?? '',
+        isRest: list[i]['rest'] as bool? ?? false,
+        drillKey: list[i]['drill'] as String?,
+        zone: list[i]['zone'] as String?,
+      ),
+  ];
+}
 
 /// The rowing numbers the log list needs for one session.
 class RowingSummary {
@@ -89,7 +123,11 @@ class RowingRepository {
 
   /// Opens a rowing session plus its (zeroed) `rowing_sessions` child so live
   /// samples have something to attach to. Finalise with [finalize].
-  Future<RowingSessionIds> startSession({int? programDayId}) async {
+  Future<RowingSessionIds> startSession({
+    int? programDayId,
+    String? segmentsJson,
+    String? kind,
+  }) async {
     final db = await _appDb.database;
     final now = DateTime.now();
     final sessionId = await db.insert('workout_sessions', {
@@ -101,8 +139,23 @@ class RowingRepository {
     final rowingSessionId = await db.insert('rowing_sessions', {
       'session_id': sessionId,
       'program_day_id': programDayId,
+      'segments_json': segmentsJson,
+      'kind': kind,
+      'active_elapsed_ms': 0,
     });
     return (sessionId: sessionId, rowingSessionId: rowingSessionId);
+  }
+
+  /// Live checkpoint of the real elapsed time (excludes paused stretches) so a
+  /// rehydrate after an app kill doesn't count wall-clock time spent away.
+  Future<void> checkpointElapsed(int sessionId, Duration elapsed) async {
+    final db = await _appDb.database;
+    await db.update(
+      'rowing_sessions',
+      {'active_elapsed_ms': elapsed.inMilliseconds},
+      where: 'session_id = ?',
+      whereArgs: [sessionId],
+    );
   }
 
   Future<void> addSamples(
@@ -136,6 +189,7 @@ class RowingRepository {
     double avgPower = 0,
     double energyKcal = 0,
     String? notes,
+    String? kind,
   }) async {
     final db = await _appDb.database;
     await db.update(
@@ -146,6 +200,7 @@ class RowingRepository {
         'avg_stroke_rate': avgStrokeRate,
         'avg_power': avgPower,
         'duration_seconds': duration.inSeconds,
+        'kind': ?kind,
       },
       where: 'session_id = ?',
       whereArgs: [sessionId],
@@ -219,6 +274,9 @@ class RowingRepository {
           whereArgs: [rowing.programDayId],
           orderBy: 'order_index');
       planSegments = segRows.map(ProgramRowSegment.fromMap).toList();
+    } else if (rowing.segmentsJson != null &&
+        rowing.segmentsJson!.isNotEmpty) {
+      planSegments = decodeRowSegments(rowing.segmentsJson!);
     }
     return RowingSessionDetail(
       session: WorkoutSession.fromMap(sessionRows.first),

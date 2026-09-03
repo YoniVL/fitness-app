@@ -155,4 +155,53 @@ void main() {
         distanceM: 0, duration: const Duration(minutes: 5));
     expect(await rowing.paceHistory(), isEmpty);
   });
+
+  test('an ad-hoc workout keeps its segments across a "restart"', () async {
+    final segs = [
+      const ProgramRowSegment(
+          id: 0,
+          programDayId: 0,
+          orderIndex: 0,
+          durationSeconds: 120,
+          targetStrokeRate: 18,
+          intensityLabel: 'Warming-up',
+          zone: 'easy'),
+      const ProgramRowSegment(
+          id: 0,
+          programDayId: 0,
+          orderIndex: 1,
+          durationSeconds: 600,
+          targetStrokeRate: 22,
+          intensityLabel: 'Endurance',
+          zone: 'steady'),
+    ];
+    final ids = await rowing.startSession(
+        segmentsJson: encodeRowSegments(segs), kind: 'endurance');
+    // Fresh repo instance = the app coming back up.
+    final detail = await RowingRepository(AppDatabase.instance)
+        .rowingDetail(ids.sessionId);
+    expect(detail!.planSegments, hasLength(2));
+    expect(detail.planSegments[1].intensityLabel, 'Endurance');
+    expect(detail.planSegments[1].zone, 'steady');
+    expect(detail.rowing.kind, 'endurance');
+  });
+
+  test('finalize keeps the furthest sample distance if the last frame is 0',
+      () async {
+    final ids = await rowing.startSession();
+    await rowing.addSamples(ids.rowingSessionId, [
+      for (var i = 0; i < 4; i++)
+        RowingSample(
+          id: 0,
+          rowingSessionId: ids.rowingSessionId,
+          tOffsetMs: i * 2000,
+          distanceM: i * 100.0,
+        ),
+    ]);
+    // The provider passes max(live, furthest sample); here the "live" was 0.
+    await rowing.finalize(ids.sessionId,
+        distanceM: 300, duration: const Duration(minutes: 2));
+    final detail = await rowing.rowingDetail(ids.sessionId);
+    expect(detail!.rowing.totalDistanceM, 300);
+  });
 }

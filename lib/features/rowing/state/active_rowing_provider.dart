@@ -98,10 +98,16 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
 
   Future<ActiveRowingState> _rehydrate(WorkoutSession session) async {
     final db = await _rowing.rowingDetail(session.id);
-    final segments = session.programDayId == null
-        ? const <ProgramRowSegment>[]
-        : await _programs.rowSegmentsForDay(session.programDayId!);
-    final elapsed = DateTime.now().difference(session.startedAt);
+    final segments = session.programDayId != null
+        ? await _programs.rowSegmentsForDay(session.programDayId!)
+        : (db?.rowing.segmentsJson?.isNotEmpty ?? false)
+            ? decodeRowSegments(db!.rowing.segmentsJson!)
+            : const <ProgramRowSegment>[];
+    // Prefer the live-checkpointed elapsed (excludes time away) over wall clock.
+    final checkpointMs = db?.rowing.activeElapsedMs ?? 0;
+    final elapsed = checkpointMs > 0
+        ? Duration(milliseconds: checkpointMs)
+        : DateTime.now().difference(session.startedAt);
 
     // Walk the segment cursor forward to match the elapsed time.
     var idx = 0;
@@ -133,7 +139,8 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   Future<void> startFromDay(ProgramDay day) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final ids = await _rowing.startSession(programDayId: day.id);
+      final ids = await _rowing.startSession(
+          programDayId: day.id, kind: day.rowSessionType);
       final segments = await _programs.rowSegmentsForDay(day.id);
       final session = WorkoutSession(
         id: ids.sessionId,
@@ -169,10 +176,17 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   }
 
   /// Starts a session from a one-off workout (from the catalogue, not a plan).
-  Future<void> startWorkout(List<ProgramRowSegment> segments) async {
+  /// The segments are persisted as JSON so the structure survives an app kill.
+  Future<void> startWorkout(
+    List<ProgramRowSegment> segments, {
+    String? kind,
+  }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final ids = await _rowing.startSession();
+      final ids = await _rowing.startSession(
+        segmentsJson: encodeRowSegments(segments),
+        kind: kind,
+      );
       final session = WorkoutSession(
         id: ids.sessionId,
         discipline: Discipline.rowing,
@@ -226,6 +240,9 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     ));
 
     _maybeSample(s.live, elapsed);
+    if (elapsed.inSeconds % 10 == 0) {
+      _rowing.checkpointElapsed(s.session.id, elapsed);
+    }
   }
 
   void _maybeSample(RowerSnapshot? live, Duration elapsed) {
@@ -271,25 +288,31 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     await _flush();
 
     final live = s.live;
-    final samples = await _rowing.rowingDetail(s.session.id);
-    final rates = samples?.samples
-            .map((x) => x.strokeRate)
-            .whereType<double>()
-            .toList() ??
-        const <double>[];
-    final powers =
-        samples?.samples.map((x) => x.powerW).whereType<double>().toList() ??
-            const <double>[];
+    final detail = await _rowing.rowingDetail(s.session.id);
+    final sampleList = detail?.samples ?? const <RowingSample>[];
+    List<double> positive(Iterable<double?> xs) =>
+        xs.whereType<double>().where((x) => x > 0).toList();
+    final rates = positive(sampleList.map((x) => x.strokeRate));
+    final powers = positive(sampleList.map((x) => x.powerW));
     double mean(List<double> xs) =>
         xs.isEmpty ? 0 : xs.reduce((a, b) => a + b) / xs.length;
+    double maxOf(Iterable<double?> xs) =>
+        positive(xs).fold(0.0, (m, x) => x > m ? x : m);
+
+    // If the trainer dropped out just before finishing, the last live snapshot
+    // can read 0 — fall back to the furthest sample.
+    final distanceM = [live?.distanceM ?? 0.0, maxOf(sampleList.map((x) => x.distanceM))]
+        .reduce((a, b) => a > b ? a : b);
+    final energyKcal = [live?.energyKcal ?? 0.0, maxOf(sampleList.map((x) => x.energyKcal))]
+        .reduce((a, b) => a > b ? a : b);
 
     await _rowing.finalize(
       s.session.id,
-      distanceM: live?.distanceM ?? 0,
+      distanceM: distanceM,
       duration: s.elapsed,
       avgStrokeRate: mean(rates),
       avgPower: mean(powers),
-      energyKcal: live?.energyKcal ?? 0,
+      energyKcal: energyKcal,
       notes: notes,
     );
     await _rower.disconnect();

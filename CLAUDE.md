@@ -141,9 +141,12 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
     `flutter_ftms` echte koppeling. **Geen voorgrondservice** (bewuste keuze):
     sessie pauzeert bij achtergrond. Verificatie vereist de trainer (FS-057453).
-- **Bekende beperking**: een losse workout uit de catalogus (`startWorkout`)
-  bewaart z'n segmenten niet in de DB → na app-kill wordt het een vrije sessie
-  (afstand/tijd blijven kloppen). Plan-dagen (`startFromDay`) herstellen wel.
+- *R5c*: een losse catalogus-workout (`startWorkout`) bewaart z'n segmenten als
+  JSON in `rowing_sessions.segments_json` → structuur overleeft app-kill.
+  `active_elapsed_ms` wordt elke 10 s weggeschreven zodat een rehydrate niet de
+  tijd-weg meetelt. `finish()` neemt `max(live, verste sample)` voor afstand/
+  energie en middelt alleen `> 0`-waarden. `RowingSessionDetail.planSegments`
+  leest ook uit `segments_json`.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
