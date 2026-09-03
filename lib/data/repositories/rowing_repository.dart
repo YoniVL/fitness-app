@@ -114,6 +114,20 @@ class RowingTotals {
   final int durationSeconds;
 }
 
+/// The history of one benchmark distance (e.g. 2000 m) — every timed attempt,
+/// oldest first, plus the personal best.
+class RowingBenchmark {
+  RowingBenchmark(this.distanceM, this.attempts);
+  final int distanceM;
+
+  /// (date, total seconds), oldest first.
+  final List<({DateTime date, int seconds})> attempts;
+
+  int get bestSeconds =>
+      attempts.map((a) => a.seconds).reduce((a, b) => a < b ? a : b);
+  ({DateTime date, int seconds}) get latest => attempts.last;
+}
+
 class RowingRepository {
   RowingRepository(this._appDb);
 
@@ -220,7 +234,8 @@ class RowingRepository {
 
   // --- Manual entry --------------------------------------------------
 
-  /// Logs a finished rowing session in one go (no samples).
+  /// Logs a finished rowing session in one go (no samples). [when] is the moment
+  /// the session ended (default now); [kind] is a `RowSessionType.name`.
   Future<int> logManualSession({
     required double distanceM,
     required Duration duration,
@@ -229,15 +244,17 @@ class RowingRepository {
     double energyKcal = 0,
     String? notes,
     int? programDayId,
+    String? kind,
+    DateTime? when,
   }) async {
     final db = await _appDb.database;
-    final now = DateTime.now();
-    final startedAt = now.subtract(duration);
+    final endedAt = when ?? DateTime.now();
+    final startedAt = endedAt.subtract(duration);
     final sessionId = await db.insert('workout_sessions', {
       'discipline': Discipline.rowing.name,
       'program_day_id': programDayId,
       'started_at': startedAt.millisecondsSinceEpoch,
-      'ended_at': now.millisecondsSinceEpoch,
+      'ended_at': endedAt.millisecondsSinceEpoch,
       'notes': ?notes,
     });
     await db.insert('rowing_sessions', {
@@ -248,6 +265,7 @@ class RowingRepository {
       'avg_stroke_rate': avgStrokeRate,
       'avg_power': avgPower,
       'duration_seconds': duration.inSeconds,
+      'kind': kind,
     });
     return sessionId;
   }
@@ -293,7 +311,8 @@ class RowingRepository {
     return db.rawQuery('''
       SELECT ws.started_at AS started_at,
              rs.total_distance_m AS distance_m,
-             rs.duration_seconds AS duration_seconds
+             rs.duration_seconds AS duration_seconds,
+             rs.kind AS kind
       FROM rowing_sessions rs
       JOIN workout_sessions ws ON ws.id = rs.session_id
       WHERE ws.ended_at IS NOT NULL
@@ -328,13 +347,15 @@ class RowingRepository {
   }
 
   /// Average pace per finished session that covered distance, oldest first.
-  Future<List<RowingPacePoint>> paceHistory() async {
+  /// [kinds] filters on `rowing_sessions.kind` (null kind excluded when set).
+  Future<List<RowingPacePoint>> paceHistory({Set<String>? kinds}) async {
     final rows = await _finishedRows();
     final out = <RowingPacePoint>[];
     for (final r in rows) {
       final d = (r['distance_m'] as num?)?.toDouble() ?? 0;
       final s = (r['duration_seconds'] as num?)?.toInt() ?? 0;
       if (d <= 0 || s <= 0) continue;
+      if (kinds != null && !kinds.contains(r['kind'] as String?)) continue;
       out.add(RowingPacePoint(
         DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int),
         s / d * 500,
@@ -378,6 +399,37 @@ class RowingRepository {
     }
     return RowingTotals(n, dist, dur);
   }
+
+  /// The standard test distances tracked on the Progress screen.
+  static const benchmarkDistances = <int>[500, 2000, 5000];
+
+  /// Finished `kind == 'test'` sessions, grouped by the standard distance they
+  /// land nearest (within 12 %). One [RowingBenchmark] per distance that has data.
+  Future<List<RowingBenchmark>> benchmarkHistory() async {
+    final rows = await _finishedRows();
+    final byDist = <int, List<({DateTime date, int seconds})>>{};
+    for (final r in rows) {
+      if (r['kind'] != 'test') continue;
+      final d = (r['distance_m'] as num?)?.toDouble() ?? 0;
+      final s = (r['duration_seconds'] as num?)?.toInt() ?? 0;
+      if (d <= 0 || s <= 0) continue;
+      for (final std in benchmarkDistances) {
+        if ((d - std).abs() <= std * 0.12) {
+          byDist.putIfAbsent(std, () => []).add((
+            date: DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int),
+            seconds: s,
+          ));
+          break;
+        }
+      }
+    }
+    return [
+      for (final std in benchmarkDistances)
+        if (byDist[std]?.isNotEmpty ?? false)
+          RowingBenchmark(
+              std, byDist[std]!..sort((a, b) => a.date.compareTo(b.date))),
+    ];
+  }
 }
 
 final rowingRepositoryProvider = Provider<RowingRepository>(
@@ -394,8 +446,15 @@ final rowingWeeklyDistanceProvider = FutureProvider<List<RowingWeekPoint>>(
   (ref) => ref.watch(rowingRepositoryProvider).weeklyDistance(),
 );
 
-final rowingPaceHistoryProvider = FutureProvider<List<RowingPacePoint>>(
-  (ref) => ref.watch(rowingRepositoryProvider).paceHistory(),
+/// Pace trend, optionally filtered by session kind. `null` key = every session.
+final rowingPaceHistoryProvider =
+    FutureProvider.family<List<RowingPacePoint>, Set<String>?>(
+  (ref, kinds) => ref.watch(rowingRepositoryProvider).paceHistory(kinds: kinds),
+);
+
+final rowingBenchmarkHistoryProvider =
+    FutureProvider<List<RowingBenchmark>>(
+  (ref) => ref.watch(rowingRepositoryProvider).benchmarkHistory(),
 );
 
 final rowingWeekStreakProvider = FutureProvider<int>(
@@ -413,6 +472,7 @@ final rowingMonthTotalsProvider = FutureProvider<RowingTotals>(
 final rowingProgressProviders = <ProviderOrFamily>[
   rowingWeeklyDistanceProvider,
   rowingPaceHistoryProvider,
+  rowingBenchmarkHistoryProvider,
   rowingWeekStreakProvider,
   rowingMonthTotalsProvider,
 ];

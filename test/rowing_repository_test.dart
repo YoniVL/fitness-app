@@ -186,6 +186,45 @@ void main() {
     expect(detail.rowing.kind, 'endurance');
   });
 
+  test('paceHistory filters by kind; benchmarkHistory groups + picks the PR',
+      () async {
+    await rowing.logManualSession(
+        distanceM: 5000,
+        duration: const Duration(minutes: 22),
+        kind: 'endurance',
+        when: DateTime(2026, 8, 1));
+    await rowing.logManualSession(
+        distanceM: 2000,
+        duration: const Duration(minutes: 7, seconds: 40),
+        kind: 'test',
+        when: DateTime(2026, 8, 10));
+    await rowing.logManualSession(
+        distanceM: 2000,
+        duration: const Duration(minutes: 7, seconds: 20),
+        kind: 'test',
+        when: DateTime(2026, 8, 24));
+
+    expect(await rowing.paceHistory(kinds: {'endurance'}), hasLength(1));
+    expect(await rowing.paceHistory(kinds: {'test'}), hasLength(2));
+    expect(await rowing.paceHistory(), hasLength(3));
+
+    final benches = await rowing.benchmarkHistory();
+    expect(benches, hasLength(1));
+    expect(benches.first.distanceM, 2000);
+    expect(benches.first.attempts, hasLength(2));
+    expect(benches.first.bestSeconds, 7 * 60 + 20);
+    expect(benches.first.latest.seconds, 7 * 60 + 20);
+  });
+
+  test('logManualSession respects the given date', () async {
+    final when = DateTime(2026, 7, 15, 9, 30);
+    await rowing.logManualSession(
+        distanceM: 3000, duration: const Duration(minutes: 15), when: when);
+    final recent = await sessions.recentSessions();
+    expect(recent.first.session.startedAt,
+        when.subtract(const Duration(minutes: 15)));
+  });
+
   test('finalize keeps the furthest sample distance if the last frame is 0',
       () async {
     final ids = await rowing.startSession();

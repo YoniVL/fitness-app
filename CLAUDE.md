@@ -154,6 +154,10 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     de tijd-weg meetelt. `finish()` neemt `max(live, verste sample)` voor
     afstand/energie en middelt alleen `> 0`-waarden.
     `RowingSessionDetail.planSegments` leest ook uit `segments_json`.
+  - *R5d*: Voortgang — tempo-trend met filter Rustig/Interval/Alles
+    (`rowingPaceHistoryProvider` is nu een `.family<Set<String>?>`); sectie
+    **Testen** (`benchmarkHistory` → 500/2000/5000 m, tijd-over-tijd + PR-chip).
+    Handmatig loggen: "Soort"-dropdown (`kind`) + datum/tijd-kiezer (`when`).
   - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
     `flutter_ftms` echte koppeling. **Geen voorgrondservice** (bewuste keuze):
     sessie pauzeert bij achtergrond. Verificatie vereist de trainer (FS-057453).

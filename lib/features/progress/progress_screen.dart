@@ -168,14 +168,35 @@ class _RecordList extends StatelessWidget {
 
 // --- Rowing -------------------------------------------------------
 
-class _RowingProgress extends ConsumerWidget {
+/// The pace-trend filter: which session kinds feed the "gemiddeld tempo" chart.
+enum _PaceFilter {
+  rustig('Rustig', {'endurance', 'herstel'}),
+  interval('Interval',
+      {'drempel', 'intervalKort', 'intervalLang', 'piramide', 'krachtStroken'}),
+  alles('Alles', null);
+
+  const _PaceFilter(this.label, this.kinds);
+  final String label;
+  final Set<String>? kinds;
+}
+
+class _RowingProgress extends ConsumerStatefulWidget {
   const _RowingProgress();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RowingProgress> createState() => _RowingProgressState();
+}
+
+class _RowingProgressState extends ConsumerState<_RowingProgress> {
+  _PaceFilter _filter = _PaceFilter.rustig;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final weekly = ref.watch(rowingWeeklyDistanceProvider);
-    final pace = ref.watch(rowingPaceHistoryProvider);
+    final pace = ref.watch(rowingPaceHistoryProvider(_filter.kinds));
+    final benchmarks =
+        ref.watch(rowingBenchmarkHistoryProvider).valueOrNull ?? const [];
     final streak = ref.watch(rowingWeekStreakProvider).valueOrNull ?? 0;
     final totals = ref.watch(rowingMonthTotalsProvider).valueOrNull;
 
@@ -241,15 +262,145 @@ class _RowingProgress extends ConsumerWidget {
         const SizedBox(height: 8),
         _Section(
           title: 'Gemiddeld tempo · per sessie',
-          child: pace.when(
-            loading: () => const _ChartLoading(),
-            error: (e, _) => Text('Fout: $e'),
-            data: (points) => points.length < 3
-                ? const _Empty('Log enkele roeisessies met afstand.')
-                : _PaceTrendChart(points: points),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final f in _PaceFilter.values)
+                    ChoiceChip(
+                      label: Text(f.label),
+                      selected: _filter == f,
+                      onSelected: (_) => setState(() => _filter = f),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              pace.when(
+                loading: () => const _ChartLoading(),
+                error: (e, _) => Text('Fout: $e'),
+                data: (points) => points.length < 3
+                    ? const _Empty('Log enkele roeisessies met afstand.')
+                    : _PaceTrendChart(points: points),
+              ),
+            ],
           ),
         ),
+        if (benchmarks.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _Section(
+            title: 'Testen',
+            child: Column(
+              children: [
+                for (final b in benchmarks) ...[
+                  _BenchmarkTile(benchmark: b),
+                  if (b != benchmarks.last) const SizedBox(height: 16),
+                ],
+              ],
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _BenchmarkTile extends StatelessWidget {
+  const _BenchmarkTile({required this.benchmark});
+  final RowingBenchmark benchmark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final b = benchmark;
+    final label = b.distanceM >= 1000
+        ? '${b.distanceM ~/ 1000}k'
+        : '${b.distanceM} m';
+    final best = Duration(seconds: b.bestSeconds);
+    final latest = Duration(seconds: b.latest.seconds);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label, style: theme.textTheme.titleSmall),
+            const Spacer(),
+            Chip(
+              visualDensity: VisualDensity.compact,
+              label: Text('PR ${hmsLabel(best)}'),
+            ),
+          ],
+        ),
+        Text(
+          b.attempts.length == 1
+              ? '1 poging'
+              : 'laatste ${hmsLabel(latest)} · ${b.attempts.length} pogingen',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        if (b.attempts.length >= 2) ...[
+          const SizedBox(height: 8),
+          SizedBox(height: 120, child: _BenchmarkChart(benchmark: b)),
+        ],
+      ],
+    );
+  }
+}
+
+class _BenchmarkChart extends StatelessWidget {
+  const _BenchmarkChart({required this.benchmark});
+  final RowingBenchmark benchmark;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final a = benchmark.attempts;
+    final spots = [
+      for (var i = 0; i < a.length; i++)
+        FlSpot(i.toDouble(), a[i].seconds.toDouble()),
+    ];
+    final mn = a.map((x) => x.seconds).reduce((x, y) => x < y ? x : y);
+    final mx = a.map((x) => x.seconds).reduce((x, y) => x > y ? x : y);
+    return LineChart(
+      LineChartData(
+        minY: (mn - 8).toDouble(),
+        maxY: (mx + 8).toDouble(),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: scheme.onSurface.withValues(alpha: 0.08),
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(),
+          rightTitles: const AxisTitles(),
+          bottomTitles: const AxisTitles(),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (v, m) => v == m.max || v == m.min
+                  ? const SizedBox.shrink()
+                  : Text(hmsLabel(Duration(seconds: v.round())),
+                      style: Theme.of(context).textTheme.labelSmall),
+            ),
+          ),
+        ),
+        lineTouchData: const LineTouchData(enabled: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: false,
+            color: scheme.primary,
+            barWidth: 2,
+            dotData: const FlDotData(show: true),
+          ),
+        ],
+      ),
     );
   }
 }
