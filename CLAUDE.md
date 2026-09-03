@@ -167,15 +167,24 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     (`ProgramDay.rowSessionType`). Builder dedupt de plannaam (` (2)` enz.).
     "1 blok" i.p.v. "1 blokken".
   - *R3*: **echte BLE** — `ble/ble_rower_service.dart` (`BleRowerService implements
-    RowerService`) via `flutter_ftms` + `flutter_blue_plus` (`autoConnect` doet
-    de herverbinding), `ble/connect_sheet.dart` (scan + koppelen + vergeten),
-    Instellingen-sectie **Roeitrainer** + **Demo-modus**-schakelaar. Status-chip
-    op het live-scherm opent de koppel-sheet. `rowerServiceProvider` kiest op
-    `rowingDemoModeProvider`; demo staat standaard **aan** tot een trainer
-    gekoppeld is (dan uit), zodat "losse roeisessie" altijd data heeft. **Geen
-    voorgrondservice** (bewuste keuze): sessie pauzeert bij achtergrond.
-    Op toestel geverifieerd t/m de scan (permissie-prompt + FTMS-scan starten);
-    live data + herverbinden vereist de trainer (FS-057453).
+    RowerService`) via `flutter_ftms` + `flutter_blue_plus`. **Scan is niet
+    gefilterd op de FTMS-service-UUID** (deze trainers adverteren die niet); de
+    lijst toont alle benoemde toestellen. Herverbinden gaat via een **scan op de
+    opgeslagen naam** (het adres roteert — RPA), met de laatst bekende MAC als
+    snelle poging. `ble/connect_sheet.dart` scant automatisch bij openen;
+    `ensureRowerConnected()` opent 'm vóór een sessie als er geen trainer
+    gekoppeld/verbonden is (met "Later koppelen"). Instellingen-sectie
+    **Roeitrainer** + **Demo-modus**. Status-chip op het live-scherm opent de
+    sheet. `rowerServiceProvider` kiest op
+    `rowingDemoModeProvider.select(...)` (geen rebuild op loading→data, anders
+    wordt de service mid-sessie disposed); demo standaard **aan** tot een trainer
+    gekoppeld is. **Auto-pauze** ook bij stilstand: veel trainers streamen
+    nul-frames als je stopt, dus pauzeren bij `distance` die 10 s niet beweegt
+    (behalve tijdens een geplande rust). **Geen voorgrondservice** — sessie
+    pauzeert bij achtergrond. Op toestel met de FS-057453 geverifieerd: scan
+    vindt 'm, verbindt, FTMS-frames stromen, herverbindt na verlopen adres,
+    auto-pauze werkt. Live cijfers tijdens het roeien + power-cycle nog door de
+    gebruiker te bevestigen.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).

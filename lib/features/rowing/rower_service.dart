@@ -136,9 +136,12 @@ final rowingDemoModeProvider = FutureProvider<bool>(
 );
 
 /// The active rower data source: the real [BleRowerService], or
-/// [FakeRowerService] when demo mode is on.
+/// [FakeRowerService] when demo mode is on. Only rebuilds when the *resolved*
+/// demo flag flips — not on the initial loading→data transition, which would
+/// otherwise dispose a service mid-session.
 final rowerServiceProvider = Provider<RowerService>((ref) {
-  final demo = ref.watch(rowingDemoModeProvider).valueOrNull ?? false;
+  final demo = ref.watch(
+      rowingDemoModeProvider.select((v) => v.valueOrNull ?? false));
   final RowerService service =
       demo ? FakeRowerService() : BleRowerService(ref);
   ref.onDispose(service.dispose);

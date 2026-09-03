@@ -200,7 +200,7 @@ class _Body extends ConsumerWidget {
     );
 
     final pauseHint = switch (state.pausedReason) {
-      PauseReason.idle => 'Gepauzeerd — geen data van de trainer',
+      PauseReason.idle => 'Gepauzeerd — begin te roeien om verder te gaan',
       PauseReason.background => 'Gepauzeerd — tik Hervat om verder te gaan',
       _ => null,
     };

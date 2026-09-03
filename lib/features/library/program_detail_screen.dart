@@ -7,6 +7,7 @@ import '../../data/repositories/program_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../rowing/ble/connect_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
 import '../rowing/widgets/interval_profile.dart';
 import '../rowing/widgets/week_load_chart.dart';
@@ -348,6 +349,8 @@ class _RowingPlanBody extends ConsumerWidget {
             _RowSessionCard(
               dayView: d,
               onStart: () async {
+                await ensureRowerConnected(context, ref);
+                if (!context.mounted) return;
                 await ref
                     .read(activeRowingProvider.notifier)
                     .startFromDay(d.day);

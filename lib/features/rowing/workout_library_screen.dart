@@ -6,6 +6,7 @@ import '../../app/home_shell.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_workouts.dart';
+import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
 
@@ -106,20 +107,29 @@ class _WorkoutLibraryScreenState extends State<WorkoutLibraryScreen> {
   }
 }
 
-class _WorkoutRow extends StatelessWidget {
+class _WorkoutRow extends ConsumerWidget {
   const _WorkoutRow({required this.workout});
   final RowWorkout workout;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return InkWell(
-      onTap: () => showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        builder: (_) => _WorkoutSheet(workout: workout),
-      ),
+      onTap: () async {
+        final start = await showModalBottomSheet<bool>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (_) => _WorkoutSheet(workout: workout),
+        );
+        if (start != true || !context.mounted) return;
+        await ensureRowerConnected(context, ref);
+        if (!context.mounted) return;
+        await ref
+            .read(activeRowingProvider.notifier)
+            .startWorkout(workoutSegments(workout), kind: workout.type.name);
+        if (context.mounted) context.push('/rowing/active');
+      },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(
@@ -149,12 +159,12 @@ class _WorkoutRow extends StatelessWidget {
   }
 }
 
-class _WorkoutSheet extends ConsumerWidget {
+class _WorkoutSheet extends StatelessWidget {
   const _WorkoutSheet({required this.workout});
   final RowWorkout workout;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final segments = workoutSegments(workout);
     return SingleChildScrollView(
@@ -200,13 +210,7 @@ class _WorkoutSheet extends ConsumerWidget {
             child: FilledButton.icon(
               icon: const Icon(Icons.play_arrow),
               label: const Text('Start deze workout'),
-              onPressed: () async {
-                Navigator.pop(context);
-                await ref
-                    .read(activeRowingProvider.notifier)
-                    .startWorkout(segments, kind: workout.type.name);
-                if (context.mounted) context.push('/rowing/active');
-              },
+              onPressed: () => Navigator.pop(context, true),
             ),
           ),
         ],

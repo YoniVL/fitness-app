@@ -13,6 +13,7 @@ import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/progression.dart';
 import '../../domain/rowing_format.dart';
+import '../rowing/ble/connect_sheet.dart';
 import '../rowing/log_rowing_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
 import '../rowing/widgets/interval_profile.dart';
@@ -200,6 +201,8 @@ class _RowingToday extends ConsumerWidget {
           const SizedBox(height: 20),
           OutlinedButton.icon(
             onPressed: () async {
+              await ensureRowerConnected(context, ref);
+              if (!context.mounted) return;
               await ref.read(activeRowingProvider.notifier).startFree();
               if (context.mounted) context.push('/rowing/active');
             },
@@ -444,6 +447,8 @@ class _RowingDayCard extends ConsumerWidget {
               width: double.infinity,
               child: FilledButton(
                 onPressed: () async {
+                  await ensureRowerConnected(context, ref);
+                  if (!context.mounted) return;
                   await ref
                       .read(activeRowingProvider.notifier)
                       .startFromDay(day);

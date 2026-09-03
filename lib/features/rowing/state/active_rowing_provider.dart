@@ -114,10 +114,14 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   final List<RowingSample> _pending = [];
   int _lastSampleSecond = -3;
 
-  /// When the trainer last sent data (null until the first frame). Drives the
-  /// "no input → auto-pause" behaviour.
+  /// When the trainer last sent data (null until the first frame), and when the
+  /// distance last moved. Either going stale auto-pauses the session — some
+  /// trainers keep streaming zero-frames when you stop rowing.
   DateTime? _lastDataAt;
+  DateTime? _lastMoveAt;
+  double _lastDistance = 0;
   static const _idleTimeout = Duration(seconds: 8);
+  static const _stallTimeout = Duration(seconds: 10);
 
   /// The segment index we've already played the pre-switch beep for.
   int _preBeepedFor = -1;
@@ -253,9 +257,17 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   void _onSnapshot(RowerSnapshot snap) {
     final s = state.valueOrNull;
     if (s == null) return;
-    _lastDataAt = DateTime.now();
-    // Data is flowing again → lift an idle auto-pause (not a user/background one).
-    final reason = s.pausedReason == PauseReason.idle
+    final now = DateTime.now();
+    _lastDataAt = now;
+    final d = snap.distanceM ?? 0;
+    final moving = d > _lastDistance + 0.5 || (snap.strokeRate ?? 0) > 1;
+    if (moving) {
+      _lastMoveAt = now;
+      _lastDistance = d;
+    }
+    _lastMoveAt ??= now;
+    // Rowing resumed → lift an idle auto-pause (not a user/background one).
+    final reason = (s.pausedReason == PauseReason.idle && moving)
         ? PauseReason.none
         : s.pausedReason;
     state = AsyncData(s.copyWith(live: snap, pausedReason: reason));
@@ -265,11 +277,15 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     final s = state.valueOrNull;
     if (s == null) return;
 
-    // Auto-pause when the trainer has gone quiet (only once it has ever sent
-    // data — don't rush the initial connection).
-    if (!s.paused &&
-        _lastDataAt != null &&
-        DateTime.now().difference(_lastDataAt!) > _idleTimeout) {
+    // Auto-pause when the trainer goes quiet, or keeps streaming but you've
+    // stopped rowing (distance not moving) — unless a planned rest is running.
+    final now = DateTime.now();
+    final noData =
+        _lastDataAt != null && now.difference(_lastDataAt!) > _idleTimeout;
+    final stalled = _lastMoveAt != null &&
+        now.difference(_lastMoveAt!) > _stallTimeout &&
+        !(s.currentSegment?.isRest ?? false);
+    if (!s.paused && (noData || stalled)) {
       state = AsyncData(s.copyWith(pausedReason: PauseReason.idle));
       return;
     }

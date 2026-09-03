@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:flutter_ftms/flutter_ftms.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../data/repositories/settings_repository.dart';
 import '../rower_service.dart';
 import 'ble_rower_service.dart';
 
+/// Opens the trainer-pairing sheet. Returns when it is dismissed.
 Future<void> showConnectRowerSheet(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet<void>(
     context: context,
@@ -16,6 +17,23 @@ Future<void> showConnectRowerSheet(BuildContext context, WidgetRef ref) {
     isScrollControlled: true,
     builder: (_) => const _ConnectSheet(),
   );
+}
+
+/// Before a rowing session: in demo mode or with a link already up, do nothing.
+/// With a trainer paired, kick off the (re)connection and carry on — the live
+/// screen shows the status. With no trainer paired, open the pairing sheet
+/// (which also lets the user continue without one).
+Future<void> ensureRowerConnected(BuildContext context, WidgetRef ref) async {
+  final demo = ref.read(rowingDemoModeProvider).valueOrNull ?? false;
+  if (demo) return;
+  final svc = ref.read(rowerServiceProvider);
+  if (svc is! BleRowerService) return;
+  if (svc.status != RowerConnectionStatus.disconnected) return;
+  if (await svc.hasPairedDevice) {
+    unawaited(svc.connect());
+    return;
+  }
+  if (context.mounted) await showConnectRowerSheet(context, ref);
 }
 
 class _ConnectSheet extends ConsumerStatefulWidget {
@@ -28,7 +46,7 @@ class _ConnectSheet extends ConsumerStatefulWidget {
 class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
   StreamSubscription<List<ScanResult>>? _scanSub;
   StreamSubscription<BluetoothAdapterState>? _adapterSub;
-  List<ScanResult> _results = const [];
+  final Map<DeviceIdentifier, ScanResult> _found = {};
   bool _scanning = false;
   bool _adapterOn = FlutterBluePlus.adapterStateNow == BluetoothAdapterState.on;
   String? _error;
@@ -37,8 +55,19 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
   void initState() {
     super.initState();
     _adapterSub = FlutterBluePlus.adapterState.listen((s) {
-      if (mounted) setState(() => _adapterOn = s == BluetoothAdapterState.on);
+      final on = s == BluetoothAdapterState.on;
+      if (mounted) setState(() => _adapterOn = on);
+      if (on && _found.isEmpty && !_scanning) _scan();
     });
+    _scanSub = FlutterBluePlus.scanResults.listen((results) {
+      if (!mounted) return;
+      setState(() {
+        for (final r in results) {
+          if (_name(r).isNotEmpty) _found[r.device.remoteId] = r;
+        }
+      });
+    });
+    _scan();
   }
 
   @override
@@ -49,49 +78,53 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
     super.dispose();
   }
 
+  String _name(ScanResult r) => r.device.platformName.isNotEmpty
+      ? r.device.platformName
+      : r.advertisementData.advName;
+
   Future<void> _scan() async {
-    final svc = ref.read(rowerServiceProvider);
-    if (svc is! BleRowerService) {
+    if (ref.read(rowerServiceProvider) is! BleRowerService) {
       setState(() => _error = 'Demo-modus staat aan — zet die eerst uit.');
       return;
-    }
-    if (!_adapterOn) {
-      try {
-        await FlutterBluePlus.turnOn();
-      } catch (_) {
-        setState(() => _error = 'Zet Bluetooth aan om te zoeken.');
-        return;
-      }
     }
     setState(() {
       _error = null;
       _scanning = true;
-      _results = const [];
-    });
-    _scanSub?.cancel();
-    _scanSub = FTMS.scanResults.listen((r) {
-      if (mounted) setState(() => _results = r);
     });
     try {
-      await FTMS.scanForBluetoothDevices();
+      await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.locationWhenInUse,
+      ].request();
+      if (!_adapterOn) {
+        try {
+          await FlutterBluePlus.turnOn();
+        } catch (_) {}
+      }
+      await FlutterBluePlus.adapterState
+          .firstWhere((s) => s == BluetoothAdapterState.on)
+          .timeout(const Duration(seconds: 6));
+      await FlutterBluePlus.stopScan();
+      await FlutterBluePlus.startScan(
+        withServices: const [],
+        timeout: const Duration(seconds: 15),
+        androidUsesFineLocation: false,
+      );
+      await FlutterBluePlus.isScanning.where((s) => s == false).first;
+    } on TimeoutException {
+      if (mounted) setState(() => _error = 'Zet Bluetooth aan om te zoeken.');
     } catch (e) {
       if (mounted) setState(() => _error = 'Zoeken mislukt: $e');
     }
-    // The scan runs ~4 s; reflect that it stopped.
-    await Future<void>.delayed(const Duration(seconds: 5));
     if (mounted) setState(() => _scanning = false);
   }
 
   Future<void> _pick(ScanResult r) async {
     final svc = ref.read(rowerServiceProvider);
     if (svc is! BleRowerService) return;
-    final name = r.device.platformName.isNotEmpty
-        ? r.device.platformName
-        : (r.advertisementData.advName.isNotEmpty
-            ? r.advertisementData.advName
-            : 'Roeitrainer');
     await FlutterBluePlus.stopScan();
-    await svc.pair(r.device, name);
+    await svc.pair(r.device, _name(r));
     ref.invalidate(rowingDeviceNameProvider);
     ref.invalidate(rowingDemoModeProvider);
     if (mounted) Navigator.pop(context);
@@ -109,95 +142,111 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
     final theme = Theme.of(context);
     final pairedName = ref.watch(rowingDeviceNameProvider).valueOrNull;
     final status = ref.watch(rowerStatusProvider).valueOrNull;
+    final devices = _found.values.toList()
+      ..sort((a, b) => b.rssi.compareTo(a.rssi));
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-            20, 0, 20, 16 + MediaQuery.viewInsetsOf(context).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Roeitrainer', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(
-              'Koppel je FTMS-roeitrainer via Bluetooth. Zet de trainer aan en '
-              'begin te roeien zodat hij zichtbaar wordt.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            if (pairedName != null)
-              Card(
-                margin: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(
-                    status == RowerConnectionStatus.connected
-                        ? Icons.bluetooth_connected
-                        : Icons.bluetooth,
-                    color: status == RowerConnectionStatus.connected
-                        ? theme.colorScheme.primary
-                        : null,
-                  ),
-                  title: Text(pairedName),
-                  subtitle: Text(switch (status) {
-                    RowerConnectionStatus.connected => 'Verbonden',
-                    RowerConnectionStatus.connecting => 'Verbinden…',
-                    _ => 'Niet verbonden',
-                  }),
-                  trailing: TextButton(
-                    onPressed: _forget,
-                    child: const Text('Vergeten'),
-                  ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.78),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 0, 20, 8 + MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                      child: Text('Roeitrainer koppelen',
+                          style: theme.textTheme.titleLarge)),
+                  if (_scanning)
+                    const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                  else
+                    IconButton(
+                      onPressed: _scan,
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Opnieuw zoeken',
+                    ),
+                ],
+              ),
+              Text(
+                'Zet je FTMS-roeitrainer aan; hij verschijnt hier vanzelf.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 6),
+                Text(_error!,
+                    style: TextStyle(color: theme.colorScheme.error)),
+              ],
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (pairedName != null)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: Icon(
+                            status == RowerConnectionStatus.connected
+                                ? Icons.bluetooth_connected
+                                : Icons.bluetooth,
+                            color: status == RowerConnectionStatus.connected
+                                ? theme.colorScheme.primary
+                                : null,
+                          ),
+                          title: Text(pairedName),
+                          subtitle: Text(switch (status) {
+                            RowerConnectionStatus.connected => 'Verbonden',
+                            RowerConnectionStatus.connecting => 'Verbinden…',
+                            _ => 'Niet verbonden',
+                          }),
+                          trailing: TextButton(
+                              onPressed: _forget,
+                              child: const Text('Vergeten')),
+                        ),
+                      ),
+                    if (devices.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            _scanning
+                                ? 'Zoeken naar trainers…'
+                                : 'Geen toestellen gevonden.\n'
+                                    'Staat je trainer aan?',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      )
+                    else
+                      for (final r in devices)
+                        ListTile(
+                          leading: const Icon(Icons.rowing),
+                          title: Text(_name(r)),
+                          subtitle: Text('${r.rssi} dBm'),
+                          onTap: () => _pick(r),
+                        ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _scanning ? null : _scan,
-              icon: _scanning
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.search),
-              label: Text(_scanning ? 'Zoeken…' : 'Zoek trainers'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Later koppelen'),
+                ),
+              ),
             ],
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 260),
-              child: _results.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        _scanning
-                            ? 'Zoeken naar trainers…'
-                            : 'Nog geen trainers gevonden.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
-                      ),
-                    )
-                  : ListView(
-                      shrinkWrap: true,
-                      children: [
-                        for (final r in _results)
-                          ListTile(
-                            leading: const Icon(Icons.rowing),
-                            title: Text(r.device.platformName.isNotEmpty
-                                ? r.device.platformName
-                                : (r.advertisementData.advName.isNotEmpty
-                                    ? r.advertisementData.advName
-                                    : r.device.remoteId.str)),
-                            subtitle: Text('${r.rssi} dBm'),
-                            onTap: () => _pick(r),
-                          ),
-                      ],
-                    ),
-            ),
-          ],
+          ),
         ),
       ),
     );
