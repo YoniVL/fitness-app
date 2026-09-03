@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
+import '../../domain/rowing_workouts.dart';
 import 'rower_service.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
@@ -120,44 +121,51 @@ class _Body extends ConsumerWidget {
     final notifier = ref.read(activeRowingProvider.notifier);
     final hasSegments = state.segments.isNotEmpty;
 
+    final secondary = <String>[
+      if ((live?.powerW ?? 0) > 0) powerLabel(live!.powerW),
+      if (live?.heartRate != null) '${live!.heartRate} bpm',
+    ].join('   ·   ');
+
     final numbers = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _HugeStat(
-            label: 'Afstand', value: distanceLabel(live?.distanceM ?? 0)),
-        const SizedBox(height: 6),
-        _HugeStat(label: 'Tijd', value: hmsLabel(state.elapsed)),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _MidStat(
-                  label: 'Tempo /500m',
-                  value: paceLabel(live?.paceSec500m, withUnit: false)),
-            ),
-            Expanded(
-              child: _MidStat(
-                  label: 'Slag', value: spmLabel(live?.strokeRate)),
-            ),
-          ],
+        _Stat(
+          label: 'Afstand',
+          value: distanceLabel(live?.distanceM ?? 0),
+          size: _StatSize.hero,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 14),
+        _Stat(
+          label: 'Tijd',
+          value: hmsLabel(state.elapsed),
+          size: _StatSize.hero,
+        ),
+        const SizedBox(height: 20),
         Row(
           children: [
             Expanded(
-              child: _SmallStat(
-                  label: 'Vermogen', value: powerLabel(live?.powerW)),
+              child: _Stat(
+                label: 'Tempo /500m',
+                value: paceLabel(live?.paceSec500m, withUnit: false),
+                size: _StatSize.big,
+              ),
             ),
             Expanded(
-              child: _SmallStat(
-                label: 'Hartslag',
-                value:
-                    live?.heartRate == null ? '–' : '${live!.heartRate} bpm',
+              child: _Stat(
+                label: 'Slag',
+                value: spmLabel(live?.strokeRate),
+                size: _StatSize.big,
               ),
             ),
           ],
         ),
+        if (secondary.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text(secondary,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
       ],
     );
 
@@ -183,31 +191,31 @@ class _Body extends ConsumerWidget {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
         child: hasSegments
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    flex: 5,
+                    flex: 4,
                     child: SingleChildScrollView(
                       child: Align(
                           alignment: Alignment.centerLeft, child: numbers),
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 24),
                   Expanded(
-                    flex: 6,
+                    flex: 5,
                     child: Column(
                       children: [
                         IntervalProfile(
                           blocks: profileFromSegments(state.segments),
-                          height: 48,
+                          height: 40,
                           progressFraction: _sessionProgress(),
                         ),
-                        const SizedBox(height: 8),
-                        Expanded(child: _SegmentBanner(state: state)),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
+                        Expanded(child: _NowNextCard(state: state)),
+                        const SizedBox(height: 10),
                         controls,
                       ],
                     ),
@@ -268,13 +276,16 @@ class _Body extends ConsumerWidget {
   }
 }
 
-class _SegmentBanner extends StatelessWidget {
-  const _SegmentBanner({required this.state});
+/// The calm centrepiece: the current segment (label + countdown + target rate)
+/// and — prominently — what's coming next so you can prepare the rating.
+class _NowNextCard extends StatelessWidget {
+  const _NowNextCard({required this.state});
   final ActiveRowingState state;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final seg = state.currentSegment!;
     final total = seg.durationSeconds;
     final remaining = state.segmentRemaining ?? Duration.zero;
@@ -283,113 +294,123 @@ class _SegmentBanner extends StatelessWidget {
     final next = state.segmentIndex + 1 < state.segments.length
         ? state.segments[state.segmentIndex + 1]
         : null;
+    final zone = intensityColor(
+        RowBlock.zoneFor(spm: seg.targetStrokeRate, isRest: seg.isRest),
+        scheme);
 
     return Card(
       margin: EdgeInsets.zero,
-      color: seg.isRest
-          ? theme.colorScheme.surfaceContainerHighest
-          : theme.colorScheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(seg.intensityLabel,
-                      style: theme.textTheme.titleLarge),
-                ),
-                Text(hmsLabel(remaining), style: theme.textTheme.titleLarge),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
-                minHeight: 6,
+      clipBehavior: Clip.antiAlias,
+      color: scheme.surfaceContainerHigh,
+      child: Row(
+        children: [
+          Container(width: 6, color: zone),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text(seg.intensityLabel,
+                            style: theme.textTheme.titleLarge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      Text(hmsLabel(remaining),
+                          style: theme.textTheme.headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      minHeight: 8,
+                      backgroundColor: scheme.surfaceContainerHighest,
+                      color: zone,
+                    ),
+                  ),
+                  if (seg.targetStrokeRate != null) ...[
+                    const SizedBox(height: 8),
+                    Text('doel ${seg.targetStrokeRate} spm',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant)),
+                  ],
+                  if (drill != null)
+                    Text(drill.tip,
+                        style: theme.textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  const Divider(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text('STRAKS  ',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              letterSpacing: 1.5)),
+                      Expanded(
+                        child: Text(
+                          next == null
+                              ? 'Sessie afronden'
+                              : [
+                                  next.intensityLabel,
+                                  if (next.targetStrokeRate != null)
+                                    '${next.targetStrokeRate} spm',
+                                ].join('  ·  '),
+                          style: theme.textTheme.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              [
-                'Blok ${state.segmentIndex + 1}/${state.segments.length}',
-                if (seg.targetStrokeRate != null)
-                  'streef ${seg.targetStrokeRate} spm',
-                if (next != null) 'straks: ${next.intensityLabel}',
-              ].join(' · '),
-              style: theme.textTheme.bodyMedium,
-            ),
-            if (drill != null) ...[
-              const SizedBox(height: 6),
-              Text(drill.tip, style: theme.textTheme.bodySmall),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _HugeStat extends StatelessWidget {
-  const _HugeStat({required this.label, required this.value});
+enum _StatSize { hero, big }
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value, required this.size});
   final String label;
   final String value;
+  final _StatSize size;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final valueStyle = switch (size) {
+      _StatSize.hero => theme.textTheme.displaySmall
+          ?.copyWith(fontWeight: FontWeight.w700, height: 1.05),
+      _StatSize.big => theme.textTheme.headlineSmall,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.labelMedium),
+        Text(label,
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(value,
-              style: theme.textTheme.displaySmall
-                  ?.copyWith(fontWeight: FontWeight.w700, height: 1.05)),
+          alignment: Alignment.centerLeft,
+          child: Text(value, style: valueStyle),
         ),
-      ],
-    );
-  }
-}
-
-class _MidStat extends StatelessWidget {
-  const _MidStat({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: theme.textTheme.labelMedium),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(value, style: theme.textTheme.headlineSmall),
-        ),
-      ],
-    );
-  }
-}
-
-class _SmallStat extends StatelessWidget {
-  const _SmallStat({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: theme.textTheme.labelSmall),
-        Text(value, style: theme.textTheme.titleMedium),
       ],
     );
   }

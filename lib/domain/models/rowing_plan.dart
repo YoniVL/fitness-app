@@ -23,7 +23,7 @@ enum RowingGoal {
         RowingGoal.vetverlies =>
           'Veel rustig duurwerk met een wekelijkse intervalsessie.',
         RowingGoal.uithouding =>
-          'Aerobe basis: lange duurstukken en drempeltraining.',
+          'Aerobe basis: lange rustige stukken en drempeltraining.',
         RowingGoal.kracht =>
           'Korte harde intervallen en lage-slag krachthalen, met veel rust.',
         RowingGoal.techniek =>

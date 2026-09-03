@@ -73,8 +73,9 @@ class LibraryScreen extends ConsumerWidget {
       ),
       ListTile(
         leading: const Icon(Icons.list_alt),
-        title: const Text('Roei-workouts'),
-        subtitle: const Text('Losse sessies: intervallen, piramides, duurstukken'),
+        title: const Text('Workouts'),
+        subtitle:
+            const Text('Losse sessies: intervallen, piramides, endurance'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/rowing/library/workouts'),
       ),

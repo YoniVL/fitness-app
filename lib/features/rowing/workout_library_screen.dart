@@ -41,7 +41,7 @@ class WorkoutLibraryScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         leading: const DisciplineSwitchButton(),
-        title: const Text('Roei-workouts'),
+        title: const Text('Workouts'),
       ),
       body: ListView(
         children: [

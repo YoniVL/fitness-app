@@ -109,7 +109,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_30',
-    name: '30 min duurstuk',
+    name: '30 min endurance',
     type: RowSessionType.endurance,
     focus: 'Lang aaneengesloten op gespreksniveau.',
     approxMinutes: 30,
@@ -122,7 +122,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_40',
-    name: '40 min duurstuk',
+    name: '40 min endurance',
     type: RowSessionType.endurance,
     focus: 'Volumesessie, rustig en gelijkmatig.',
     approxMinutes: 40,
@@ -150,7 +150,7 @@ final List<RowWorkout> rowWorkouts = [
     id: 'end_3x10',
     name: '3 × 10 min r20',
     type: RowSessionType.endurance,
-    focus: 'Duurblokken met een korte losroei-pauze.',
+    focus: 'Endurance-blokken met een korte losroei-pauze.',
     approxMinutes: 38,
     blocks: (l, b) => [
       _wu(3),
@@ -207,7 +207,7 @@ final List<RowWorkout> rowWorkouts = [
     id: 'end_5k',
     name: '5.000 m gelijkmatig',
     type: RowSessionType.endurance,
-    focus: 'Vaste afstand op duurtempo.',
+    focus: 'Vaste afstand op endurance-tempo.',
     approxMinutes: 24,
     blocks: (l, b) => [
       _wu(3),
