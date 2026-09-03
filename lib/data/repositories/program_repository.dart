@@ -34,10 +34,14 @@ class NewProgramDayDraft {
     required this.label,
     this.exercises = const [],
     this.segments = const [],
+    this.rowSessionType,
   });
   final String label;
   final List<NewProgramExerciseDraft> exercises;
   final List<NewRowSegmentDraft> segments;
+
+  /// `RowSessionType.name` for a generated rowing-plan day, else null.
+  final String? rowSessionType;
 }
 
 class NewRowSegmentDraft {
@@ -47,12 +51,14 @@ class NewRowSegmentDraft {
     required this.intensityLabel,
     this.isRest = false,
     this.drillKey,
+    this.zone,
   });
   final int durationSeconds;
   final int? targetStrokeRate;
   final String intensityLabel;
   final bool isRest;
   final String? drillKey;
+  final String? zone;
 }
 
 class NewProgramExerciseDraft {
@@ -137,6 +143,7 @@ class ProgramRepository {
           'program_id': programId,
           'day_index': d,
           'label': day.label,
+          'row_session_type': day.rowSessionType,
         });
         for (var i = 0; i < day.exercises.length; i++) {
           final e = day.exercises[i];
@@ -161,6 +168,7 @@ class ProgramRepository {
             'intensity_label': s.intensityLabel,
             'is_rest': s.isRest ? 1 : 0,
             'drill_key': s.drillKey,
+            'zone': s.zone,
           });
         }
       }
@@ -204,6 +212,7 @@ class ProgramRepository {
           'program_id': programId,
           'day_index': d,
           'label': day.label,
+          'row_session_type': day.rowSessionType,
         });
         for (var i = 0; i < day.exercises.length; i++) {
           final e = day.exercises[i];

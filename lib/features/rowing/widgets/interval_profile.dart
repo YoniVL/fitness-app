@@ -5,16 +5,49 @@ import '../../../domain/rowing_plan_generator.dart';
 import '../../../domain/rowing_workouts.dart';
 
 /// A block reduced to what the profile needs.
-typedef ProfileBlock = ({int seconds, int? spm, bool isRest});
+typedef ProfileBlock = ({int seconds, int? spm, bool isRest, RowIntensity? zone});
+
+RowIntensity? _zone(String? name) => rowIntensityFromName(name);
+
+/// Parse a stored `RowIntensity.name`, or null.
+RowIntensity? rowIntensityFromName(String? name) {
+  if (name == null) return null;
+  for (final z in RowIntensity.values) {
+    if (z.name == name) return z;
+  }
+  return null;
+}
+
+/// The zone to colour a segment by: its stored [zone], else derived from the
+/// stroke rate and rest flag.
+RowIntensity segmentZone({
+  required String? zone,
+  required int? spm,
+  required bool isRest,
+}) {
+  if (isRest) return RowIntensity.rest;
+  return rowIntensityFromName(zone) ??
+      RowBlock.zoneFor(spm: spm, isRest: isRest);
+}
 
 List<ProfileBlock> profileFromSegments(List<ProgramRowSegment> segs) => [
       for (final s in segs)
-        (seconds: s.durationSeconds, spm: s.targetStrokeRate, isRest: s.isRest),
+        (
+          seconds: s.durationSeconds,
+          spm: s.targetStrokeRate,
+          isRest: s.isRest,
+          zone: _zone(s.zone),
+        ),
     ];
 
 List<ProfileBlock> profileFromGenerated(List<GeneratedRowSegment> segs) => [
       for (final s in segs)
-        (seconds: s.durationSeconds, spm: s.targetSpm, isRest: s.isRest),
+        (
+          seconds: s.durationSeconds,
+          spm: s.targetSpm,
+          isRest: s.isRest,
+          zone: _zone(s.zone),
+        ),
     ];
 
 /// Colour for an intensity zone. Echoes the reference chart: blue → green →
@@ -82,9 +115,13 @@ class IntervalProfile extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: intensityColor(
-                              RowBlock.zoneFor(spm: b.spm, isRest: b.isRest),
+                              b.isRest
+                                  ? RowIntensity.rest
+                                  : (b.zone ??
+                                      RowBlock.zoneFor(
+                                          spm: b.spm, isRest: b.isRest)),
                               scheme,
-                            ),
+                            ), // zone resolved by the profile adapters
                             borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(2)),
                           ),

@@ -130,10 +130,17 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     (`session_detail_screen.dart`): "Geplande sessie" = `IntervalProfile` van
     `RowingSessionDetail.planSegments` + segmenttekst; sub-grafieken Slagtempo
     (`stroke_rate`) en Hartslag (`heart_rate`) naast de tempo-grafiek.
+  - *R5a*: generator **geperiodiseerd** (`rowing_plan_generator.dart`): weektypes
+    roteren (anker + roterende pool, geen dubbele type/week), buildcurve week 1
+    → piek ~80 % → taper, deloadweek elke 4e (≥ 8 wk), sessielengte volgt de
+    curve (`_targetMinutes`), benchmark-**testsessie** in week 1 + laatste week
+    (`RowSessionType.test`). Catalogus +8 langere workouts + 5 testworkouts.
+    Schema **v7**: `program_days.row_session_type`,
+    `program_row_segments.zone` (intensiteit los van rauwe spm — endurance blijft
+    groen), `rowing_sessions.{segments_json,kind,active_elapsed_ms}`, reseed.
   - **R3 (BLE)** = nog te doen (op verzoek uitgesteld tot de rest zit):
-    `flutter_ftms` echte koppeling + voorgrond-service. Stub
-    `ble/ftms_rower_service.dart` verwijderd; API-notities in het plan.
-    Verificatie vereist de trainer (FS-057453).
+    `flutter_ftms` echte koppeling. **Geen voorgrondservice** (bewuste keuze):
+    sessie pauzeert bij achtergrond. Verificatie vereist de trainer (FS-057453).
 - **Bekende beperking**: een losse workout uit de catalogus (`startWorkout`)
   bewaart z'n segmenten niet in de DB → na app-kill wordt het een vrije sessie
   (afstand/tijd blijven kloppen). Plan-dagen (`startFromDay`) herstellen wel.

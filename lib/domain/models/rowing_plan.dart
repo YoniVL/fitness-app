@@ -48,7 +48,8 @@ enum RowSessionType {
   piramide,
   krachtStroken,
   techniek,
-  herstel;
+  herstel,
+  test;
 
   String get label => switch (this) {
         RowSessionType.endurance => 'Endurance',
@@ -59,7 +60,15 @@ enum RowSessionType {
         RowSessionType.krachtStroken => 'Krachthalen',
         RowSessionType.techniek => 'Techniek',
         RowSessionType.herstel => 'Herstel',
+        RowSessionType.test => 'Test',
       };
+
+  static RowSessionType? fromName(String? value) {
+    for (final t in values) {
+      if (t.name == value) return t;
+    }
+    return null;
+  }
 }
 
 /// A technique drill used inside a segment. [key] is stored in

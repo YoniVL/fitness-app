@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _fileName = 'fitnesstracker.db';
-  static const schemaVersion = 6;
+  static const schemaVersion = 7;
 
   Database? _db;
 
@@ -83,6 +83,8 @@ class AppDatabase {
           await migrateV4toV5(db);
         case 6:
           await migrateV5toV6(db);
+        case 7:
+          await migrateV6toV7(db);
       }
     }
   }
@@ -125,10 +127,11 @@ class AppDatabase {
     ''',
     '''
     CREATE TABLE program_days (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
-      day_index  INTEGER NOT NULL,
-      label      TEXT NOT NULL
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      program_id       INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      day_index        INTEGER NOT NULL,
+      label            TEXT NOT NULL,
+      row_session_type TEXT
     )
     ''',
     '''
@@ -153,7 +156,8 @@ class AppDatabase {
       target_stroke_rate INTEGER,
       intensity_label    TEXT NOT NULL,
       is_rest            INTEGER NOT NULL DEFAULT 0,
-      drill_key          TEXT
+      drill_key          TEXT,
+      zone               TEXT
     )
     ''',
     '''
@@ -196,7 +200,10 @@ class AppDatabase {
       avg_stroke_rate   REAL NOT NULL DEFAULT 0,
       avg_power         REAL NOT NULL DEFAULT 0,
       duration_seconds  INTEGER NOT NULL DEFAULT 0,
-      program_day_id    INTEGER REFERENCES program_days(id)
+      program_day_id    INTEGER REFERENCES program_days(id),
+      segments_json     TEXT,
+      kind              TEXT,
+      active_elapsed_ms INTEGER
     )
     ''',
     '''

@@ -782,6 +782,7 @@ Future<int> _insertRowingPlan(
       'program_id': programId,
       'day_index': d,
       'label': session.label,
+      'row_session_type': session.type.name,
     });
     for (var i = 0; i < session.segments.length; i++) {
       final seg = session.segments[i];
@@ -793,6 +794,7 @@ Future<int> _insertRowingPlan(
         'intensity_label': seg.intensityLabel,
         'is_rest': seg.isRest ? 1 : 0,
         'drill_key': seg.drillKey,
+        'zone': seg.zone,
       });
     }
   }

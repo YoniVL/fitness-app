@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
-import '../../domain/rowing_workouts.dart';
 import 'rower_service.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
@@ -293,7 +292,10 @@ class _NowNextCard extends StatelessWidget {
         ? state.segments[state.segmentIndex + 1]
         : null;
     final zone = intensityColor(
-        RowBlock.zoneFor(spm: seg.targetStrokeRate, isRest: seg.isRest),
+        segmentZone(
+            zone: seg.zone,
+            spm: seg.targetStrokeRate,
+            isRest: seg.isRest),
         scheme);
 
     return Card(

@@ -71,6 +71,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
               for (final s in plan.sessions)
                 NewProgramDayDraft(
                   label: s.label,
+                  rowSessionType: s.type.name,
                   segments: [
                     for (final seg in s.segments)
                       NewRowSegmentDraft(
@@ -79,6 +80,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
                         intensityLabel: seg.intensityLabel,
                         isRest: seg.isRest,
                         drillKey: seg.drillKey,
+                        zone: seg.zone,
                       ),
                   ],
                 ),

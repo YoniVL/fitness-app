@@ -96,7 +96,7 @@ final List<RowWorkout> rowWorkouts = [
   // ===== Endurance =====
   RowWorkout(
     id: 'end_20',
-    name: '20 min rustig',
+    name: '20 min · rustig',
     type: RowSessionType.endurance,
     focus: 'Aerobe basis op een lage slag.',
     approxMinutes: 20,
@@ -109,7 +109,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_30',
-    name: '30 min endurance',
+    name: '30 min · duurroei',
     type: RowSessionType.endurance,
     focus: 'Lang aaneengesloten op gespreksniveau.',
     approxMinutes: 30,
@@ -122,7 +122,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_40',
-    name: '40 min endurance',
+    name: '40 min · duurroei',
     type: RowSessionType.endurance,
     focus: 'Volumesessie, rustig en gelijkmatig.',
     approxMinutes: 40,
@@ -135,7 +135,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_50',
-    name: '50 min lang',
+    name: '50 min · lange duurroei',
     type: RowSessionType.endurance,
     focus: 'Grote volumesessie voor de wekelijkse "long row".',
     approxMinutes: 52,
@@ -148,7 +148,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_3x10',
-    name: '3 × 10 min r20',
+    name: '3 × 10 min · r20',
     type: RowSessionType.endurance,
     focus: 'Endurance-blokken met een korte losroei-pauze.',
     approxMinutes: 38,
@@ -166,7 +166,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_2x20',
-    name: '2 × 20 min r20',
+    name: '2 × 20 min · r20',
     type: RowSessionType.endurance,
     focus: 'Klassiek volumeblok, twee lange stukken.',
     approxMinutes: 48,
@@ -186,7 +186,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_progressive',
-    name: 'Progressief 30 min',
+    name: '30 min · progressief',
     type: RowSessionType.endurance,
     focus: 'Elke 10 min iets sneller: r18 → r20 → r22.',
     approxMinutes: 34,
@@ -205,7 +205,7 @@ final List<RowWorkout> rowWorkouts = [
   ),
   RowWorkout(
     id: 'end_5k',
-    name: '5.000 m gelijkmatig',
+    name: '5.000 m · gelijkmatig',
     type: RowSessionType.endurance,
     focus: 'Vaste afstand op endurance-tempo.',
     approxMinutes: 24,
@@ -216,6 +216,58 @@ final List<RowWorkout> rowWorkouts = [
           intensity: RowIntensity.steady,
           label: '5.000 m'),
       _cd(2),
+    ],
+  ),
+  RowWorkout(
+    id: 'end_4x10',
+    name: '4 × 10 min · r20',
+    type: RowSessionType.endurance,
+    focus: 'Vier endurance-blokken met korte losroei-pauzes.',
+    approxMinutes: 49,
+    blocks: (l, b) => [
+      _wu(3),
+      for (var i = 0; i < 4; i++) ...[
+        RowBlock((9 + b).round() * 60,
+            spm: 20 + _lvl(l),
+            intensity: RowIntensity.steady,
+            label: 'Endurance ${i + 1}/4'),
+        if (i < 3) _rest(90),
+      ],
+      _cd(3),
+    ],
+  ),
+  RowWorkout(
+    id: 'end_60_prog',
+    name: '60 min · progressief',
+    type: RowSessionType.endurance,
+    focus: 'Lange sessie, elke 20 min iets sneller: r18 → r20 → r22.',
+    approxMinutes: 58,
+    blocks: (l, b) => [
+      _wu(4),
+      RowBlock(1080,
+          spm: 18 + _lvl(l), intensity: RowIntensity.steady, label: 'r18'),
+      RowBlock(1080,
+          spm: 20 + _lvl(l), intensity: RowIntensity.steady, label: 'r20'),
+      RowBlock((14 + b * 4).round() * 60,
+          spm: 22 + _lvl(l),
+          intensity: RowIntensity.threshold,
+          label: 'r22'),
+      _cd(4),
+    ],
+  ),
+  RowWorkout(
+    id: 'end_10k',
+    name: '10.000 m · gelijkmatig',
+    type: RowSessionType.endurance,
+    focus: 'Grote afstand op een rustig, constant tempo.',
+    approxMinutes: 46,
+    blocks: (l, b) => [
+      _wu(4),
+      RowBlock(2280,
+          spm: 20 + _lvl(l),
+          intensity: RowIntensity.steady,
+          label: '10.000 m'),
+      _cd(3),
     ],
   ),
 
@@ -328,6 +380,41 @@ final List<RowWorkout> rowWorkouts = [
         spm: 25 + _lvl(l),
         intensity: RowIntensity.threshold,
         workLabel: 'Drempel'),
+  ),
+  RowWorkout(
+    id: 'thr_3x12',
+    name: '3 × 12 min / 3 min',
+    type: RowSessionType.drempel,
+    focus: 'Lange drempelblokken, mentaal taai.',
+    approxMinutes: 47,
+    blocks: (l, b) => _reps(3,
+        workSec: ((10 + b * 2) * 60).round(),
+        restSec: 180,
+        spm: 24 + _lvl(l),
+        intensity: RowIntensity.threshold,
+        workLabel: 'Drempel',
+        wuMin: 4,
+        cdMin: 3),
+  ),
+  RowWorkout(
+    id: 'thr_2x20',
+    name: '2 × 20 min / 4 min',
+    type: RowSessionType.drempel,
+    focus: 'Twee lange stukken net onder wedstrijdtempo.',
+    approxMinutes: 51,
+    blocks: (l, b) => [
+      _wu(4),
+      RowBlock((18 + b * 3).round() * 60,
+          spm: 24 + _lvl(l),
+          intensity: RowIntensity.threshold,
+          label: 'Drempel 1/2'),
+      _rest(240),
+      RowBlock((18 + b * 3).round() * 60,
+          spm: 24 + _lvl(l),
+          intensity: RowIntensity.threshold,
+          label: 'Drempel 2/2'),
+      _cd(3),
+    ],
   ),
 
   // ===== Korte intervallen =====
@@ -476,6 +563,36 @@ final List<RowWorkout> rowWorkouts = [
         intensity: RowIntensity.hard,
         workLabel: 'r28'),
   ),
+  RowWorkout(
+    id: 'lo_5x5',
+    name: '5 × 5 min / 2 min',
+    type: RowSessionType.intervalLang,
+    focus: 'Vijf lange VO2-blokken, gelijkmatig hard.',
+    approxMinutes: 40,
+    blocks: (l, b) => _reps(5,
+        workSec: 300,
+        restSec: 120,
+        spm: 26 + _lvl(l),
+        intensity: RowIntensity.hard,
+        workLabel: 'Interval',
+        wuMin: 4,
+        cdMin: 3),
+  ),
+  RowWorkout(
+    id: 'lo_4x6',
+    name: '4 × 6 min / 3 min',
+    type: RowSessionType.intervalLang,
+    focus: 'Lange harde stukken met ruime rust.',
+    approxMinutes: 46,
+    blocks: (l, b) => _reps(4,
+        workSec: ((5 + b * 1.5) * 60).round(),
+        restSec: 180,
+        spm: 26 + _lvl(l),
+        intensity: RowIntensity.hard,
+        workLabel: 'Interval',
+        wuMin: 4,
+        cdMin: 3),
+  ),
 
   // ===== Piramide =====
   RowWorkout(
@@ -556,6 +673,27 @@ final List<RowWorkout> rowWorkouts = [
             label: 'r$r'));
       }
       out.add(_cd(2));
+      return out;
+    },
+  ),
+  RowWorkout(
+    id: 'pyr_369',
+    name: 'Piramide 3-6-9-6-3 min',
+    type: RowSessionType.piramide,
+    focus: 'Grote piramide op drempeltempo, 2 min rust ertussen.',
+    approxMinutes: 44,
+    blocks: (l, b) {
+      final steps = [180, 360, 540, 360, 180];
+      final names = ['3 min', '6 min', '9 min', '6 min', '3 min'];
+      final out = <RowBlock>[_wu(4)];
+      for (var i = 0; i < steps.length; i++) {
+        out.add(RowBlock((steps[i] * (0.9 + b * 0.2)).round(),
+            spm: 24 + _lvl(l) + (i == 2 ? 2 : 0),
+            intensity: i == 2 ? RowIntensity.hard : RowIntensity.threshold,
+            label: names[i]));
+        if (i < steps.length - 1) out.add(_rest(120));
+      }
+      out.add(_cd(3));
       return out;
     },
   ),
@@ -646,19 +784,6 @@ final List<RowWorkout> rowWorkouts = [
         spm: 32 + _lvl(l),
         intensity: RowIntensity.max,
         workLabel: 'Sprint'),
-  ),
-  RowWorkout(
-    id: 'sp_500tt',
-    name: '500 m tijdrit',
-    type: RowSessionType.intervalKort,
-    focus: 'Alles-eruit test met lange warming-up.',
-    approxMinutes: 18,
-    blocks: (l, b) => [
-      _wu(6),
-      RowBlock(95 - _lvl(l) * 5,
-          spm: 34 + _lvl(l), intensity: RowIntensity.max, label: '500 m TT'),
-      _cd(4),
-    ],
   ),
   RowWorkout(
     id: 'sp_4x250',
@@ -772,6 +897,79 @@ final List<RowWorkout> rowWorkouts = [
           intensity: RowIntensity.steady,
           label: 'Endurance'),
       _cd(2),
+    ],
+  ),
+
+  // ===== Test / benchmark =====
+  RowWorkout(
+    id: 'test_2k',
+    name: '2.000 m · tijdrit',
+    type: RowSessionType.test,
+    focus: 'De klassieke 2k-benchmark. Alles eruit, gelijkmatig verdeeld.',
+    approxMinutes: 20,
+    blocks: (l, b) => [
+      _wu(8),
+      RowBlock(60,
+          spm: 26 + _lvl(l),
+          intensity: RowIntensity.threshold,
+          label: 'Inroeien op tempo'),
+      RowBlock(430 - _lvl(l) * 15,
+          spm: 30 + _lvl(l), intensity: RowIntensity.max, label: '2.000 m TT'),
+      _cd(5),
+    ],
+  ),
+  RowWorkout(
+    id: 'test_5k',
+    name: '5.000 m · tijdrit',
+    type: RowSessionType.test,
+    focus: 'Langere benchmark op wedstrijdtempo + 5 sec.',
+    approxMinutes: 31,
+    blocks: (l, b) => [
+      _wu(6),
+      RowBlock(1170 - _lvl(l) * 30,
+          spm: 28 + _lvl(l), intensity: RowIntensity.hard, label: '5.000 m TT'),
+      _cd(5),
+    ],
+  ),
+  RowWorkout(
+    id: 'test_500',
+    name: '500 m · tijdrit',
+    type: RowSessionType.test,
+    focus: 'Korte alles-eruit test met een lange warming-up.',
+    approxMinutes: 16,
+    blocks: (l, b) => [
+      _wu(8),
+      RowBlock(95 - _lvl(l) * 5,
+          spm: 34 + _lvl(l), intensity: RowIntensity.max, label: '500 m TT'),
+      _cd(4),
+    ],
+  ),
+  RowWorkout(
+    id: 'test_30min',
+    name: '30 min · afstandstest',
+    type: RowSessionType.test,
+    focus: 'Hoeveel meter haal je in 30 minuten? Constant hard.',
+    approxMinutes: 40,
+    blocks: (l, b) => [
+      _wu(5),
+      RowBlock(1800,
+          spm: 25 + _lvl(l),
+          intensity: RowIntensity.hard,
+          label: '30 min test'),
+      _cd(4),
+    ],
+  ),
+  RowWorkout(
+    id: 'test_1min',
+    name: '1 min · max',
+    type: RowSessionType.test,
+    focus: 'Piekvermogen: één minuut alles geven.',
+    approxMinutes: 12,
+    blocks: (l, b) => [
+      _wu(6),
+      RowBlock(60,
+          spm: 36 + _lvl(l), intensity: RowIntensity.max, label: '1 min max'),
+      _cd(4),
     ],
   ),
 ];

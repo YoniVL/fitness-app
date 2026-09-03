@@ -52,13 +52,83 @@ void main() {
     }
   });
 
-  test('the deload week is lighter than the week before it', () {
+  int weekSeconds(GeneratedRowingPlan plan, int w) => plan.sessions
+      .where((s) => s.weekIndex == w)
+      .fold(0, (sum, s) => sum + s.totalSeconds);
+
+  test('the deload week (every 4th) is lighter than the same week at full load',
+      () {
+    // Week index 3 is a deload for an 8-week plan but a normal week for a
+    // 7-week plan; the rotation puts the same session types there either way.
+    final withDeload = gen(input(bands: {(25, 40)}, weeks: 8));
+    final fullLoad = gen(input(bands: {(25, 40)}, weeks: 7));
+    final deloadTypes =
+        withDeload.sessions.where((s) => s.weekIndex == 3).map((s) => s.type);
+    final fullTypes =
+        fullLoad.sessions.where((s) => s.weekIndex == 3).map((s) => s.type);
+    expect(deloadTypes, orderedEquals(fullTypes.toList()),
+        reason: 'deload keeps the same session types');
+    expect(weekSeconds(withDeload, 3), lessThan(weekSeconds(fullLoad, 3)));
+  });
+
+  test('weekly volume builds to a mid/late peak, then tapers', () {
     final plan = gen(input(weeks: 10));
-    final deload = 10 ~/ 2;
-    int weekSeconds(int w) => plan.sessions
-        .where((s) => s.weekIndex == w)
-        .fold(0, (sum, s) => sum + s.totalSeconds);
-    expect(weekSeconds(deload), lessThan(weekSeconds(deload - 1)));
+    final vols = [for (var w = 0; w < 10; w++) weekSeconds(plan, w)];
+    final peak = vols.reduce((a, b) => a > b ? a : b);
+    final peakWeek = vols.indexOf(peak);
+    expect(peakWeek, greaterThan(2), reason: 'peak should not be at the start');
+    expect(peakWeek, lessThan(9), reason: 'plan should taper at the end');
+    expect(vols.last, lessThan(peak));
+    expect(vols.first, lessThan(peak));
+  });
+
+  test('a benchmark test is scheduled in the first and last week', () {
+    final plan = gen(input(goal: RowingGoal.uithouding, weeks: 9));
+    bool hasTest(int w) => plan.sessions
+        .any((s) => s.weekIndex == w && s.type == RowSessionType.test);
+    expect(hasTest(0), isTrue);
+    expect(hasTest(8), isTrue);
+    // ...and nowhere in between.
+    for (var w = 1; w < 8; w++) {
+      expect(hasTest(w), isFalse, reason: 'week ${w + 1}');
+    }
+  });
+
+  test('a week does not repeat the same session type', () {
+    for (final goal in RowingGoal.values) {
+      final plan = gen(input(goal: goal, spw: 4, weeks: 10));
+      for (var w = 0; w < 10; w++) {
+        final types =
+            plan.sessions.where((s) => s.weekIndex == w).map((s) => s.type).toList();
+        expect(types.toSet().length, types.length,
+            reason: '${goal.name} week ${w + 1}: $types');
+      }
+    }
+  });
+
+  test('the technique goal gets no benchmark tests', () {
+    final plan = gen(input(goal: RowingGoal.techniek, weeks: 8));
+    expect(plan.sessions.any((s) => s.type == RowSessionType.test), isFalse);
+  });
+
+  test('segments carry the workout intensity zone', () {
+    final plan = gen(input(level: ProgramLevel.advanced));
+    final work = plan.sessions
+        .expand((s) => s.segments)
+        .where((seg) => !seg.isRest && seg.intensityLabel == 'Endurance');
+    expect(work, isNotEmpty);
+    // Advanced endurance rows at r22 — a raw-spm zone would call that
+    // "threshold"; the stored zone must keep it "steady".
+    for (final seg in work) {
+      expect(seg.zone, 'steady', reason: seg.intensityLabel);
+    }
+  });
+
+  test('auto-name is unique per goal/level/sessions-per-week', () {
+    final a = gen(input(goal: RowingGoal.uithouding, level: ProgramLevel.medium, spw: 3));
+    final b = gen(input(goal: RowingGoal.uithouding, level: ProgramLevel.advanced, spw: 3));
+    final c = gen(input(goal: RowingGoal.vetverlies, level: ProgramLevel.medium, spw: 4));
+    expect({a.name, b.name, c.name}, hasLength(3));
   });
 
   test('consecutive weeks are not identical for the same slot', () {

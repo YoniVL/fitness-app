@@ -233,3 +233,22 @@ Future<void> migrateV5toV6(Database db) async {
       where: "discipline = 'rowing' AND is_template = 1");
   await seedRowingTemplates(db);
 }
+
+/// v6 -> v7: rowing session archetype on plan days, ad-hoc workout structure +
+/// session kind + robust elapsed on rowing sessions, and a reseed of the rowing
+/// templates with the periodised generator (build/deload curve + benchmarks).
+Future<void> migrateV6toV7(Database db) async {
+  await db.execute(
+      'ALTER TABLE program_days ADD COLUMN row_session_type TEXT');
+  await db.execute(
+      'ALTER TABLE program_row_segments ADD COLUMN zone TEXT');
+  await db.execute(
+      'ALTER TABLE rowing_sessions ADD COLUMN segments_json TEXT');
+  await db.execute('ALTER TABLE rowing_sessions ADD COLUMN kind TEXT');
+  await db.execute(
+      'ALTER TABLE rowing_sessions ADD COLUMN active_elapsed_ms INTEGER');
+
+  await db.delete('programs',
+      where: "discipline = 'rowing' AND is_template = 1");
+  await seedRowingTemplates(db);
+}

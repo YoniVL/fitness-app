@@ -21,6 +21,25 @@ void main() {
         greaterThanOrEqualTo(4));
   });
 
+  test('every plan-scheduled type has a 40–60 min option', () {
+    for (final type in const [
+      RowSessionType.endurance,
+      RowSessionType.drempel,
+      RowSessionType.intervalLang,
+      RowSessionType.piramide,
+    ]) {
+      final long = workoutsOfType(type)
+          .where((w) => w.approxMinutes >= 40 && w.approxMinutes <= 62);
+      expect(long, isNotEmpty, reason: type.name);
+    }
+  });
+
+  test('the test type covers the standard benchmarks', () {
+    final ids = workoutsOfType(RowSessionType.test).map((w) => w.id).toSet();
+    expect(ids, containsAll(<String>['test_2k', 'test_5k', 'test_500']));
+    expect(workoutsOfType(RowSessionType.test).length, greaterThanOrEqualTo(5));
+  });
+
   test('ids are unique', () {
     final ids = rowWorkouts.map((w) => w.id).toList();
     expect(ids.toSet().length, ids.length);

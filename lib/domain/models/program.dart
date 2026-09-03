@@ -127,6 +127,7 @@ class ProgramDay {
     required this.programId,
     required this.dayIndex,
     required this.label,
+    this.rowSessionType,
   });
 
   final int id;
@@ -134,11 +135,16 @@ class ProgramDay {
   final int dayIndex;
   final String label;
 
+  /// For generated rowing plans: the archetype of this day
+  /// (`RowSessionType.name`), else null.
+  final String? rowSessionType;
+
   factory ProgramDay.fromMap(Map<String, Object?> map) => ProgramDay(
         id: map['id'] as int,
         programId: map['program_id'] as int,
         dayIndex: map['day_index'] as int,
         label: map['label'] as String,
+        rowSessionType: map['row_session_type'] as String?,
       );
 
   Map<String, Object?> toMap() => {
@@ -146,6 +152,7 @@ class ProgramDay {
         'program_id': programId,
         'day_index': dayIndex,
         'label': label,
+        'row_session_type': rowSessionType,
       };
 }
 
@@ -211,6 +218,7 @@ class ProgramRowSegment {
     required this.intensityLabel,
     this.isRest = false,
     this.drillKey,
+    this.zone,
   });
 
   final int id;
@@ -224,6 +232,10 @@ class ProgramRowSegment {
   /// A [RowDrill] key when this segment is a technique drill, else null.
   final String? drillKey;
 
+  /// The intensity zone (`RowIntensity.name`) the workout intended, so the
+  /// interval profile colours it right regardless of the raw stroke rate.
+  final String? zone;
+
   factory ProgramRowSegment.fromMap(Map<String, Object?> map) => ProgramRowSegment(
         id: map['id'] as int,
         programDayId: map['program_day_id'] as int,
@@ -233,6 +245,7 @@ class ProgramRowSegment {
         intensityLabel: map['intensity_label'] as String,
         isRest: (map['is_rest'] as int? ?? 0) == 1,
         drillKey: map['drill_key'] as String?,
+        zone: map['zone'] as String?,
       );
 
   Map<String, Object?> toMap() => {
@@ -244,6 +257,7 @@ class ProgramRowSegment {
         'intensity_label': intensityLabel,
         'is_rest': isRest ? 1 : 0,
         'drill_key': drillKey,
+        'zone': zone,
       };
 }
 

@@ -25,6 +25,7 @@ List<ProgramRowSegment> workoutSegments(RowWorkout w) {
         intensityLabel: blocks[i].label,
         isRest: blocks[i].isRest,
         drillKey: blocks[i].drillKey,
+        zone: blocks[i].intensity.name,
       ),
   ];
 }
