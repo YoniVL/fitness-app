@@ -134,7 +134,11 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     roteren (anker + roterende pool, geen dubbele type/week), buildcurve week 1
     → piek ~80 % → taper, deloadweek elke 4e (≥ 8 wk), sessielengte volgt de
     curve (`_targetMinutes`), benchmark-**testsessie** in week 1 + laatste week
-    (`RowSessionType.test`). Catalogus +8 langere workouts + 5 testworkouts.
+    (`RowSessionType.test`). Volume wordt **wekelijks** gebudgetteerd: herstel/
+    test hebben een vaste lengte → afgetrokken, de rest verdeeld over de "flex"-
+    sessies + één correctiepass; herstel wordt endurance in zware weken. Zo volgt
+    de weekbalkgrafiek de curve i.p.v. te zagen met de rotatie. Catalogus +8
+    langere workouts + 5 testworkouts.
     Schema **v7**: `program_days.row_session_type`,
     `program_row_segments.zone` (intensiteit los van rauwe spm — endurance blijft
     groen), `rowing_sessions.{segments_json,kind,active_elapsed_ms}`, reseed.

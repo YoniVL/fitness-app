@@ -56,19 +56,17 @@ void main() {
       .where((s) => s.weekIndex == w)
       .fold(0, (sum, s) => sum + s.totalSeconds);
 
+  bool isDeloadWeek(int w, int weeks) =>
+      weeks >= 8 && (w + 1) % 4 == 0 && w != weeks - 1;
+
   test('the deload week (every 4th) is lighter than the same week at full load',
       () {
     // Week index 3 is a deload for an 8-week plan but a normal week for a
-    // 7-week plan; the rotation puts the same session types there either way.
+    // 7-week plan.
     final withDeload = gen(input(bands: {(25, 40)}, weeks: 8));
     final fullLoad = gen(input(bands: {(25, 40)}, weeks: 7));
-    final deloadTypes =
-        withDeload.sessions.where((s) => s.weekIndex == 3).map((s) => s.type);
-    final fullTypes =
-        fullLoad.sessions.where((s) => s.weekIndex == 3).map((s) => s.type);
-    expect(deloadTypes, orderedEquals(fullTypes.toList()),
-        reason: 'deload keeps the same session types');
-    expect(weekSeconds(withDeload, 3), lessThan(weekSeconds(fullLoad, 3)));
+    expect(weekSeconds(withDeload, 3),
+        lessThan((weekSeconds(fullLoad, 3) * 0.8).round()));
   });
 
   test('weekly volume builds to a mid/late peak, then tapers', () {
@@ -80,6 +78,24 @@ void main() {
     expect(peakWeek, lessThan(9), reason: 'plan should taper at the end');
     expect(vols.last, lessThan(peak));
     expect(vols.first, lessThan(peak));
+  });
+
+  test('weekly volume does not oscillate between non-deload weeks', () {
+    // Recovery weeks used to swing the total ~30 %; weekly-load periodisation
+    // should keep neighbouring build weeks within ~25 % of each other.
+    for (final goal in RowingGoal.values) {
+      final plan = gen(input(goal: goal, spw: 4, weeks: 12));
+      final build = [
+        for (var w = 0; w < 12; w++)
+          if (!isDeloadWeek(w, 12) && w != 0 && w != 11)
+            weekSeconds(plan, w),
+      ];
+      for (var i = 1; i < build.length; i++) {
+        final ratio = build[i] / build[i - 1];
+        expect(ratio, inInclusiveRange(0.72, 1.38),
+            reason: '${goal.name}: $build');
+      }
+    }
   });
 
   test('a benchmark test is scheduled in the first and last week', () {
@@ -94,12 +110,17 @@ void main() {
     }
   });
 
-  test('a week does not repeat the same session type', () {
+  test('a week does not repeat a quality session type', () {
+    // Endurance may appear twice in a hard week (a recovery slot becomes an
+    // extra endurance row); no other archetype should repeat within a week.
     for (final goal in RowingGoal.values) {
       final plan = gen(input(goal: goal, spw: 4, weeks: 10));
       for (var w = 0; w < 10; w++) {
-        final types =
-            plan.sessions.where((s) => s.weekIndex == w).map((s) => s.type).toList();
+        final types = plan.sessions
+            .where((s) => s.weekIndex == w)
+            .map((s) => s.type)
+            .where((t) => t != RowSessionType.endurance)
+            .toList();
         expect(types.toSet().length, types.length,
             reason: '${goal.name} week ${w + 1}: $types');
       }

@@ -169,25 +169,68 @@ class RowingPlanGenerator {
     final sessions = <GeneratedRowSession>[];
     for (var w = 0; w < weeks; w++) {
       final deload = _isDeload(w, weeks);
-      final types = _weekTypes(gp, spw, w, input.goal, weeks);
       final buildFactor = _buildFor(w, weeks, peakAt, deload);
+      final types =
+          _weekTypes(gp, spw, w, input.goal, weeks, buildFactor);
 
       final targetMinutes = _targetMinutes(bands, buildFactor, deload);
+
+      // Periodise the *weekly* load. Recovery and test sessions have a roughly
+      // fixed length, so subtract those and spread the remaining budget over the
+      // "flexible" sessions — a week that happens to have a recovery session is
+      // then no lighter overall, it just redistributes. That's what keeps the
+      // week-load chart smooth instead of oscillating with the rotation.
+      final picks = [
+        for (var slot = 0; slot < types.length; slot++)
+          _pickWorkout(types[slot], targetMinutes,
+              slotKey: '$slot-${types[slot].name}',
+              lastPick: lastPick,
+              goal: input.goal),
+      ];
+      bool isFlex(RowSessionType t) =>
+          t != RowSessionType.herstel && t != RowSessionType.test;
+      final weeklyTarget = targetMinutes * types.length;
+      final flexCount = types.where(isFlex).length;
+      final fixedMin = [
+        for (var s = 0; s < types.length; s++)
+          if (!isFlex(types[s])) picks[s].approxMinutes.toDouble(),
+      ].fold<double>(0, (a, b) => a + b);
+      final perFlex =
+          flexCount == 0 ? 0.0 : (weeklyTarget - fixedMin) / flexCount;
+
+      List<List<RowBlock>> blocksFor(double correction) => [
+            for (var slot = 0; slot < types.length; slot++)
+              if (!isFlex(types[slot]))
+                picks[slot].blocks(input.level, 1.0)
+              else
+                picks[slot].blocks(
+                  input.level,
+                  (correction * perFlex / picks[slot].approxMinutes)
+                      .clamp(0.5, 1.6),
+                ),
+          ];
+
+      // One correction pass so the actual weekly total lands near the target
+      // even when short workouts can't stretch far enough on their own.
+      var built = blocksFor(1.0);
+      final actualMin = built.fold<double>(
+          0, (s, b) => s + b.fold(0, (x, blk) => x + blk.seconds) / 60);
+      if (flexCount > 0 &&
+          (actualMin > weeklyTarget * 1.1 ||
+              actualMin < weeklyTarget * 0.88)) {
+        final flexActual = actualMin - fixedMin;
+        final flexWant = weeklyTarget - fixedMin;
+        built = blocksFor(
+            flexActual <= 0 ? 1.0 : (flexWant / flexActual).clamp(0.6, 1.7));
+      }
+
       for (var slot = 0; slot < types.length; slot++) {
-        final type = types[slot];
-        final workout = _pickWorkout(
-          type,
-          targetMinutes,
-          slotKey: '$slot-${type.name}',
-          lastPick: lastPick,
-          goal: input.goal,
-        );
-        final blocks = workout.blocks(input.level, buildFactor);
         sessions.add(GeneratedRowSession(
           weekIndex: w,
-          type: type,
-          label: 'Wk ${w + 1} · ${workout.name}',
-          segments: blocks.map(GeneratedRowSegment.fromBlock).toList(),
+          type: types[slot],
+          label: 'Wk ${w + 1} · ${picks[slot].name}',
+          segments:
+              built[slot].map(GeneratedRowSegment.fromBlock).toList(),
         ));
       }
     }
@@ -211,8 +254,8 @@ class RowingPlanGenerator {
   bool _isDeload(int w, int weeks) =>
       weeks >= 8 && (w + 1) % 4 == 0 && w != weeks - 1;
 
-  List<RowSessionType> _weekTypes(
-      _GoalPlan gp, int spw, int w, RowingGoal goal, int weeks) {
+  List<RowSessionType> _weekTypes(_GoalPlan gp, int spw, int w, RowingGoal goal,
+      int weeks, double buildFactor) {
     final types = <RowSessionType>[...gp.anchors];
     final need = (spw - types.length).clamp(0, spw);
     var cursor = w * need;
@@ -228,6 +271,17 @@ class RowingPlanGenerator {
       }
       types.add(pick);
       cursor++;
+    }
+
+    // Recovery sessions have a near-fixed (short) length, so in high-load weeks
+    // they'd cap the achievable weekly volume — keep them for the lighter weeks
+    // and turn them into endurance when the plan is pushing hard.
+    if (buildFactor >= 0.85) {
+      for (var i = 0; i < types.length; i++) {
+        if (types[i] == RowSessionType.herstel) {
+          types[i] = RowSessionType.endurance;
+        }
+      }
     }
 
     // Baseline + retest: swap the lightest slot for a benchmark test.
@@ -264,7 +318,9 @@ class RowingPlanGenerator {
     final hi = bands.last.$2.toDouble();
     final t = ((buildFactor - 0.55) / 0.5).clamp(0.0, 1.0);
     if (deload) return (lo * 0.85).clamp(12, hi);
-    return lo + (hi - lo) * t;
+    // Sweep the middle 70 % of the band, not the full range — keeps the
+    // per-session target (and thus weekly volume) from swinging too hard.
+    return lo + (hi - lo) * (0.15 + 0.7 * t);
   }
 
   RowWorkout _pickWorkout(
