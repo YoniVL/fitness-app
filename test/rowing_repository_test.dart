@@ -225,8 +225,7 @@ void main() {
         when.subtract(const Duration(minutes: 15)));
   });
 
-  test('finalize keeps the furthest sample distance if the last frame is 0',
-      () async {
+  test('finalize writes the aggregate distance and keeps the samples', () async {
     final ids = await rowing.startSession();
     await rowing.addSamples(ids.rowingSessionId, [
       for (var i = 0; i < 4; i++)
@@ -237,10 +236,10 @@ void main() {
           distanceM: i * 100.0,
         ),
     ]);
-    // The provider passes max(live, furthest sample); here the "live" was 0.
     await rowing.finalize(ids.sessionId,
         distanceM: 300, duration: const Duration(minutes: 2));
     final detail = await rowing.rowingDetail(ids.sessionId);
     expect(detail!.rowing.totalDistanceM, 300);
+    expect(detail.samples, hasLength(4));
   });
 }

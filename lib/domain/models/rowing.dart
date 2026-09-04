@@ -1,8 +1,7 @@
 /// Summary of a rowing session, derived from the FTMS Rower Data stream.
 ///
-/// The rowing UI/BLE link is a later iteratie; these models exist so the schema
-/// is complete now (see plan). Absolute distance/pace from this trainer are
-/// estimates — fine for trends, not lab precision.
+/// Distance and energy are integrated from the split and power (this trainer's
+/// own totals are unreliable), so they're good for trends, not lab precision.
 class RowingSession {
   const RowingSession({
     required this.id,

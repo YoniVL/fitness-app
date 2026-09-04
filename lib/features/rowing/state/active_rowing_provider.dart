@@ -412,14 +412,15 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       _cues.preSwitch();
     }
 
+    final merged = _merged();
     state = AsyncData(s.copyWith(
       elapsed: elapsed,
       segmentElapsed: segElapsed,
       segmentIndex: idx,
-      live: _merged(),
+      live: merged,
     ));
 
-    _maybeSample(_merged(), elapsed);
+    _maybeSample(merged, elapsed);
     if (elapsed.inSeconds % 10 == 0) {
       _rowing.checkpointElapsed(s.session.id, elapsed);
     }
@@ -482,32 +483,22 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     _sub?.cancel();
     await _flush();
 
-    final live = s.live;
     final detail = await _rowing.rowingDetail(s.session.id);
     final sampleList = detail?.samples ?? const <RowingSample>[];
     List<double> positive(Iterable<double?> xs) =>
         xs.whereType<double>().where((x) => x > 0).toList();
-    final rates = positive(sampleList.map((x) => x.strokeRate));
-    final powers = positive(sampleList.map((x) => x.powerW));
     double mean(List<double> xs) =>
         xs.isEmpty ? 0 : xs.reduce((a, b) => a + b) / xs.length;
-    double maxOf(Iterable<double?> xs) =>
-        positive(xs).fold(0.0, (m, x) => x > m ? x : m);
 
-    // If the trainer dropped out just before finishing, the last live snapshot
-    // can read 0 — fall back to the furthest sample.
-    final distanceM = [live?.distanceM ?? 0.0, maxOf(sampleList.map((x) => x.distanceM))]
-        .reduce((a, b) => a > b ? a : b);
-    final energyKcal = [live?.energyKcal ?? 0.0, maxOf(sampleList.map((x) => x.energyKcal))]
-        .reduce((a, b) => a > b ? a : b);
-
+    // `_meter` accumulates monotonically (and is seeded from the last sample on
+    // a rehydrate), so its totals are the session's final distance/energy.
     await _rowing.finalize(
       s.session.id,
-      distanceM: distanceM,
+      distanceM: _meter.distanceM,
       duration: s.elapsed,
-      avgStrokeRate: mean(rates),
-      avgPower: mean(powers),
-      energyKcal: energyKcal,
+      avgStrokeRate: mean(positive(sampleList.map((x) => x.strokeRate))),
+      avgPower: mean(positive(sampleList.map((x) => x.powerW))),
+      energyKcal: _meter.energyKcal,
       notes: notes,
     );
     await _rower.disconnect();

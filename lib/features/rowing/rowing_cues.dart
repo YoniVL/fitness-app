@@ -9,37 +9,30 @@ import '../../data/repositories/settings_repository.dart';
 /// the beep only (see the iteration-5 plan). Audio routing (alarm stream) is set
 /// once globally in `main()`.
 class RowingCues {
-  RowingCues(this._ref);
+  RowingCues({required this.enabled});
 
-  final Ref _ref;
+  /// Whether the beep is on — from `SettingsKeys.rowingCueSound`. The provider
+  /// rebuilds this object when the Settings toggle changes.
+  final bool enabled;
+
   AudioPlayer? _player;
-  bool _enabled = true;
   bool _prepared = false;
 
   Future<void> _prepare() async {
-    if (_prepared) return;
+    if (_prepared || !enabled) return;
     _prepared = true;
-    try {
-      _enabled = await _ref
-          .read(settingsRepositoryProvider)
-          .getBool(SettingsKeys.rowingCueSound, true);
-    } catch (_) {
-      _enabled = false; // no DB (tests) — stay silent
-      return;
-    }
-    if (!_enabled) return;
     try {
       _player = AudioPlayer()..setReleaseMode(ReleaseMode.stop);
     } catch (e) {
       debugPrint('[RowingCues] audio init failed: $e');
-      _enabled = false;
     }
   }
 
   Future<void> _beep() async {
+    if (!enabled) return;
     await _prepare();
     final p = _player;
-    if (!_enabled || p == null) return;
+    if (p == null) return;
     try {
       await p.stop();
       await p.play(AssetSource('audio/beep.wav'));
@@ -65,7 +58,8 @@ class RowingCues {
 }
 
 final rowingCuesProvider = Provider<RowingCues>((ref) {
-  final cues = RowingCues(ref);
+  final enabled = ref.watch(rowingCueSoundProvider).valueOrNull ?? true;
+  final cues = RowingCues(enabled: enabled);
   ref.onDispose(cues.dispose);
   return cues;
 });

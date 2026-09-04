@@ -203,9 +203,9 @@ class RowingRepository {
     double avgPower = 0,
     double energyKcal = 0,
     String? notes,
-    String? kind,
   }) async {
     final db = await _appDb.database;
+    // `kind` was set at startSession — not touched here.
     await db.update(
       'rowing_sessions',
       {
@@ -214,7 +214,6 @@ class RowingRepository {
         'avg_stroke_rate': avgStrokeRate,
         'avg_power': avgPower,
         'duration_seconds': duration.inSeconds,
-        'kind': ?kind,
       },
       where: 'session_id = ?',
       whereArgs: [sessionId],

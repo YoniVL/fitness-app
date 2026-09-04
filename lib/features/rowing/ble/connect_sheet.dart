@@ -90,6 +90,7 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
     setState(() {
       _error = null;
       _scanning = true;
+      _found.clear(); // drop stale results / RSSI from the previous pass
     });
     try {
       await [
@@ -142,7 +143,10 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
     final theme = Theme.of(context);
     final pairedName = ref.watch(rowingDeviceNameProvider).valueOrNull;
     final status = ref.watch(rowerStatusProvider).valueOrNull;
-    final devices = _found.values.toList()
+    // The paired trainer has its own card above — don't list it twice.
+    final devices = _found.values
+        .where((r) => _name(r) != pairedName)
+        .toList()
       ..sort((a, b) => b.rssi.compareTo(a.rssi));
 
     return SafeArea(

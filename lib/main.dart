@@ -66,8 +66,10 @@ class _FitnessAppState extends ConsumerState<FitnessApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Leaving the app pauses a live rowing session (no background running).
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
+    // Only on paused/hidden — `inactive` also fires for transient overlays
+    // (volume slider, permission dialog, notification shade) and shouldn't
+    // interrupt a row.
+    if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       if (ref.read(activeRowingProvider).valueOrNull != null) {
         ref.read(activeRowingProvider.notifier).markBackgrounded();

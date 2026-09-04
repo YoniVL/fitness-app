@@ -32,12 +32,12 @@ class BleRowerService implements RowerService {
   bool _dataSubscribed = false;
   bool _wantConnected = false;
 
+  // Distance/energy are deliberately not tracked — the trainer's totals are
+  // unreliable, so the controller integrates them from pace/power instead.
   double? _strokeRate;
   int? _strokeCount;
-  double? _distanceM;
   double? _paceSec500m;
   double? _powerW;
-  double? _energyKcal;
   int? _heartRate;
   int? _elapsedSeconds;
 
@@ -213,12 +213,9 @@ class BleRowerService implements RowerService {
     _strokeRate = sane(read(DeviceDataParameterName.strokeRate)) ?? _strokeRate;
     final sc = sane(read(DeviceDataParameterName.strokeCount));
     if (sc != null) _strokeCount = sc.round();
-    _distanceM = sane(read(DeviceDataParameterName.totalDistance)) ?? _distanceM;
     final pace = sane(read(DeviceDataParameterName.instPace));
     if (pace != null && pace > 0 && pace < 600) _paceSec500m = pace;
     _powerW = sane(read(DeviceDataParameterName.instPower)) ?? _powerW;
-    _energyKcal =
-        sane(read(DeviceDataParameterName.totalEnergy)) ?? _energyKcal;
     final hr = sane(read(DeviceDataParameterName.heartRate), max: 254);
     if (hr != null && hr > 0) _heartRate = hr.round();
     final et = sane(read(DeviceDataParameterName.elapsedTime));
@@ -228,10 +225,8 @@ class BleRowerService implements RowerService {
     _snapshots.add(RowerSnapshot(
       strokeRate: _strokeRate,
       strokeCount: _strokeCount,
-      distanceM: _distanceM,
       paceSec500m: _paceSec500m,
       powerW: _powerW,
-      energyKcal: _energyKcal,
       heartRate: _heartRate,
       elapsedSeconds: _elapsedSeconds,
     ));

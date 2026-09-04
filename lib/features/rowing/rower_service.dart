@@ -8,7 +8,9 @@ import 'ble/ble_rower_service.dart';
 
 /// Live snapshot from the rower. Fields are null until the trainer reports them;
 /// the BLE service keeps the last-known value per field (FTMS sends partial
-/// frames). Absolute distance / pace from this trainer are estimates.
+/// frames). Over BLE, `distanceM` / `energyKcal` are left null — the trainer's
+/// own totals are unreliable, so [ActiveRowingController] integrates them from
+/// the split and power instead.
 class RowerSnapshot {
   const RowerSnapshot({
     this.strokeRate,
@@ -33,8 +35,8 @@ class RowerSnapshot {
 
 enum RowerConnectionStatus { disconnected, connecting, connected, demo }
 
-/// Source of live rowing data. Implemented by [FakeRowerService] (simulated) and,
-/// from R3, a `flutter_ftms` Bluetooth service.
+/// Source of live rowing data: [BleRowerService] (a real FTMS trainer) or
+/// [FakeRowerService] (the simulated demo mode).
 abstract class RowerService {
   Stream<RowerSnapshot> get snapshots;
   RowerConnectionStatus get status;

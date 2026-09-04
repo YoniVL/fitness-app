@@ -7,8 +7,6 @@ import '../../../domain/rowing_workouts.dart';
 /// A block reduced to what the profile needs.
 typedef ProfileBlock = ({int seconds, int? spm, bool isRest, RowIntensity? zone});
 
-RowIntensity? _zone(String? name) => rowIntensityFromName(name);
-
 /// Parse a stored `RowIntensity.name`, or null.
 RowIntensity? rowIntensityFromName(String? name) {
   if (name == null) return null;
@@ -36,7 +34,7 @@ List<ProfileBlock> profileFromSegments(List<ProgramRowSegment> segs) => [
           seconds: s.durationSeconds,
           spm: s.targetStrokeRate,
           isRest: s.isRest,
-          zone: _zone(s.zone),
+          zone: rowIntensityFromName(s.zone),
         ),
     ];
 
@@ -46,7 +44,7 @@ List<ProfileBlock> profileFromGenerated(List<GeneratedRowSegment> segs) => [
           seconds: s.durationSeconds,
           spm: s.targetSpm,
           isRest: s.isRest,
-          zone: _zone(s.zone),
+          zone: rowIntensityFromName(s.zone),
         ),
     ];
 
