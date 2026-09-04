@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 
 import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
+import 'state/rowing_achievements_provider.dart';
+import 'widgets/achievement_sheet.dart';
 
 /// The session kinds offered in the manual log (label → `rowing_sessions.kind`).
 const _manualKinds = <(String, String?)>[
@@ -87,6 +89,11 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
     for (final p in rowingProgressProviders) {
       ref.invalidate(p);
     }
+    if (!mounted) return;
+    final newBadges =
+        await ref.read(rowingAchievementsProvider.notifier).evaluateAndDiff();
+    if (!mounted) return;
+    await showAchievementsUnlockedSheet(context, newBadges);
     if (mounted) Navigator.pop(context);
   }
 

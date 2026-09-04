@@ -11,6 +11,8 @@ import '../../domain/rowing_ftp.dart';
 import 'ble/connect_sheet.dart';
 import 'rower_service.dart';
 import 'state/active_rowing_provider.dart';
+import 'state/rowing_achievements_provider.dart';
+import 'widgets/achievement_sheet.dart';
 import 'widgets/interval_profile.dart';
 import 'widgets/target_pace.dart';
 
@@ -327,6 +329,14 @@ class _Body extends ConsumerWidget {
         .read(activeRowingProvider.notifier)
         .finish(notes: note.isEmpty ? null : note);
     if (!context.mounted) return;
+    if (id != null) {
+      final newBadges = await ref
+          .read(rowingAchievementsProvider.notifier)
+          .evaluateAndDiff();
+      if (!context.mounted) return;
+      await showAchievementsUnlockedSheet(context, newBadges);
+      if (!context.mounted) return;
+    }
     if (id != null && (state.kind?.startsWith('ftp_') ?? false)) {
       context.go('/rowing/ftp/result/$id');
     } else {

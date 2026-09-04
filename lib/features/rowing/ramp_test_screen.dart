@@ -8,6 +8,8 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
 import 'state/ramp_test_provider.dart';
+import 'state/rowing_achievements_provider.dart';
+import 'widgets/achievement_sheet.dart';
 
 /// Live ramp test: the watt target rises each minute; the rower chases it until
 /// they can't. Landscape — like the live rowing screen — with one big target
@@ -59,8 +61,14 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    ref.listen(rampTestProvider.select((s) => s.sessionId), (_, id) {
-      if (id != null) context.go('/rowing/ftp/result/$id');
+    ref.listen(rampTestProvider.select((s) => s.sessionId), (_, id) async {
+      if (id == null) return;
+      final newBadges = await ref
+          .read(rowingAchievementsProvider.notifier)
+          .evaluateAndDiff();
+      if (!context.mounted) return;
+      await showAchievementsUnlockedSheet(context, newBadges);
+      if (context.mounted) context.go('/rowing/ftp/result/$id');
     });
 
     final s = ref.watch(rampTestProvider);
