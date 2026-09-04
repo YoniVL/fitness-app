@@ -178,6 +178,66 @@ void main() {
     expect(sessionRow.single['program_day_id'], isNull);
   });
 
+  test('deleteProgram succeeds and keeps history for a session logged against '
+      'one of its days', () async {
+    final ownId = await repo.createProgram(NewProgramDraft(
+      name: 'Weg te gooien schema',
+      category: ProgramCategory.strengthGenerated,
+      equipmentProfile: const ['dumbbell'],
+      days: [
+        NewProgramDayDraft(label: 'Dag 1', exercises: [
+          NewProgramExerciseDraft(
+              exerciseId: 1, sets: 3, reps: 10, restBetweenSets: 30, restAfterExercise: 60),
+        ]),
+      ],
+    ));
+    final dayId = (await repo.daysForProgram(ownId)).single.id;
+    final session =
+        await sessions.startSession(discipline: Discipline.strength, programDayId: dayId);
+
+    // Used to throw a foreign-key constraint failure: program_days has no
+    // cascade from workout_sessions, so deleting straight through crashed.
+    await repo.deleteProgram(ownId);
+
+    expect(await repo.programById(ownId), isNull);
+    final db = await AppDatabase.instance.database;
+    final sessionRow =
+        await db.query('workout_sessions', where: 'id = ?', whereArgs: [session.id]);
+    expect(sessionRow, hasLength(1));
+    expect(sessionRow.single['program_day_id'], isNull);
+  });
+
+  test('deleteProgram detaches rowing sessions from a deleted rowing plan',
+      () async {
+    final id = await repo.createProgram(NewProgramDraft(
+      name: 'Weg te gooien roeiplan',
+      category: ProgramCategory.rowGenerated,
+      discipline: Discipline.rowing,
+      equipmentProfile: const [],
+      rowingGoal: RowingGoal.uithouding,
+      days: [
+        NewProgramDayDraft(label: 'Wk 1 · Duur', segments: [
+          NewRowSegmentDraft(
+              durationSeconds: 600, targetStrokeRate: 20, intensityLabel: 'Duur'),
+        ]),
+      ],
+    ));
+    final dayId = (await repo.daysForProgram(id)).single.id;
+    final session =
+        await sessions.startSession(discipline: Discipline.rowing, programDayId: dayId);
+    final db = await AppDatabase.instance.database;
+    await db.insert('rowing_sessions', {
+      'session_id': session.id,
+      'program_day_id': dayId,
+    });
+
+    await repo.deleteProgram(id);
+
+    final rowingSessionRow = await db.query('rowing_sessions',
+        where: 'session_id = ?', whereArgs: [session.id]);
+    expect(rowingSessionRow.single['program_day_id'], isNull);
+  });
+
   test('editing a template forks a new owned program, leaving the template intact',
       () async {
     final templates = await repo.allStrengthPrograms();

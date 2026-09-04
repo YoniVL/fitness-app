@@ -69,13 +69,14 @@ class ProgramDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(program?.name ?? 'Programma'),
         actions: [
-          if (program != null && program.discipline == Discipline.strength) ...[
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Aanpassen',
-              onPressed: () =>
-                  context.push('/strength/library/program/$programId/edit'),
-            ),
+          if (program != null) ...[
+            if (program.discipline == Discipline.strength)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Aanpassen',
+                onPressed: () =>
+                    context.push('/strength/library/program/$programId/edit'),
+              ),
             if (!program.isTemplate)
               PopupMenuButton<String>(
                 onSelected: (v) {
@@ -154,9 +155,22 @@ class ProgramDetailScreen extends ConsumerWidget {
       destructive: true,
     );
     if (!ok) return;
-    await ref.read(programRepositoryProvider).deleteProgram(program.id);
-    ref.invalidate(visibleStrengthProgramsProvider);
-    ref.invalidate(activeProgramProvider);
+    try {
+      await ref.read(programRepositoryProvider).deleteProgram(program.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Verwijderen mislukt: $e')));
+      }
+      return;
+    }
+    if (program.discipline == Discipline.strength) {
+      ref.invalidate(visibleStrengthProgramsProvider);
+      ref.invalidate(activeProgramProvider);
+    } else {
+      ref.invalidate(rowingProgramsProvider);
+      ref.invalidate(activeRowingProgramProvider);
+    }
     if (context.mounted) context.pop();
   }
 }

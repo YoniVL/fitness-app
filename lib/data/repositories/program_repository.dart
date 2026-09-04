@@ -202,16 +202,7 @@ class ProgramRepository {
             where: 'id = ?', whereArgs: [programId]);
       }
 
-      final oldDayRows = await txn.query('program_days',
-          columns: ['id'], where: 'program_id = ?', whereArgs: [programId]);
-      final oldDayIds = oldDayRows.map((r) => r['id'] as int).toList();
-      if (oldDayIds.isNotEmpty) {
-        final placeholders = List.filled(oldDayIds.length, '?').join(',');
-        await txn.update('workout_sessions', {'program_day_id': null},
-            where: 'program_day_id IN ($placeholders)', whereArgs: oldDayIds);
-        await txn.update('rowing_sessions', {'program_day_id': null},
-            where: 'program_day_id IN ($placeholders)', whereArgs: oldDayIds);
-      }
+      await _detachSessionsFromProgramDays(txn, programId);
       // Cascades to program_exercises / program_row_segments.
       await txn.delete('program_days',
           where: 'program_id = ?', whereArgs: [programId]);
@@ -246,9 +237,32 @@ class ProgramRepository {
     });
   }
 
+  /// Nulls out `workout_sessions`/`rowing_sessions.program_day_id` for every
+  /// day of [programId] — neither table cascades from `program_days`, so this
+  /// must run before those days are deleted or the delete throws on the
+  /// foreign-key constraint. Logged sessions keep their rows; they just lose
+  /// the link to a day that's about to stop existing.
+  Future<void> _detachSessionsFromProgramDays(
+      DatabaseExecutor txn, int programId) async {
+    final dayRows = await txn.query('program_days',
+        columns: ['id'], where: 'program_id = ?', whereArgs: [programId]);
+    final dayIds = dayRows.map((r) => r['id'] as int).toList();
+    if (dayIds.isEmpty) return;
+    final placeholders = List.filled(dayIds.length, '?').join(',');
+    await txn.update('workout_sessions', {'program_day_id': null},
+        where: 'program_day_id IN ($placeholders)', whereArgs: dayIds);
+    await txn.update('rowing_sessions', {'program_day_id': null},
+        where: 'program_day_id IN ($placeholders)', whereArgs: dayIds);
+  }
+
+  /// Deletes a program (cascades to its days/exercises/segments), first
+  /// detaching any logged sessions from those days so history is kept.
   Future<void> deleteProgram(int programId) async {
     final db = await _appDb.database;
-    await db.delete('programs', where: 'id = ?', whereArgs: [programId]);
+    await db.transaction((txn) async {
+      await _detachSessionsFromProgramDays(txn, programId);
+      await txn.delete('programs', where: 'id = ?', whereArgs: [programId]);
+    });
     if (await _settings.activeProgramId() == programId) {
       await _settings.setActiveProgramId(null);
     }
