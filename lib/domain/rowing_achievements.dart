@@ -331,6 +331,17 @@ final List<RowingAchievement> rowingAchievements = [
       'Opnieuw geroeid na 30 dagen stilte.', (s) => s.hadComeback),
 ];
 
+/// 0..1 progress of [a] toward its threshold given [s].
+double achievementFraction(RowingAchievement a, AchievementStats s) {
+  final p = a.progressFor(s);
+  if (a.lowerIsBetter) {
+    if (p.current <= 0) return 0;
+    return (p.target / p.current).clamp(0, 1).toDouble();
+  }
+  if (p.target <= 0) return 0;
+  return (p.current / p.target).clamp(0, 1).toDouble();
+}
+
 /// The ids of every achievement whose threshold [s] meets.
 Set<String> earnedAchievements(AchievementStats s) => {
       for (final a in rowingAchievements)

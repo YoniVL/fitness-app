@@ -13,6 +13,7 @@ import '../features/progress/progress_screen.dart';
 import '../features/rowing/ftp_result_screen.dart';
 import '../features/rowing/ftp_screen.dart';
 import '../features/rowing/ramp_test_screen.dart';
+import '../features/rowing/rowing_achievements_screen.dart';
 import '../features/rowing/rowing_active_screen.dart';
 import '../features/rowing/rowing_builder_screen.dart';
 import '../features/rowing/workout_library_screen.dart';
@@ -123,6 +124,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/rowing/ramp-test',
       builder: (context, state) => const RampTestScreen(),
+    ),
+    GoRoute(
+      path: '/rowing/achievements',
+      builder: (context, state) => const RowingAchievementsScreen(),
     ),
     GoRoute(
       path: '/workout/active',

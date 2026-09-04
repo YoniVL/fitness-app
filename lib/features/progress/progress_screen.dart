@@ -1,14 +1,17 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
+import '../../domain/rowing_achievements.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../rowing/state/rowing_achievements_provider.dart';
 
 final _selectedExerciseProvider = StateProvider<int?>((ref) => null);
 
@@ -217,6 +220,8 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
           ),
           const SizedBox(height: 16),
         ],
+        const _AchievementsEntry(),
+        const SizedBox(height: 8),
         _Section(
           title: 'Laatste 30 dagen',
           child: totals == null
@@ -328,6 +333,48 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _AchievementsEntry extends ConsumerWidget {
+  const _AchievementsEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final view = ref.watch(rowingAchievementsProvider).valueOrNull;
+    final earned = view?.earnedIds ?? const <String>{};
+    final unlockedCount =
+        rowingAchievements.where((a) => earned.contains(a.id)).length;
+
+    String? nextGoal;
+    if (view != null) {
+      RowingAchievement? best;
+      var bestFrac = -1.0;
+      for (final key in ladderKeys) {
+        final next = ladderState(key, earned).next;
+        if (next == null) continue;
+        final f = achievementFraction(next, view.stats);
+        if (f > bestFrac) {
+          bestFrac = f;
+          best = next;
+        }
+      }
+      nextGoal = best?.title;
+    }
+
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.military_tech_outlined),
+        title: Text('Prestaties · $unlockedCount behaald'),
+        subtitle: nextGoal == null
+            ? null
+            : Text('Volgende: ${nextGoal.toLowerCase()}',
+                style: theme.textTheme.bodySmall),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/rowing/achievements'),
+      ),
     );
   }
 }
