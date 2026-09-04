@@ -289,7 +289,7 @@ Weergavenaam **Cadans** sinds iteratie 9; de interne pakketnaam blijft
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
 - **Iteratie 9 — naam, icoon, thema-verfijning + consistentie-pass** (code-compleet,
-  `95b2c71` … afwerking):
+  `95b2c71` … `74e39d6`):
   - **Naam**: weergavenaam → **Cadans** (`AndroidManifest.xml` label,
     `MaterialApp.title`, opstartscherm, back-up-bestandsnaam). Interne
     pakketnaam (`fitnesstracker`) en package-id ongemoeid.
