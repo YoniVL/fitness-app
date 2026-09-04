@@ -78,9 +78,12 @@ class AppTheme {
   static const seed = Color(0xFF2E7D32); // Cadans green — matches the app icon
   static const _headingFont = 'Barlow';
 
-  static ThemeData light({DynamicSchemeVariant variant = DynamicSchemeVariant.tonalSpot}) =>
+  // "Verzadigd" — chosen on-device via /dev/theme (fase 2 of iteration 9).
+  static const _defaultVariant = DynamicSchemeVariant.fidelity;
+
+  static ThemeData light({DynamicSchemeVariant variant = _defaultVariant}) =>
       _base(Brightness.light, variant);
-  static ThemeData dark({DynamicSchemeVariant variant = DynamicSchemeVariant.tonalSpot}) =>
+  static ThemeData dark({DynamicSchemeVariant variant = _defaultVariant}) =>
       _base(Brightness.dark, variant);
 
   static ThemeData _base(Brightness brightness, DynamicSchemeVariant variant) {
