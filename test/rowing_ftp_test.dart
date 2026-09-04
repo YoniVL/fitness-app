@@ -98,7 +98,7 @@ void main() {
       expect(r.watts, closeTo(228.8, 1)); // 260 * 0.88
     });
 
-    test('ramp uses best-minute power × 0.75', () {
+    test('ramp with a rising curve fits Critical Power', () {
       final samples = [
         for (var t = 0; t < 600000; t += 3000)
           _s(t, w: 100 + t / 3000, pace: 120), // rises ~1 W per sample
@@ -112,8 +112,33 @@ void main() {
         ),
         FtpProtocol.ramp,
       );
-      expect(r.watts, greaterThan(0));
-      expect(r.watts, closeTo(bestMinuteWatts(samples) * 0.75, 0.01));
+      expect(r.method, FtpMethod.criticalPower);
+      final cp = criticalPower(
+        (seconds: 60, watts: bestAvgWatts(samples, 60)),
+        (seconds: 240, watts: bestAvgWatts(samples, 240)),
+      )!;
+      expect(r.watts, closeTo(cp.cp, 0.01));
+      // CP is the asymptote — below any finite effort, but not far below.
+      expect(r.watts, lessThan(bestAvgWatts(samples, 60)));
+      expect(r.watts, greaterThan(bestAvgWatts(samples, 240) * 0.85));
+      expect(r.cpWPrime, greaterThan(0));
+    });
+
+    test('ramp with a flat curve falls back to best-minute × 0.75', () {
+      final samples = [
+        for (var t = 0; t < 300000; t += 3000) _s(t, w: 180, pace: 120),
+      ];
+      final r = computeFtp(
+        (
+          planSegments: const <ProgramRowSegment>[],
+          totalDistanceM: 0,
+          durationSeconds: 300,
+          samples: samples,
+        ),
+        FtpProtocol.ramp,
+      );
+      expect(r.method, FtpMethod.multiplier);
+      expect(r.watts, closeTo(180 * 0.75, 0.01));
     });
 
     test('falls back to distance/time when there are no samples', () {
@@ -128,6 +153,53 @@ void main() {
       );
       expect(r.lowConfidence, isTrue);
       expect(r.watts, greaterThan(0));
+    });
+  });
+
+  group('criticalPower', () {
+    test('recovers CP and W\' from two points on P = W\'/t + CP', () {
+      // CP = 250, W' = 3000 J → P(60) = 300, P(240) = 262.5
+      final r = criticalPower(
+          (seconds: 60, watts: 300), (seconds: 240, watts: 262.5))!;
+      expect(r.cp, closeTo(250, 0.01));
+      expect(r.wPrime, closeTo(3000, 0.5));
+    });
+
+    test('order of the two points does not matter', () {
+      final a = criticalPower(
+          (seconds: 60, watts: 300), (seconds: 240, watts: 262.5))!;
+      final b = criticalPower(
+          (seconds: 240, watts: 262.5), (seconds: 60, watts: 300))!;
+      expect(a.cp, closeTo(b.cp, 0.001));
+    });
+
+    test('null when power does not fall with duration', () {
+      expect(
+          criticalPower(
+              (seconds: 60, watts: 250), (seconds: 240, watts: 250)),
+          isNull);
+    });
+
+    test('null when the windows are too close together', () {
+      expect(
+          criticalPower(
+              (seconds: 60, watts: 300), (seconds: 120, watts: 290)),
+          isNull);
+    });
+  });
+
+  group('bestAvgWatts', () {
+    test('a longer window cannot beat a shorter one', () {
+      final samples = [
+        for (var t = 0; t < 600000; t += 3000) _s(t, w: 100 + t / 3000),
+      ];
+      expect(bestAvgWatts(samples, 60),
+          greaterThan(bestAvgWatts(samples, 240)));
+    });
+
+    test('bestMinuteWatts is the 60 s window', () {
+      final samples = [for (var t = 0; t < 120000; t += 3000) _s(t, w: 200)];
+      expect(bestMinuteWatts(samples), bestAvgWatts(samples, 60));
     });
   });
 

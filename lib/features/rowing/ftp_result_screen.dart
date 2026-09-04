@@ -64,6 +64,17 @@ class FtpResultScreen extends ConsumerWidget {
                   style: theme.textTheme.bodyLarge
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  switch (res.method) {
+                    FtpMethod.criticalPower =>
+                      'via Critical Power (60 s + 4 min)',
+                    FtpMethod.multiplier =>
+                      'via ${(proto.multiplier * 100).round()} %-factor',
+                  },
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
                 if (res.lowConfidence) ...[
                   const SizedBox(height: 12),
                   Text('Ruwe schatting — weinig meetdata in het meetblok.',

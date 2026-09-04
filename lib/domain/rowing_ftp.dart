@@ -228,20 +228,35 @@ enum FtpProtocol {
   }
 }
 
+/// How an FTP number was derived from a test session.
+enum FtpMethod {
+  /// Effort (or best-minute) power × the protocol's fixed factor.
+  multiplier,
+
+  /// Two-point Critical Power fit over the session's power curve.
+  criticalPower,
+}
+
 /// The outcome of an FTP test: the computed FTP plus what it was derived from.
 class FtpResult {
   const FtpResult({
     required this.watts,
     required this.protocol,
+    this.method = FtpMethod.multiplier,
     this.effortWatts,
     this.effortPaceSeconds,
+    this.cpWPrime,
     this.lowConfidence = false,
   });
 
   final double watts;
   final FtpProtocol protocol;
+  final FtpMethod method;
   final double? effortWatts;
   final double? effortPaceSeconds;
+
+  /// The anaerobic work capacity `W'` (joules) when [method] is criticalPower.
+  final double? cpWPrime;
 
   /// True when derived from too few samples or from distance/time (no samples).
   final bool lowConfidence;
@@ -257,26 +272,79 @@ double _mean(Iterable<double> xs) {
   return n == 0 ? 0 : sum / n;
 }
 
-/// Highest 60-second rolling average power across the session (for the ramp
-/// test). 0 when there isn't enough data.
-double bestMinuteWatts(List<RowingSample> samples) {
+/// Highest rolling average power over a window of [windowSeconds] across the
+/// session. 0 when there isn't enough data in any window.
+double bestAvgWatts(List<RowingSample> samples, int windowSeconds) {
   final pts = [
     for (final s in samples)
       if (s.powerW != null && s.powerW! > 0) (t: s.tOffsetMs, w: s.powerW!),
   ]..sort((a, b) => a.t.compareTo(b.t));
   if (pts.length < 2) return 0;
+  final windowMs = windowSeconds * 1000;
   var best = 0.0;
   for (var i = 0; i < pts.length; i++) {
-    final end = pts[i].t + 60000;
+    final end = pts[i].t + windowMs;
     var sum = 0.0;
     var n = 0;
+    var lastT = pts[i].t;
     for (var j = i; j < pts.length && pts[j].t <= end; j++) {
       sum += pts[j].w;
       n++;
+      lastT = pts[j].t;
     }
-    if (n >= 3) best = math.max(best, sum / n);
+    // Only trust a window that is actually (mostly) filled — otherwise a tiny
+    // cluster of samples at the end of the session would masquerade as a full
+    // window average.
+    if (n >= 3 && lastT - pts[i].t >= windowMs * 0.75) {
+      best = math.max(best, sum / n);
+    }
   }
   return best;
+}
+
+/// Highest 60-second rolling average power across the session (for the ramp
+/// test). 0 when there isn't enough data.
+double bestMinuteWatts(List<RowingSample> samples) => bestAvgWatts(samples, 60);
+
+/// Two-point Critical Power fit: `P(t) = W' / t + CP`, from a short, powerful
+/// effort [a] and a longer, lower one [b]. Returns null when the two points
+/// can't support a fit — windows less than 90 s apart, power not falling with
+/// duration, or an implausible CP.
+({double cp, double wPrime})? criticalPower(
+  ({int seconds, double watts}) a,
+  ({int seconds, double watts}) b,
+) {
+  final (short, long) = a.seconds <= b.seconds ? (a, b) : (b, a);
+  final t1 = short.seconds.toDouble();
+  final t2 = long.seconds.toDouble();
+  final p1 = short.watts;
+  final p2 = long.watts;
+  if (t2 - t1 < 90) return null;
+  if (p1 <= 0 || p2 <= 0 || p1 <= p2) return null;
+  final cp = (p1 * t1 - p2 * t2) / (t1 - t2);
+  final wPrime = (p1 - p2) * t1 * t2 / (t2 - t1);
+  if (cp <= 0 || cp >= p1 || cp > 4 * p2 || wPrime <= 0) return null;
+  return (cp: cp, wPrime: wPrime);
+}
+
+/// Critical Power from the session's power curve: the best 60 s effort as the
+/// short point and the best 240 s as the long one. Null unless the curve
+/// genuinely falls off with duration (a ramp, or a hard fast start).
+FtpResult? _tryCriticalPower(List<RowingSample> samples, FtpProtocol protocol) {
+  final p1 = bestAvgWatts(samples, 60);
+  final p2 = bestAvgWatts(samples, 240);
+  final cp = criticalPower(
+    (seconds: 60, watts: p1),
+    (seconds: 240, watts: p2),
+  );
+  if (cp == null) return null;
+  return FtpResult(
+    watts: cp.cp,
+    protocol: protocol,
+    method: FtpMethod.criticalPower,
+    effortWatts: p1,
+    cpWPrime: cp.wPrime,
+  );
 }
 
 /// Compute FTP from a finished test session.
@@ -284,13 +352,16 @@ FtpResult computeFtp(FtpSessionData detail, FtpProtocol protocol) {
   final samples = detail.samples;
 
   if (protocol == FtpProtocol.ramp) {
-    final best = bestMinuteWatts(samples);
-    return FtpResult(
-      watts: best * protocol.multiplier,
-      protocol: protocol,
-      effortWatts: best,
-      lowConfidence: best <= 0,
-    );
+    return _tryCriticalPower(samples, protocol) ??
+        () {
+          final best = bestMinuteWatts(samples);
+          return FtpResult(
+            watts: best * protocol.multiplier,
+            protocol: protocol,
+            effortWatts: best,
+            lowConfidence: best <= 0,
+          );
+        }();
   }
 
   final window = protocol.effortWindow(detail.planSegments);
@@ -300,6 +371,27 @@ FtpResult computeFtp(FtpSessionData detail, FtpProtocol protocol) {
           s.tOffsetMs <= window.endSec * 1000;
 
   final effort = samples.where(inWindow).toList();
+
+  // A long-enough effort with a real power drop-off supports a CP fit that
+  // beats the fixed factor.
+  final effortSeconds = window == null ? 0 : window.endSec - window.startSec;
+  if (effortSeconds >= 180) {
+    final cp = _tryCriticalPower(effort, protocol);
+    if (cp != null) {
+      final paces = [
+        for (final s in effort)
+          if (s.paceSec500m != null && s.paceSec500m! > 0) s.paceSec500m!,
+      ];
+      return FtpResult(
+        watts: cp.watts,
+        protocol: protocol,
+        method: FtpMethod.criticalPower,
+        effortWatts: cp.effortWatts,
+        effortPaceSeconds: paces.isEmpty ? null : _mean(paces),
+        cpWPrime: cp.cpWPrime,
+      );
+    }
+  }
   final powers = [
     for (final s in effort)
       if (s.powerW != null && s.powerW! > 0) s.powerW!,

@@ -31,12 +31,12 @@ void main() {
   });
 
   group('ramp FTP computation', () {
-    test('FTP is 0.75 × best 60-second power', () {
-      // Rising power, 3 s cadence, over 5 minutes.
+    test('a flat ramp trace falls back to 0.75 × best 60-second power', () {
+      // Constant power → no CP fit possible.
       final samples = [
         for (var t = 0; t < 300000; t += 3000)
           RowingSample(
-              id: 0, rowingSessionId: 0, tOffsetMs: t, powerW: 100 + t / 3000),
+              id: 0, rowingSessionId: 0, tOffsetMs: t, powerW: 200),
       ];
       final r = computeFtp((
         samples: samples,
@@ -44,8 +44,26 @@ void main() {
         totalDistanceM: 800,
         durationSeconds: 300,
       ), FtpProtocol.ramp);
+      expect(r.method, FtpMethod.multiplier);
       expect(r.watts, closeTo(bestMinuteWatts(samples) * 0.75, 0.01));
       expect(r.effortWatts, closeTo(bestMinuteWatts(samples), 0.01));
+    });
+
+    test('a rising ramp trace fits Critical Power', () {
+      final samples = [
+        for (var t = 0; t < 360000; t += 3000)
+          RowingSample(
+              id: 0, rowingSessionId: 0, tOffsetMs: t, powerW: 100 + t / 3000),
+      ];
+      final r = computeFtp((
+        samples: samples,
+        planSegments: const [],
+        totalDistanceM: 800,
+        durationSeconds: 360,
+      ), FtpProtocol.ramp);
+      expect(r.method, FtpMethod.criticalPower);
+      expect(r.watts, greaterThan(0));
+      expect(r.watts, lessThan(bestMinuteWatts(samples)));
     });
   });
 
