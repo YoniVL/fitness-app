@@ -8,6 +8,9 @@ import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/rowing_format.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/empty_state.dart';
 
 class LogScreen extends ConsumerWidget {
   const LogScreen({super.key, required this.discipline});
@@ -35,10 +38,8 @@ class LogScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(recentSessionsProvider),
-        child: sessions.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Fout: $e')),
-          data: (all) {
+        child: sessions.view(
+          (all) {
             final list = all
                 .where((s) => s.session.discipline == discipline)
                 .toList();
@@ -46,7 +47,7 @@ class LogScreen extends ConsumerWidget {
               return ListView(
                 children: const [
                   SizedBox(height: 120),
-                  Center(child: Text('Nog niks gelogd')),
+                  EmptyState('Nog niks gelogd'),
                 ],
               );
             }
@@ -82,32 +83,21 @@ class LogScreen extends ConsumerWidget {
               },
             );
           },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e) => Center(child: Text('Fout: $e')),
         ),
       ),
     );
   }
 }
 
-Future<bool> _confirmDelete(BuildContext context) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Sessie verwijderen?'),
-      content: const Text('Dit kan niet ongedaan worden gemaakt.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Annuleren'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Verwijderen'),
-        ),
-      ],
-    ),
-  );
-  return ok ?? false;
-}
+Future<bool> _confirmDelete(BuildContext context) => confirmDialog(
+      context,
+      title: 'Sessie verwijderen?',
+      message: 'Dit kan niet ongedaan worden gemaakt.',
+      confirmLabel: 'Verwijderen',
+      destructive: true,
+    );
 
 class _SessionTile extends StatelessWidget {
   const _SessionTile({required this.summary, required this.basePath});

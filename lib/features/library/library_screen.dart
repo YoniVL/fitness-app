@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../app/home_shell.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../domain/models/program.dart';
+import '../../ui/app_section.dart';
+import '../../ui/async_view.dart';
+import '../../ui/spacing.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key, required this.discipline});
@@ -43,21 +46,17 @@ class LibraryScreen extends ConsumerWidget {
         onTap: () => context.push('/program/builder'),
       ),
       const Divider(),
-      _sectionHeader(context, 'Krachtprogramma\'s'),
-      strength.when(
-        loading: () => const _LoadingTile(),
-        error: (e, _) => _ErrorTile('$e'),
-        data: (programs) {
-          if (programs.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Geen programma\'s. Stel er zelf een samen.'),
-            );
-          }
-          return _programList(programs);
-        },
-      ),
-      const SizedBox(height: 24),
+      const AppSectionHeader('Krachtprogramma\'s'),
+      strength.view((programs) {
+        if (programs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Geen programma\'s. Stel er zelf een samen.'),
+          );
+        }
+        return _programList(programs);
+      }),
+      Gap.xl,
     ];
   }
 
@@ -80,13 +79,9 @@ class LibraryScreen extends ConsumerWidget {
         onTap: () => context.push('/rowing/library/workouts'),
       ),
       const Divider(),
-      _sectionHeader(context, 'Roeiprogramma\'s'),
-      rowing.when(
-        loading: () => const _LoadingTile(),
-        error: (e, _) => _ErrorTile('$e'),
-        data: _programList,
-      ),
-      const SizedBox(height: 24),
+      const AppSectionHeader('Roeiprogramma\'s'),
+      rowing.view(_programList),
+      Gap.xl,
     ];
   }
 
@@ -103,10 +98,6 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-      );
 }
 
 class _ProgramTile extends StatelessWidget {
@@ -132,23 +123,4 @@ class _ProgramTile extends StatelessWidget {
       onTap: () => context.push('$prefix/library/program/${program.id}'),
     );
   }
-}
-
-class _LoadingTile extends StatelessWidget {
-  const _LoadingTile();
-  @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.all(16),
-        child: Center(child: CircularProgressIndicator()),
-      );
-}
-
-class _ErrorTile extends StatelessWidget {
-  const _ErrorTile(this.message);
-  final String message;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text('Fout: $message'),
-      );
 }
