@@ -179,17 +179,25 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     `rowingDemoModeProvider.select(...)` (geen rebuild op loading→data, anders
     wordt de service mid-sessie disposed); demo standaard **aan** tot een trainer
     gekoppeld is. **Auto-pauze** ook bij stilstand: veel trainers streamen
-    nul-frames als je stopt, dus pauzeren bij `distance` die 10 s niet beweegt
-    (behalve tijdens een geplande rust). **Geen voorgrondservice** — sessie
+    nul-frames als je stopt, dus pauzeren als er 10 s geen roei-activiteit is
+    (geen halen / geen geldige split; behalve tijdens een geplande rust). **Geen voorgrondservice** — sessie
     pauzeert bij achtergrond. Op toestel met de FS-057453 geverifieerd: scan
     vindt 'm, verbindt, FTMS-frames stromen, herverbindt na verlopen adres,
-    auto-pauze werkt. **`RowerOdometer`** (in `active_rowing_provider.dart`):
-    de FS-057453 rapporteert `Total Distance`/`Total Energy` als een
-    levenslange odometer (sprong naar ~33 km bij sessiestart) — per sessie
-    wordt de eerste grote meting als nulpunt genomen en enkel fysiek
-    plausibele stappen doorgelaten; een teller-reset bij herverbinden wordt
-    opgevangen. Live cijfers tijdens het roeien + power-cycle nog door de
-    gebruiker te bevestigen.
+    auto-pauze werkt.
+    - **Klok start bij de eerste halen, niet bij "Start".** Een sessie begint
+      in `PauseReason.notStarted` — `elapsed` en de segmentcursor staan stil
+      tot `_onSnapshot` roei-activiteit ziet (`strokeRate ≥ 1` of een geldige
+      split). Knop toont dan "Nu starten" als handmatige override.
+      Hint: "Begin te roeien — de tijd start bij je eerste halen".
+    - **Afstand/energie worden zelf berekend, niet van de trainer gelezen.**
+      De FS-057453's `Total Distance` klopt niet (rapporteert ~1/10 en begint
+      op een levenslange stand). `RowingMeter` (in `active_rowing_provider.dart`)
+      integreert afstand uit de split (`500/pace` m/s, alleen met een <4 s
+      verse pace-lezing) en energie uit vermogen. `_merged()` combineert de
+      ruwe trainer-slag/pace/HR met deze eigen afstand/energie; `RowingMeter.seed`
+      draagt totalen over bij een rehydrate.
+    - Nog door de gebruiker met de fysieke trainer te bevestigen: exacte
+      afstand vs. het display van de roeimachine, en herverbinden na power-cycle.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).

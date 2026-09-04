@@ -200,10 +200,13 @@ class _Body extends ConsumerWidget {
     );
 
     final pauseHint = switch (state.pausedReason) {
+      PauseReason.notStarted =>
+        'Begin te roeien — de tijd start bij je eerste halen',
       PauseReason.idle => 'Gepauzeerd — begin te roeien om verder te gaan',
       PauseReason.background => 'Gepauzeerd — tik Hervat om verder te gaan',
       _ => null,
     };
+    final notStarted = state.pausedReason == PauseReason.notStarted;
 
     final controls = Column(
       mainAxisSize: MainAxisSize.min,
@@ -214,7 +217,11 @@ class _Body extends ConsumerWidget {
               child: OutlinedButton.icon(
                 onPressed: notifier.togglePause,
                 icon: Icon(state.paused ? Icons.play_arrow : Icons.pause),
-                label: Text(state.paused ? 'Hervat' : 'Pauze'),
+                label: Text(notStarted
+                    ? 'Nu starten'
+                    : state.paused
+                        ? 'Hervat'
+                        : 'Pauze'),
               ),
             ),
             const SizedBox(width: 12),

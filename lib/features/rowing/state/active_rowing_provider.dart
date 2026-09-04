@@ -11,40 +11,49 @@ import '../../../domain/models/workout_session.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
 
-/// Turns a trainer's cumulative counter into a session-relative one.
+/// Derives session distance and energy from the split and power.
 ///
-/// Some FTMS rowers report `Total Distance` / `Total Energy` as a lifetime
-/// odometer that is already in the tens of kilometres when a session starts, and
-/// some reset it to 0 on reconnect. This keeps the value starting at 0 for the
-/// session and only moving in physically plausible steps — any backward jump or
-/// implausibly large forward jump is absorbed into the baseline instead of shown.
-class RowerOdometer {
-  RowerOdometer(this.maxStep);
+/// This trainer's FTMS `Total Distance` field is unreliable — it reports roughly
+/// a tenth of the real distance — so distance is integrated from the pace
+/// instead, the metric the machine itself is built around. Energy comes from
+/// power. Both only advance while [tick] is fed a fresh, plausible split.
+class RowingMeter {
+  double _distanceM = 0;
+  double _energyKcal = 0;
 
-  /// Largest believable increase between two consecutive (~1 s) frames.
-  final double maxStep;
+  double get distanceM => _distanceM;
+  double get energyKcal => _energyKcal;
 
-  double? _baseline;
-  double? _prevRaw;
+  /// Carry a rehydrated session's totals forward after an app restart.
+  void seed({required double distanceM, required double energyKcal}) {
+    _distanceM = distanceM;
+    _energyKcal = energyKcal;
+  }
 
-  double normalise(double raw) {
-    // A small first reading is a genuine near-zero start; a large one is the
-    // trainer's odometer, so anchor the baseline to it.
-    _baseline ??= raw > maxStep ? raw : 0;
-    final prev = _prevRaw;
-    _prevRaw = raw;
-    if (prev != null) {
-      final step = raw - prev;
-      if (step < 0 || step > maxStep) _baseline = _baseline! + step;
+  /// Advance by [seconds]. [paceSec500m] is the current split (null / outside
+  /// 1:00–15:00 per 500 m → no distance this step); [powerW] the current power
+  /// (null / ≤ 0 → no energy this step).
+  void tick({
+    required double seconds,
+    double? paceSec500m,
+    double? powerW,
+  }) {
+    if (paceSec500m != null && paceSec500m > 60 && paceSec500m < 900) {
+      _distanceM += 500.0 / paceSec500m * seconds;
     }
-    final out = raw - _baseline!;
-    return out < 0 ? 0 : out;
+    if (powerW != null && powerW > 0) {
+      // Mechanical watts → metabolic kcal (~4× gross efficiency).
+      _energyKcal += powerW * 4.0 / 4184.0 * seconds;
+    }
   }
 }
 
 /// Why the session clock is stopped.
 enum PauseReason {
   none,
+
+  /// Session created, waiting for the first strokes before the clock starts.
+  notStarted,
 
   /// The user tapped Pauze.
   user,
@@ -145,18 +154,21 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   final List<RowingSample> _pending = [];
   int _lastSampleSecond = -3;
 
-  /// When the trainer last sent data (null until the first frame), and when the
-  /// distance last moved. Either going stale auto-pauses the session — some
-  /// trainers keep streaming zero-frames when you stop rowing.
+  /// When the trainer last sent data (null until the first frame), and when you
+  /// last showed signs of rowing (a stroke or a live split). Either going stale
+  /// auto-pauses the session — some trainers keep streaming zero-frames when you
+  /// stop rowing.
   DateTime? _lastDataAt;
   DateTime? _lastMoveAt;
-  double _lastDistance = 0;
   static const _idleTimeout = Duration(seconds: 8);
   static const _stallTimeout = Duration(seconds: 10);
 
-  /// Reset per session — see [RowerOdometer].
-  RowerOdometer _distOdo = RowerOdometer(500);
-  RowerOdometer _energyOdo = RowerOdometer(20);
+  /// Latest raw trainer frame, the session's derived distance/energy, and the
+  /// last plausible split (held briefly between frames). Reset per session.
+  RowerSnapshot? _lastRaw;
+  RowingMeter _meter = RowingMeter();
+  double? _lastPace;
+  DateTime? _lastPaceAt;
 
   /// The segment index we've already played the pre-switch beep for.
   int _preBeepedFor = -1;
@@ -207,8 +219,17 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       segmentIndex: idx,
       elapsed: elapsed,
       segmentElapsed: elapsed - acc,
+      pausedReason: PauseReason.notStarted,
     );
     _startEngine();
+    // Carry the pre-restart distance/energy forward.
+    final samples = db?.samples ?? const <RowingSample>[];
+    if (samples.isNotEmpty) {
+      _meter.seed(
+        distanceM: samples.last.distanceM ?? 0,
+        energyKcal: samples.last.energyKcal ?? 0,
+      );
+    }
     return state;
   }
 
@@ -231,6 +252,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         session: session,
         rowingSessionId: ids.rowingSessionId,
         segments: segments,
+        pausedReason: PauseReason.notStarted,
       );
     });
   }
@@ -249,6 +271,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         session: session,
         rowingSessionId: ids.rowingSessionId,
         segments: const [],
+        pausedReason: PauseReason.notStarted,
       );
     });
   }
@@ -275,6 +298,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         session: session,
         rowingSessionId: ids.rowingSessionId,
         segments: segments,
+        pausedReason: PauseReason.notStarted,
       );
     });
   }
@@ -283,27 +307,31 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub?.cancel();
-    _distOdo = RowerOdometer(500);
-    _energyOdo = RowerOdometer(20);
+    _lastRaw = null;
+    _lastPace = null;
+    _lastPaceAt = null;
+    _lastDataAt = null;
+    _lastMoveAt = null;
+    _meter = RowingMeter();
     _sub = _rower.snapshots.listen(_onSnapshot);
     _rower.connect();
   }
 
-  /// Rewrites the trainer's cumulative distance/energy to session-relative
-  /// values (the FS-057453 reports a lifetime odometer).
-  RowerSnapshot _normalise(RowerSnapshot r) {
-    if (r.distanceM == null && r.energyKcal == null) return r;
+  bool _plausiblePace(double? p) => p != null && p > 60 && p < 900;
+
+  /// The live snapshot the UI sees: the trainer's raw stroke/pace/power/HR plus
+  /// our own integrated distance and energy.
+  RowerSnapshot _merged() {
+    final r = _lastRaw;
     return RowerSnapshot(
-      strokeRate: r.strokeRate,
-      strokeCount: r.strokeCount,
-      distanceM:
-          r.distanceM == null ? null : _distOdo.normalise(r.distanceM!),
-      paceSec500m: r.paceSec500m,
-      powerW: r.powerW,
-      energyKcal:
-          r.energyKcal == null ? null : _energyOdo.normalise(r.energyKcal!),
-      heartRate: r.heartRate,
-      elapsedSeconds: r.elapsedSeconds,
+      strokeRate: r?.strokeRate,
+      strokeCount: r?.strokeCount,
+      distanceM: _meter.distanceM,
+      paceSec500m: r?.paceSec500m,
+      powerW: r?.powerW,
+      energyKcal: _meter.energyKcal,
+      heartRate: r?.heartRate,
+      elapsedSeconds: r?.elapsedSeconds,
     );
   }
 
@@ -312,29 +340,37 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   void _onSnapshot(RowerSnapshot raw) {
     final s = state.valueOrNull;
     if (s == null) return;
-    final snap = _normalise(raw);
+    _lastRaw = raw;
     final now = DateTime.now();
     _lastDataAt = now;
-    final d = snap.distanceM ?? 0;
-    final moving = d > _lastDistance + 0.5 || (snap.strokeRate ?? 0) > 1;
-    if (moving) {
-      _lastMoveAt = now;
-      _lastDistance = d;
+
+    if (_plausiblePace(raw.paceSec500m)) {
+      _lastPace = raw.paceSec500m;
+      _lastPaceAt = now;
     }
+    final rowing =
+        (raw.strokeRate ?? 0) >= 1 || _plausiblePace(raw.paceSec500m);
+    if (rowing) _lastMoveAt = now;
     _lastMoveAt ??= now;
-    // Rowing resumed → lift an idle auto-pause (not a user/background one).
-    final reason = (s.pausedReason == PauseReason.idle && moving)
-        ? PauseReason.none
-        : s.pausedReason;
-    state = AsyncData(s.copyWith(live: snap, pausedReason: reason));
+
+    // The first strokes start the clock; returning data lifts an idle pause.
+    var reason = s.pausedReason;
+    if (rowing &&
+        (reason == PauseReason.notStarted || reason == PauseReason.idle)) {
+      reason = PauseReason.none;
+    }
+    state = AsyncData(s.copyWith(live: _merged(), pausedReason: reason));
   }
 
   void _tick() {
     final s = state.valueOrNull;
     if (s == null) return;
 
+    // The clock stays frozen until the first strokes arrive.
+    if (s.pausedReason == PauseReason.notStarted) return;
+
     // Auto-pause when the trainer goes quiet, or keeps streaming but you've
-    // stopped rowing (distance not moving) — unless a planned rest is running.
+    // stopped rowing — unless a planned rest is running.
     final now = DateTime.now();
     final noData =
         _lastDataAt != null && now.difference(_lastDataAt!) > _idleTimeout;
@@ -346,6 +382,16 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       return;
     }
     if (s.paused) return;
+
+    // Integrate distance from the split and energy from power — only with a
+    // recent pace reading, so a stopped rower doesn't keep accruing distance.
+    final freshPace = _lastPaceAt != null &&
+        now.difference(_lastPaceAt!) < const Duration(seconds: 4);
+    _meter.tick(
+      seconds: 1,
+      paceSec500m: freshPace ? _lastPace : null,
+      powerW: _lastRaw?.powerW,
+    );
 
     var elapsed = s.elapsed + const Duration(seconds: 1);
     var segElapsed = s.segmentElapsed + const Duration(seconds: 1);
@@ -370,9 +416,10 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       elapsed: elapsed,
       segmentElapsed: segElapsed,
       segmentIndex: idx,
+      live: _merged(),
     ));
 
-    _maybeSample(s.live, elapsed);
+    _maybeSample(_merged(), elapsed);
     if (elapsed.inSeconds % 10 == 0) {
       _rowing.checkpointElapsed(s.session.id, elapsed);
     }
@@ -418,11 +465,14 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   void togglePause() {
     final s = state.valueOrNull;
     if (s == null) return;
-    // Any tap on a paused session resumes it; otherwise pause it manually.
+    // Any tap on a paused session resumes it (also a manual start from the
+    // not-started state); otherwise pause it manually.
     state = AsyncData(s.copyWith(
         pausedReason: s.paused ? PauseReason.none : PauseReason.user));
     if (!s.paused) return;
-    _lastDataAt = DateTime.now(); // don't instantly re-idle-pause on resume
+    // Don't instantly re-idle-pause on resume.
+    _lastDataAt = DateTime.now();
+    _lastMoveAt = DateTime.now();
   }
 
   Future<int?> finish({String? notes}) async {

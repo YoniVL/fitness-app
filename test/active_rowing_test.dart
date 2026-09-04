@@ -71,35 +71,44 @@ void main() {
     expect(s.copyWith(pausedReason: PauseReason.none).paused, isFalse);
   });
 
-  group('RowerOdometer', () {
-    test('anchors a lifetime odometer so the session starts at 0', () {
-      final o = RowerOdometer(500);
-      expect(o.normalise(33000), 0);
-      expect(o.normalise(33012), 12);
-      expect(o.normalise(33025), 25);
+  group('RowingMeter', () {
+    test('integrates distance from the split', () {
+      final m = RowingMeter();
+      // 2:00 /500m = 120 s → 4.166 m/s.
+      m.tick(seconds: 1, paceSec500m: 120);
+      m.tick(seconds: 1, paceSec500m: 120);
+      expect(m.distanceM, closeTo(8.33, 0.01));
     });
 
-    test('keeps a genuine near-zero start intact', () {
-      final o = RowerOdometer(500);
-      expect(o.normalise(4), 4);
-      expect(o.normalise(9), 9);
+    test('adds nothing without a plausible split', () {
+      final m = RowingMeter();
+      m.tick(seconds: 1); // no pace → not rowing
+      m.tick(seconds: 1, paceSec500m: 0);
+      m.tick(seconds: 1, paceSec500m: 5000); // absurdly slow → ignored
+      expect(m.distanceM, 0);
     });
 
-    test('absorbs an implausible mid-session jump', () {
-      final o = RowerOdometer(500);
-      o.normalise(0);
-      o.normalise(20);
-      expect(o.normalise(33000), 20); // counter glitch, not 33 km of rowing
-      expect(o.normalise(33010), 30);
+    test('integrates energy from power', () {
+      final m = RowingMeter();
+      m.tick(seconds: 10, powerW: 200);
+      expect(m.energyKcal, greaterThan(0));
+      final after = m.energyKcal;
+      m.tick(seconds: 5, powerW: 0);
+      expect(m.energyKcal, after); // no power → no energy
     });
 
-    test('absorbs a counter reset on reconnect', () {
-      final o = RowerOdometer(500);
-      o.normalise(1000);
-      expect(o.normalise(1200), 200);
-      expect(o.normalise(0), 200); // trainer reset — hold, do not go backwards
-      expect(o.normalise(15), 215);
+    test('seed carries a rehydrated session forward', () {
+      final m = RowingMeter()..seed(distanceM: 1500, energyKcal: 40);
+      m.tick(seconds: 1, paceSec500m: 120);
+      expect(m.distanceM, closeTo(1504.17, 0.01));
+      expect(m.energyKcal, 40);
     });
+  });
+
+  test('a session starts in the not-started state and the clock is frozen', () {
+    final s = _state([_seg(0, 60)]).copyWith(pausedReason: PauseReason.notStarted);
+    expect(s.paused, isTrue);
+    expect(s.elapsed, Duration.zero);
   });
 
   test('segmentProgressFraction tracks the segment cursor', () {
