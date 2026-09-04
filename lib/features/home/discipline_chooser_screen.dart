@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../ui/spacing.dart';
+
 /// The app's landing screen: pick strength or rowing. Not persisted — every cold
 /// start returns here.
 class DisciplineChooserScreen extends StatelessWidget {
@@ -12,13 +14,13 @@ class DisciplineChooserScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: Insets.screen,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
+              Gap.l,
               Text('Cadans', style: theme.textTheme.headlineMedium),
-              const SizedBox(height: 4),
+              Gap.xs,
               Text('Wat ga je doen?',
                   style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant)),
@@ -31,7 +33,7 @@ class DisciplineChooserScreen extends StatelessWidget {
                   onTap: () => context.go('/strength/today'),
                 ),
               ),
-              const SizedBox(height: 16),
+              Gap.l,
               Expanded(
                 child: _ChoiceCard(
                   icon: Icons.rowing,
@@ -78,7 +80,7 @@ class _ChoiceCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: Insets.screen,
           child: Row(
             children: [
               Icon(icon, size: 48, color: theme.colorScheme.primary),
@@ -89,7 +91,7 @@ class _ChoiceCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(title, style: theme.textTheme.headlineSmall),
-                    const SizedBox(height: 4),
+                    Gap.xs,
                     Text(subtitle,
                         style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant)),

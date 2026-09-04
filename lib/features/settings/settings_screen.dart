@@ -9,6 +9,9 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
 import '../../domain/taxonomy.dart';
+import '../../ui/app_section.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
 import '../exercises/exercise_media.dart';
 import '../rowing/ble/connect_sheet.dart';
 import '../rowing/rower_service.dart';
@@ -43,7 +46,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const Divider(),
           ],
-          _sectionHeader(context, 'Mijn materiaal'),
+          const AppSectionHeader('Mijn materiaal'),
           owned.when(
             loading: () => const LinearProgressIndicator(),
             error: (e, _) => Padding(
@@ -77,11 +80,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          _sectionHeader(context, 'Rusttijden'),
-          restBetween.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (seconds) => _RestRow(
+          const AppSectionHeader('Rusttijden'),
+          restBetween.viewOrNothing(
+            (seconds) => _RestRow(
               label: 'Tussen sets',
               seconds: seconds,
               onChanged: (v) async {
@@ -92,10 +93,8 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
-          restAfter.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (seconds) => _RestRow(
+          restAfter.viewOrNothing(
+            (seconds) => _RestRow(
               label: 'Tussen oefeningen',
               seconds: seconds,
               onChanged: (v) async {
@@ -106,10 +105,8 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
-          sound.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (on) => SwitchListTile(
+          sound.viewOrNothing(
+            (on) => SwitchListTile(
               title: const Text('Aftel-piep laatste 5 seconden'),
               value: on,
               onChanged: (v) async {
@@ -121,11 +118,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          _sectionHeader(context, 'Roeien'),
-          cueSound.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (on) => SwitchListTile(
+          const AppSectionHeader('Roeien'),
+          cueSound.viewOrNothing(
+            (on) => SwitchListTile(
               title: const Text('Piep bij segmentwissel'),
               subtitle: const Text(
                   'Een korte toon 10 sec vóór en bij elke wissel tijdens een sessie'),
@@ -158,10 +153,8 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/rowing/ftp'),
           ),
-          demoMode.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (on) => SwitchListTile(
+          demoMode.viewOrNothing(
+            (on) => SwitchListTile(
               title: const Text('Demo-modus'),
               subtitle: const Text(
                   'Gebruik gesimuleerde roeidata i.p.v. de Bluetooth-trainer'),
@@ -176,11 +169,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          _sectionHeader(context, 'Programma'),
-          autoProgression.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (on) => SwitchListTile(
+          const AppSectionHeader('Programma'),
+          autoProgression.viewOrNothing(
+            (on) => SwitchListTile(
               title: const Text('Automatische progressie'),
               subtitle: const Text(
                   'Elke ronde iets zwaarder: +1 rep tot +3, dan +1 set'),
@@ -193,10 +184,8 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
-          warmup.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (on) => SwitchListTile(
+          warmup.viewOrNothing(
+            (on) => SwitchListTile(
               title: const Text('Opwarmsets voorstellen'),
               subtitle: const Text(
                   'Tip + vinkje vooraf bij de eerste set van een compound'),
@@ -210,7 +199,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          _sectionHeader(context, 'Back-up'),
+          const AppSectionHeader('Back-up'),
           ListTile(
             leading: const Icon(Icons.upload_outlined),
             title: const Text('Exporteren'),
@@ -233,7 +222,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _factoryReset(context),
           ),
           const Divider(),
-          _sectionHeader(context, 'Credits'),
+          const AppSectionHeader('Credits'),
           ListTile(
             title: const Text('Oefeningfoto’s'),
             subtitle: const Text('everkinetic · CC BY-SA 3.0'),
@@ -272,27 +261,15 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _import(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Back-up importeren?'),
-        content: const Text(
-            'Al je huidige trainingen, programma’s en instellingen worden '
-            'overschreven door het gekozen bestand. Dit kan niet ongedaan '
-            'gemaakt worden.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuleren'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Kiezen & vervangen'),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Back-up importeren?',
+      message: 'Al je huidige trainingen, programma’s en instellingen worden '
+          'overschreven door het gekozen bestand. Dit kan niet ongedaan '
+          'gemaakt worden.',
+      confirmLabel: 'Kiezen & vervangen',
     );
-    if (ok != true || !context.mounted) return;
+    if (!ok || !context.mounted) return;
 
     try {
       final imported = await Backup.import();
@@ -321,29 +298,17 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _factoryReset(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Alle gegevens wissen?'),
-        content: const Text(
-            'Al je trainingen, eigen programma’s en instellingen worden gewist. '
-            'De oefeningendatabase en de standaardschema’s blijven. Dit kan niet '
-            'ongedaan gemaakt worden.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuleren'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Wissen'),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Alle gegevens wissen?',
+      message:
+          'Al je trainingen, eigen programma’s en instellingen worden gewist. '
+          'De oefeningendatabase en de standaardschema’s blijven. Dit kan niet '
+          'ongedaan gemaakt worden.',
+      confirmLabel: 'Wissen',
+      destructive: true,
     );
-    if (ok != true || !context.mounted) return;
+    if (!ok || !context.mounted) return;
 
     try {
       await Backup.factoryReset();
@@ -371,10 +336,6 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  Widget _sectionHeader(BuildContext context, String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-      );
 }
 
 class _RestRow extends StatelessWidget {
