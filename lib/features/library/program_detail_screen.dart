@@ -7,6 +7,9 @@ import '../../data/repositories/program_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/spacing.dart';
 import '../rowing/ble/connect_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
 import '../rowing/widgets/interval_profile.dart';
@@ -85,15 +88,12 @@ class ProgramDetailScreen extends ConsumerWidget {
           ],
         ],
       ),
-      body: detail.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (view) {
+      body: detail.view((view) {
           final isStrength =
               view.program.discipline == Discipline.strength;
           if (!isStrength) return _RowingPlanBody(view: view);
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: Insets.screen,
             children: [
               if (isStrength)
                 SizedBox(
@@ -121,7 +121,7 @@ class ProgramDetailScreen extends ConsumerWidget {
                           label: const Text('Kies als mijn programma'),
                         ),
                 ),
-              if (isStrength) const SizedBox(height: 12),
+              if (isStrength) Gap.m,
               for (final dayView in view.days) ...[
                 _DayCard(
                   dayView: dayView,
@@ -133,35 +133,27 @@ class ProgramDetailScreen extends ConsumerWidget {
                     if (context.mounted) context.push('/workout/active');
                   },
                 ),
-                const SizedBox(height: 12),
+                Gap.m,
               ],
             ],
           );
         },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e) => Center(child: Text('Fout: $e')),
       ),
     );
   }
 
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref, Program program) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Schema verwijderen?'),
-        content: Text('"${program.name}" wordt definitief verwijderd.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuleren'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Verwijderen'),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Schema verwijderen?',
+      message: '"${program.name}" wordt definitief verwijderd.',
+      confirmLabel: 'Verwijderen',
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok) return;
     await ref.read(programRepositoryProvider).deleteProgram(program.id);
     ref.invalidate(visibleStrengthProgramsProvider);
     ref.invalidate(activeProgramProvider);
@@ -185,12 +177,12 @@ class _DayCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: Insets.card,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(dayView.day.label, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
+            Gap.s,
             if (isStrength)
               ...dayView.exercises.map(
                 (row) => Padding(
@@ -223,7 +215,7 @@ class _DayCard extends StatelessWidget {
                 ),
               ),
             if (onStart != null) ...[
-              const SizedBox(height: 12),
+              Gap.m,
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
@@ -278,7 +270,7 @@ class _RowingPlanBody extends ConsumerWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: Insets.screen,
       children: [
         if (goal != null || view.program.level != null)
           Wrap(
@@ -292,11 +284,11 @@ class _RowingPlanBody extends ConsumerWidget {
             ],
           ),
         if (goal != null) ...[
-          const SizedBox(height: 8),
+          Gap.s,
           Text(goal.description, style: theme.textTheme.bodySmall),
         ],
         if (isPlan) ...[
-          const SizedBox(height: 12),
+          Gap.m,
           SizedBox(
             width: double.infinity,
             child: isActive
@@ -325,9 +317,9 @@ class _RowingPlanBody extends ConsumerWidget {
           ),
         ],
         if (isPlan && groups.length > 1) ...[
-          const SizedBox(height: 16),
+          Gap.l,
           Text('Trainingsminuten per week', style: theme.textTheme.labelMedium),
-          const SizedBox(height: 8),
+          Gap.s,
           WeekLoadChart(minutesPerWeek: [
             for (final g in groups.values)
               (g
@@ -337,7 +329,7 @@ class _RowingPlanBody extends ConsumerWidget {
                   .round(),
           ]),
         ],
-        const SizedBox(height: 12),
+        Gap.m,
         for (final entry in groups.entries) ...[
           if (entry.key.isNotEmpty)
             Padding(
@@ -427,7 +419,7 @@ class _RowSessionCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  Gap.s,
                   Text(
                     [
                       _segDuration(seg.durationSeconds),
