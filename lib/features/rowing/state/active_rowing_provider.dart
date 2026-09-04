@@ -11,6 +11,37 @@ import '../../../domain/models/workout_session.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
 
+/// Turns a trainer's cumulative counter into a session-relative one.
+///
+/// Some FTMS rowers report `Total Distance` / `Total Energy` as a lifetime
+/// odometer that is already in the tens of kilometres when a session starts, and
+/// some reset it to 0 on reconnect. This keeps the value starting at 0 for the
+/// session and only moving in physically plausible steps — any backward jump or
+/// implausibly large forward jump is absorbed into the baseline instead of shown.
+class RowerOdometer {
+  RowerOdometer(this.maxStep);
+
+  /// Largest believable increase between two consecutive (~1 s) frames.
+  final double maxStep;
+
+  double? _baseline;
+  double? _prevRaw;
+
+  double normalise(double raw) {
+    // A small first reading is a genuine near-zero start; a large one is the
+    // trainer's odometer, so anchor the baseline to it.
+    _baseline ??= raw > maxStep ? raw : 0;
+    final prev = _prevRaw;
+    _prevRaw = raw;
+    if (prev != null) {
+      final step = raw - prev;
+      if (step < 0 || step > maxStep) _baseline = _baseline! + step;
+    }
+    final out = raw - _baseline!;
+    return out < 0 ? 0 : out;
+  }
+}
+
 /// Why the session clock is stopped.
 enum PauseReason {
   none,
@@ -122,6 +153,10 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   double _lastDistance = 0;
   static const _idleTimeout = Duration(seconds: 8);
   static const _stallTimeout = Duration(seconds: 10);
+
+  /// Reset per session — see [RowerOdometer].
+  RowerOdometer _distOdo = RowerOdometer(500);
+  RowerOdometer _energyOdo = RowerOdometer(20);
 
   /// The segment index we've already played the pre-switch beep for.
   int _preBeepedFor = -1;
@@ -248,15 +283,36 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub?.cancel();
+    _distOdo = RowerOdometer(500);
+    _energyOdo = RowerOdometer(20);
     _sub = _rower.snapshots.listen(_onSnapshot);
     _rower.connect();
   }
 
+  /// Rewrites the trainer's cumulative distance/energy to session-relative
+  /// values (the FS-057453 reports a lifetime odometer).
+  RowerSnapshot _normalise(RowerSnapshot r) {
+    if (r.distanceM == null && r.energyKcal == null) return r;
+    return RowerSnapshot(
+      strokeRate: r.strokeRate,
+      strokeCount: r.strokeCount,
+      distanceM:
+          r.distanceM == null ? null : _distOdo.normalise(r.distanceM!),
+      paceSec500m: r.paceSec500m,
+      powerW: r.powerW,
+      energyKcal:
+          r.energyKcal == null ? null : _energyOdo.normalise(r.energyKcal!),
+      heartRate: r.heartRate,
+      elapsedSeconds: r.elapsedSeconds,
+    );
+  }
+
   // --- Live loop -------------------------------------------------
 
-  void _onSnapshot(RowerSnapshot snap) {
+  void _onSnapshot(RowerSnapshot raw) {
     final s = state.valueOrNull;
     if (s == null) return;
+    final snap = _normalise(raw);
     final now = DateTime.now();
     _lastDataAt = now;
     final d = snap.distanceM ?? 0;

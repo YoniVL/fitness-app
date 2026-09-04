@@ -183,7 +183,12 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     (behalve tijdens een geplande rust). **Geen voorgrondservice** — sessie
     pauzeert bij achtergrond. Op toestel met de FS-057453 geverifieerd: scan
     vindt 'm, verbindt, FTMS-frames stromen, herverbindt na verlopen adres,
-    auto-pauze werkt. Live cijfers tijdens het roeien + power-cycle nog door de
+    auto-pauze werkt. **`RowerOdometer`** (in `active_rowing_provider.dart`):
+    de FS-057453 rapporteert `Total Distance`/`Total Energy` als een
+    levenslange odometer (sprong naar ~33 km bij sessiestart) — per sessie
+    wordt de eerste grote meting als nulpunt genomen en enkel fysiek
+    plausibele stappen doorgelaten; een teller-reset bij herverbinden wordt
+    opgevangen. Live cijfers tijdens het roeien + power-cycle nog door de
     gebruiker te bevestigen.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden

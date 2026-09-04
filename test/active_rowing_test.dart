@@ -71,6 +71,37 @@ void main() {
     expect(s.copyWith(pausedReason: PauseReason.none).paused, isFalse);
   });
 
+  group('RowerOdometer', () {
+    test('anchors a lifetime odometer so the session starts at 0', () {
+      final o = RowerOdometer(500);
+      expect(o.normalise(33000), 0);
+      expect(o.normalise(33012), 12);
+      expect(o.normalise(33025), 25);
+    });
+
+    test('keeps a genuine near-zero start intact', () {
+      final o = RowerOdometer(500);
+      expect(o.normalise(4), 4);
+      expect(o.normalise(9), 9);
+    });
+
+    test('absorbs an implausible mid-session jump', () {
+      final o = RowerOdometer(500);
+      o.normalise(0);
+      o.normalise(20);
+      expect(o.normalise(33000), 20); // counter glitch, not 33 km of rowing
+      expect(o.normalise(33010), 30);
+    });
+
+    test('absorbs a counter reset on reconnect', () {
+      final o = RowerOdometer(500);
+      o.normalise(1000);
+      expect(o.normalise(1200), 200);
+      expect(o.normalise(0), 200); // trainer reset — hold, do not go backwards
+      expect(o.normalise(15), 215);
+    });
+  });
+
   test('segmentProgressFraction tracks the segment cursor', () {
     final segs = [_seg(0, 100), _seg(1, 100), _seg(2, 200)];
     // Start of segment 1 = 100/400.
