@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/program_repository.dart';
 import '../../../data/repositories/rowing_repository.dart';
+import '../../../data/repositories/settings_repository.dart';
 import '../../../data/repositories/workout_session_repository.dart';
 import '../../../domain/models/program.dart';
 import '../../../domain/models/rowing.dart';
 import '../../../domain/models/workout_session.dart';
+import '../../../domain/rowing_ftp.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
 
@@ -147,6 +149,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   WorkoutSessionRepository get _sessions =>
       ref.read(workoutSessionRepositoryProvider);
   ProgramRepository get _programs => ref.read(programRepositoryProvider);
+  SettingsRepository get _settings => ref.read(settingsRepositoryProvider);
   RowerService get _rower => ref.read(rowerServiceProvider);
 
   Timer? _ticker;
@@ -502,6 +505,13 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       notes: notes,
     );
     await _rower.disconnect();
+
+    // Calibrate the trainer's watt↔split drag factor from this session.
+    final k = calibrateDragK(sampleList);
+    if (k != null) {
+      await _settings.setRowingDragK(k);
+      ref.invalidate(rowingDragKProvider);
+    }
 
     final dayId = s.session.programDayId;
     if (dayId != null) {

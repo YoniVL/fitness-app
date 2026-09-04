@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
+import '../../domain/rowing_ftp.dart';
 import '../../domain/taxonomy.dart';
 import '../database/app_database.dart';
 
@@ -103,6 +106,69 @@ class SettingsRepository {
 
   Future<void> setRowingLevel(ProgramLevel level) =>
       set(SettingsKeys.rowingLevel, level.name);
+
+  // --- Rowing FTP ----------------------------------------------------
+
+  /// The stored FTP (watts + when + how), or null if never set.
+  Future<RowingFtp?> rowingFtp() async {
+    final raw = await getString(SettingsKeys.rowingFtpWatts);
+    final w = double.tryParse(raw ?? '');
+    if (w == null || w <= 0) return null;
+    final at = await getString(SettingsKeys.rowingFtpSetAt);
+    return RowingFtp(
+      watts: w,
+      setAt: DateTime.fromMillisecondsSinceEpoch(int.tryParse(at ?? '') ??
+          DateTime.now().millisecondsSinceEpoch),
+      source: FtpSource.fromName(
+          await getString(SettingsKeys.rowingFtpSource)),
+    );
+  }
+
+  Future<void> setRowingFtp(RowingFtp ftp) async {
+    await set(SettingsKeys.rowingFtpWatts, ftp.watts.round().toString());
+    await setInt(
+        SettingsKeys.rowingFtpSetAt, ftp.setAt.millisecondsSinceEpoch);
+    await set(SettingsKeys.rowingFtpSource, ftp.source.name);
+  }
+
+  Future<void> clearRowingFtp() async {
+    await remove(SettingsKeys.rowingFtpWatts);
+    await remove(SettingsKeys.rowingFtpSetAt);
+    await remove(SettingsKeys.rowingFtpSource);
+  }
+
+  Future<List<RowingFtp>> ftpHistory() async {
+    final raw = await getString(SettingsKeys.rowingFtpHistory);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      return [
+        for (final e in jsonDecode(raw) as List)
+          RowingFtp.fromJson((e as Map).cast<String, Object?>()),
+      ]..sort((a, b) => a.setAt.compareTo(b.setAt));
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> appendFtpHistory(RowingFtp ftp) async {
+    final list = [...await ftpHistory(), ftp]
+      ..sort((a, b) => a.setAt.compareTo(b.setAt));
+    // Keep it bounded.
+    final trimmed = list.length > 50 ? list.sublist(list.length - 50) : list;
+    await set(SettingsKeys.rowingFtpHistory,
+        jsonEncode([for (final f in trimmed) f.toJson()]));
+  }
+
+  /// The trainer's fitted drag factor `k` (see [calibrateDragK]); [kGeneric]
+  /// until a session has calibrated it.
+  Future<double> rowingDragK() async {
+    final raw = await getString(SettingsKeys.rowingDragK);
+    final k = double.tryParse(raw ?? '');
+    return (k != null && k >= 1.0 && k <= 8.0) ? k : kGeneric;
+  }
+
+  Future<void> setRowingDragK(double k) =>
+      set(SettingsKeys.rowingDragK, k.toStringAsFixed(4));
 }
 
 class SettingsKeys {
@@ -119,6 +185,11 @@ class SettingsKeys {
   static const rowingDemoMode = 'rowing_demo_mode';
   static const rowingCueSound = 'rowing_cue_sound';
   static const rowingLevel = 'rowing_level';
+  static const rowingFtpWatts = 'rowing_ftp_watts';
+  static const rowingFtpSetAt = 'rowing_ftp_set_at';
+  static const rowingFtpSource = 'rowing_ftp_source';
+  static const rowingFtpHistory = 'rowing_ftp_history';
+  static const rowingDragK = 'rowing_drag_k';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(
@@ -154,4 +225,18 @@ final warmupSuggestionsProvider = FutureProvider<bool>(
 /// The rowing training level (catalogue previews + plan builder default).
 final rowingLevelProvider = FutureProvider<ProgramLevel>(
   (ref) => ref.watch(settingsRepositoryProvider).rowingLevel(),
+);
+
+/// The stored rowing FTP, or null.
+final rowingFtpProvider = FutureProvider<RowingFtp?>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingFtp(),
+);
+
+final rowingFtpHistoryProvider = FutureProvider<List<RowingFtp>>(
+  (ref) => ref.watch(settingsRepositoryProvider).ftpHistory(),
+);
+
+/// The trainer's fitted drag factor (watt↔split conversion).
+final rowingDragKProvider = FutureProvider<double>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingDragK(),
 );
