@@ -6,10 +6,12 @@ import '../../app/home_shell.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../../domain/rowing_ftp.dart';
 import '../../domain/rowing_workouts.dart';
 import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
+import 'widgets/target_pace.dart';
 
 /// The concrete segments for a catalogue workout at [level] (a fixed mid `build`
 /// factor — catalogue workouts aren't part of a periodised plan).
@@ -148,13 +150,16 @@ class _WorkoutRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final ftp = ref.watch(rowingFtpProvider).valueOrNull;
+    final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
     return InkWell(
       onTap: () async {
         final start = await showModalBottomSheet<bool>(
           context: context,
           showDragHandle: true,
           isScrollControlled: true,
-          builder: (_) => _WorkoutSheet(workout: workout, level: level),
+          builder: (_) => _WorkoutSheet(
+              workout: workout, level: level, ftp: ftp, dragK: dragK),
         );
         if (start != true || !context.mounted) return;
         await ensureRowerConnected(context, ref);
@@ -194,9 +199,16 @@ class _WorkoutRow extends ConsumerWidget {
 }
 
 class _WorkoutSheet extends StatelessWidget {
-  const _WorkoutSheet({required this.workout, required this.level});
+  const _WorkoutSheet({
+    required this.workout,
+    required this.level,
+    required this.ftp,
+    required this.dragK,
+  });
   final RowWorkout workout;
   final ProgramLevel level;
+  final RowingFtp? ftp;
+  final double dragK;
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +244,15 @@ class _WorkoutSheet extends StatelessWidget {
                     [
                       _fmt(s.durationSeconds),
                       if (s.targetStrokeRate != null) '${s.targetStrokeRate} spm',
+                      if (targetSplitLabel(
+                              segmentZone(
+                                  zone: s.zone,
+                                  spm: s.targetStrokeRate,
+                                  isRest: s.isRest),
+                              ftp,
+                              dragK)
+                          case final t?)
+                        '@$t',
                     ].join(' · '),
                     style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant),

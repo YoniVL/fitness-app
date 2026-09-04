@@ -6,7 +6,10 @@ import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../../domain/rowing_format.dart';
+import '../../domain/rowing_ftp.dart';
 import '../../domain/rowing_plan_generator.dart';
+import '../../domain/rowing_workouts.dart' show RowIntensity;
 import 'widgets/interval_profile.dart';
 import 'widgets/week_load_chart.dart';
 
@@ -227,6 +230,8 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
 
   List<Widget> _preview(GeneratedRowingPlan plan) {
     final theme = Theme.of(context);
+    final ftp = ref.watch(rowingFtpProvider).valueOrNull;
+    final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
     final byWeek = <int, List<GeneratedRowSession>>{};
     for (final s in plan.sessions) {
       byWeek.putIfAbsent(s.weekIndex, () => []).add(s);
@@ -243,6 +248,10 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
       Text('Trainingsminuten per week', style: theme.textTheme.labelMedium),
       const SizedBox(height: 8),
       WeekLoadChart(minutesPerWeek: weekMinutes),
+      if (ftp != null) ...[
+        const SizedBox(height: 10),
+        _RichttempoLegend(ftp: ftp, dragK: dragK),
+      ],
       const SizedBox(height: 12),
       for (final week in byWeek.keys)
         Card(
@@ -281,5 +290,45 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
           ),
         ),
     ];
+  }
+}
+
+/// A one-line "richttempo per zone" legend, shown in the preview when an FTP is
+/// set. The plan's segments keep their stroke-rate targets; this just adds the
+/// pace each zone maps to.
+class _RichttempoLegend extends StatelessWidget {
+  const _RichttempoLegend({required this.ftp, required this.dragK});
+  final RowingFtp ftp;
+  final double dragK;
+
+  static const _zones = [
+    (RowIntensity.easy, 'rustig'),
+    (RowIntensity.steady, 'duur'),
+    (RowIntensity.threshold, 'drempel'),
+    (RowIntensity.hard, 'interval'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final zones = RowingZones.fromFtp(ftp.watts, dragK: dragK);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Richttempo /500m  ·  FTP ${ftp.watts.round()} W',
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final (zone, label) in _zones)
+              Text('$label ${paceLabel(zones[zone]!.targetSplitSeconds, withUnit: false)}',
+                  style: theme.textTheme.bodySmall),
+          ],
+        ),
+      ],
+    );
   }
 }

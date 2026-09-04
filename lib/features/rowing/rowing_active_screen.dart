@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
+import '../../domain/rowing_ftp.dart';
 import 'ble/connect_sheet.dart';
 import 'rower_service.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
+import 'widgets/target_pace.dart';
 
 /// The live rowing screen. Forced to landscape for a big, readable readout.
 class RowingActiveScreen extends ConsumerStatefulWidget {
@@ -147,6 +150,8 @@ class _Body extends ConsumerWidget {
     final notifier = ref.read(activeRowingProvider.notifier);
     final hasSegments = state.segments.isNotEmpty;
     final hr = live?.heartRate ?? 0;
+    final ftp = ref.watch(rowingFtpProvider).valueOrNull;
+    final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
 
     final numbers = Column(
       mainAxisSize: MainAxisSize.min,
@@ -269,7 +274,9 @@ class _Body extends ConsumerWidget {
                           progressFraction: state.segmentProgressFraction,
                         ),
                         const SizedBox(height: 10),
-                        Expanded(child: _NowNextCard(state: state)),
+                        Expanded(
+                            child: _NowNextCard(
+                                state: state, ftp: ftp, dragK: dragK)),
                         const SizedBox(height: 10),
                         controls,
                       ],
@@ -328,8 +335,10 @@ class _Body extends ConsumerWidget {
 /// The calm centrepiece: the current segment (label + countdown + target rate)
 /// and — prominently — what's coming next so you can prepare the rating.
 class _NowNextCard extends StatelessWidget {
-  const _NowNextCard({required this.state});
+  const _NowNextCard({required this.state, this.ftp, required this.dragK});
   final ActiveRowingState state;
+  final RowingFtp? ftp;
+  final double dragK;
 
   @override
   Widget build(BuildContext context) {
@@ -341,12 +350,20 @@ class _NowNextCard extends StatelessWidget {
     final next = state.segmentIndex + 1 < state.segments.length
         ? state.segments[state.segmentIndex + 1]
         : null;
-    final zone = intensityColor(
-        segmentZone(
-            zone: seg.zone,
-            spm: seg.targetStrokeRate,
-            isRest: seg.isRest),
-        scheme);
+    final segZone = segmentZone(
+        zone: seg.zone, spm: seg.targetStrokeRate, isRest: seg.isRest);
+    final zone = intensityColor(segZone, scheme);
+    final targetSplit = targetSplitSeconds(segZone, ftp, dragK);
+    final cue = paceCue(state.live?.paceSec500m, targetSplit, scheme);
+    final nextSplitLabel = next == null
+        ? null
+        : targetSplitLabel(
+            segmentZone(
+                zone: next.zone,
+                spm: next.targetStrokeRate,
+                isRest: next.isRest),
+            ftp,
+            dragK);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -394,6 +411,13 @@ class _NowNextCard extends StatelessWidget {
                                 color: scheme.onSurfaceVariant)),
                       ],
                     ),
+                  if (targetSplit != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: TargetPace(
+                          splitLabel: paceLabel(targetSplit, withUnit: false),
+                          cue: cue),
+                    ),
                   if (drill != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
@@ -419,6 +443,8 @@ class _NowNextCard extends StatelessWidget {
                                   next.intensityLabel,
                                   if (next.targetStrokeRate != null)
                                     '${next.targetStrokeRate} spm',
+                                  if (nextSplitLabel != null)
+                                    '@$nextSplitLabel',
                                 ].join('  ·  '),
                           style: theme.textTheme.titleMedium,
                           maxLines: 1,
