@@ -7,6 +7,7 @@ import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
+import '../../ui/spacing.dart';
 import 'program_editor_widgets.dart';
 
 /// Edits an existing program (template or own). Templates are forked into a
@@ -92,14 +93,14 @@ class _ProgramEditorScreenState extends ConsumerState<ProgramEditorScreen> {
                       controller: _nameController,
                       decoration: const InputDecoration(labelText: 'Naam'),
                     ),
-                    const SizedBox(height: 8),
+                    Gap.s,
                     if (program.isTemplate)
                       Text(
                         'Dit is een vast schema — aanpassen maakt er een eigen '
                         'kopie van; het origineel blijft ongewijzigd.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-                    const SizedBox(height: 16),
+                    Gap.l,
                     for (var i = 0; i < _days!.length; i++) ...[
                       _DayCard(
                         day: _days![i],
@@ -108,7 +109,7 @@ class _ProgramEditorScreenState extends ConsumerState<ProgramEditorScreen> {
                             ? () => setState(() => _days!.removeAt(i))
                             : null,
                       ),
-                      const SizedBox(height: 12),
+                      Gap.m,
                     ],
                     OutlinedButton.icon(
                       onPressed: _addDay,
@@ -234,7 +235,7 @@ class _DayCard extends StatelessWidget {
                   const Icon(Icons.edit_outlined, size: 18),
                 ],
               ),
-              const SizedBox(height: 4),
+              Gap.xs,
               if (day.exercises.isEmpty)
                 Text('Nog geen oefeningen — tik om toe te voegen',
                     style: theme.textTheme.bodySmall)

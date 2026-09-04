@@ -8,6 +8,9 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/taxonomy.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/spacing.dart';
 import 'program_editor_widgets.dart';
 import 'program_generator.dart';
 
@@ -52,7 +55,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
             controller: _nameController,
             decoration: const InputDecoration(labelText: 'Naam (optioneel)'),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Dagen per week'),
           SegmentedButton<int>(
             segments: const [
@@ -64,7 +67,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
             selected: {_days},
             onSelectionChanged: (s) => setState(() => _days = s.first),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Niveau (bepaalt sets & reps)'),
           SegmentedButton<ProgramLevel>(
             segments: [
@@ -74,7 +77,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
             selected: {_level},
             onSelectionChanged: (s) => setState(() => _level = s.first),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Tijd per dag'),
           Wrap(
             spacing: 8,
@@ -92,7 +95,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Spiergroepen'),
           Wrap(
             spacing: 8,
@@ -107,9 +110,9 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          owned.maybeWhen(
-            data: (tags) => ListTile(
+          Gap.m,
+          owned.viewOrNothing(
+            (tags) => ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.fitness_center),
               title: Text('Materiaal: ${tags.map(Equipment.label).join(', ')}'),
@@ -118,9 +121,8 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
                 child: const Text('Wijzig'),
               ),
             ),
-            orElse: () => const SizedBox.shrink(),
           ),
-          const SizedBox(height: 8),
+          Gap.s,
           FilledButton.icon(
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
             onPressed: _busy ? null : _generate,
@@ -128,7 +130,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
             label: Text(_editDays == null ? 'Genereer' : 'Genereer opnieuw'),
           ),
           if (_error != null) ...[
-            const SizedBox(height: 12),
+            Gap.m,
             Text(_error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
@@ -148,7 +150,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
                         child: const Text('Opnieuw'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    Gap.m,
                     Expanded(
                       child: FilledButton(
                         onPressed: _busy ? null : _save,
@@ -216,7 +218,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
           padding: const EdgeInsets.only(bottom: 4),
           child: Text('⚠ $w', style: theme.textTheme.bodySmall),
         ),
-      const SizedBox(height: 4),
+      Gap.xs,
       for (var i = 0; i < _editDays!.length; i++)
         Card(
           child: InkWell(
@@ -235,7 +237,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
                       const Icon(Icons.edit_outlined, size: 18),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  Gap.xs,
                   for (final e in _editDays![i].exercises)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -302,24 +304,14 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
     ref.invalidate(visibleStrengthProgramsProvider);
     if (!mounted) return;
 
-    final setActive = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Opgeslagen'),
-        content: const Text('Dit schema als je actieve programma instellen?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Later'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Ja, instellen'),
-          ),
-        ],
-      ),
+    final setActive = await confirmDialog(
+      context,
+      title: 'Opgeslagen',
+      message: 'Dit schema als je actieve programma instellen?',
+      cancelLabel: 'Later',
+      confirmLabel: 'Ja, instellen',
     );
-    if (setActive == true) {
+    if (setActive) {
       await repo.setActiveProgram(id);
       ref.invalidate(activeProgramProvider);
     }
