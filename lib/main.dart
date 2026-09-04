@@ -99,7 +99,7 @@ class _FitnessAppState extends ConsumerState<FitnessApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Fitness Tracker',
+      title: 'Cadans',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

@@ -18,7 +18,7 @@ class Backup {
     final src = await AppDatabase.instance.filePath();
     final stamp = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final tmpDir = await getTemporaryDirectory();
-    final dst = p.join(tmpDir.path, 'fitnesstracker-backup-$stamp.db');
+    final dst = p.join(tmpDir.path, 'cadans-backup-$stamp.db');
 
     // Checkpoint any WAL data into the main file before copying.
     final db = await AppDatabase.instance.database;
@@ -29,7 +29,7 @@ class Backup {
     await File(src).copy(dst);
     await Share.shareXFiles(
       [XFile(dst)],
-      subject: 'Fitness Tracker back-up',
+      subject: 'Cadans back-up',
     );
   }
 

@@ -17,7 +17,7 @@ class DisciplineChooserScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              Text('Fitness Tracker', style: theme.textTheme.headlineMedium),
+              Text('Cadans', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 4),
               Text('Wat ga je doen?',
                   style: theme.textTheme.titleMedium?.copyWith(
