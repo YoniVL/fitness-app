@@ -198,8 +198,8 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
       draagt totalen over bij een rehydrate.
     - Nog door de gebruiker met de fysieke trainer te bevestigen: exacte
       afstand vs. het display van de roeimachine, en herverbinden na power-cycle.
-- **Iteratie 6 — FTP-test & tempo-personalisatie** (fase 1–5 gecommit,
-  `62e0030` … `31e01c1`; fase 6 ramp-test + fase 7 FTP-verloop nog te doen):
+- **Iteratie 6 — FTP-test & tempo-personalisatie** (fase 1–6 gecommit,
+  `62e0030` … ; fase 7 FTP-verloop op Voortgang nog te doen):
   - `lib/domain/rowing_ftp.dart`: FTP in **watt** (EXR-model); `splitForWatts`/
     `wattsForSplit` via `W = k/(s/m)³` met `k` = `rowing_drag_k`, gekalibreerd in
     `finish()` uit de sessie-samples (`calibrateDragK`), generiek 2,80 als terugval.
@@ -221,6 +221,13 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     Alles gated op `ftp != null`.
   - `widgets/level_suggestion.dart`: `LevelSuggestionCard` bij de niveau-keuze +
     `maybePromptLevelFromFtp` na een test.
+  - *Fase 6* — **ramp-test**: `state/ramp_test_provider.dart` (`RampTestController`,
+    `AutoDisposeNotifier`; eigen sessie-lifecycle, DB-rij pas bij `finish()` zodat
+    er geen rehydrate-botsing is met `ActiveRowingController`). `RampProtocol.seeded`
+    (start ~55 % FTP, +25 W/min). Faalregel: 10 s-gem. vermogen < 92 % staptarget
+    gedurende 6 s (na 10 s in de stap) → auto-stop; of "Stop"-knop; of 12 s geen data.
+    `ramp_test_screen.dart` (portret): DOEL/JIJ groot + `rampHold` kleurindicator.
+    `computeFtp` ramp-tak: `bestMinuteWatts × 0,75` (opgeslagen als `avg_power`).
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).

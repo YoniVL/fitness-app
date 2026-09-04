@@ -14,8 +14,7 @@ import '../../domain/rowing_ftp.dart';
 import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 
-/// Whether the ramp test is wired up (arrives in a later phase).
-const _rampAvailable = false;
+const _rampAvailable = true;
 
 class FtpScreen extends ConsumerWidget {
   const FtpScreen({super.key});
@@ -126,10 +125,14 @@ class FtpScreen extends ConsumerWidget {
       ),
     );
     if (p == null || !context.mounted) return;
-    final level =
-        ref.read(rowingLevelProvider).valueOrNull ?? ProgramLevel.medium;
     await ensureRowerConnected(context, ref);
     if (!context.mounted) return;
+    if (p == FtpProtocol.ramp) {
+      context.push('/rowing/ramp-test');
+      return;
+    }
+    final level =
+        ref.read(rowingLevelProvider).valueOrNull ?? ProgramLevel.medium;
     await ref
         .read(activeRowingProvider.notifier)
         .startWorkout(ftpTestSegments(p, level), kind: p.kind);

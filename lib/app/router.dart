@@ -12,6 +12,7 @@ import '../features/program_builder/program_editor_screen.dart';
 import '../features/progress/progress_screen.dart';
 import '../features/rowing/ftp_result_screen.dart';
 import '../features/rowing/ftp_screen.dart';
+import '../features/rowing/ramp_test_screen.dart';
 import '../features/rowing/rowing_active_screen.dart';
 import '../features/rowing/rowing_builder_screen.dart';
 import '../features/rowing/workout_library_screen.dart';
@@ -118,6 +119,10 @@ final appRouter = GoRouter(
       builder: (context, state) => FtpResultScreen(
         sessionId: int.parse(state.pathParameters['id']!),
       ),
+    ),
+    GoRoute(
+      path: '/rowing/ramp-test',
+      builder: (context, state) => const RampTestScreen(),
     ),
     GoRoute(
       path: '/workout/active',
