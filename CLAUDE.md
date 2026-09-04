@@ -8,8 +8,8 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   `go_router`, `fl_chart`, `flutter_ftms`, `flutter_foreground_task`, `audioplayers`.
 - SDK op `C:\src\flutter`; Android SDK op `%LOCALAPPDATA%\Android\Sdk`; JDK 17.
 - Toestel: Samsung SM-S938B (`RZCY30HVGJF`), Android 16.
-- **App vastgezet op portret** (`main()`); alleen `rowing_active_screen.dart`
-  draait naar landscape.
+- **App vastgezet op portret** (`main()`); de live roeischermen
+  (`rowing_active_screen.dart`, `ramp_test_screen.dart`) draaien naar landscape.
 
 ## Navigatie (sinds iteratie 5·R1b)
 - `initialLocation: '/'` → `DisciplineChooserScreen` (keuze Krachttraining / Roeien).
@@ -225,7 +225,9 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     er geen rehydrate-botsing is met `ActiveRowingController`). `RampProtocol.seeded`
     (start ~55 % FTP, +25 W/min). Faalregel: 10 s-gem. vermogen < 92 % staptarget
     gedurende 6 s (na 10 s in de stap) → auto-stop; of "Stop"-knop; of 12 s geen data.
-    `ramp_test_screen.dart` (portret): DOEL/JIJ groot + `rampHold` kleurindicator.
+    `ramp_test_screen.dart` (landscape, zoals het live-scherm): DOEL/JIJ groot
+    naast elkaar + `rampHold` kleurindicator. De geleide 20-min/korte test lopen
+    via `rowing_active_screen.dart` en zijn dus al landscape.
     `computeFtp` ramp-tak: `bestMinuteWatts × 0,75` (opgeslagen als `avg_power`).
   - *Fase 7*: `_RowingProgress` "FTP"-sectie (huidige W + split + wattgrafiek).
   - Nog door de gebruiker te bevestigen met de fysieke trainer: exacte doel-splits
