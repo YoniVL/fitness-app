@@ -259,6 +259,30 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     point). De trainer is een waterroeier zonder instelbare weerstand —
     `MachineControlPoint.setTargetPower` bestaat in `flutter_ftms` maar heeft geen
     fysiek effect.
+- **Iteratie 8 — Prestaties (achievements) in het roeisegment** (code-compleet,
+  `772169f` … `683f623`):
+  - `lib/domain/rowing_achievements.dart` — data-gedreven catalogus: `_ladder(...)`
+    genereert per metric een rij rungs (totaalafstand → 10 000 km, sessies → 2 500,
+    weken op rij → 104, dagen → 365, 2k/500m sneller-is-beter `lowerIsBetter`,
+    FTP → 300 W, maanden actief → 60) + losse `ontdekking`-badges. Een rung
+    toevoegen = één getal in een lijst; `earnedAchievements(AchievementStats)` is
+    de pure engine, `ladderState` / `achievementFraction` voor het scherm. Pure
+    dag-/week-streak-helpers.
+  - `RowingRepository.achievementStats()` — één pass over de afgeronde sessies
+    (hergebruikt `benchmarkHistory` + de streak-helpers). FTP-velden mergt de
+    notifier uit `ftpHistory()` (repo blijft settings-vrij).
+  - Opslag: `app_settings` `rowing_achievements` (JSON `{id: unlockedAtMillis}`) +
+    `rowing_achievements_seeded` — **geen migratie**.
+  - `state/rowing_achievements_provider.dart`: `rowingAchievementsProvider`
+    (`AsyncNotifier`), `evaluateAndDiff()` persisteert nieuw-behaalde + geeft ze
+    terug. `maybeBackfillRowingAchievements(db)` in `main()` na DB-open ontgrendelt
+    de historie **stil** (geen stapel sheets); daarna is `evaluateAndDiff` puur delta.
+  - Melding: `widgets/achievement_sheet.dart` `showAchievementsUnlockedSheet`
+    (bottom-sheet, niks nieuws → geen sheet), aangehaakt op `_finish`
+    (live-scherm), de ramptest-`ref.listen`, en `log_rowing_sheet._save`.
+  - `rowing_achievements_screen.dart` (`/rowing/achievements`): per ladder alleen
+    huidige + volgende stap (nooit "voltooid"), losse badges als lijst.
+    `_RowingProgress` → "Prestaties · X behaald"-kaart met het dichtstbijzijnde doel.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
