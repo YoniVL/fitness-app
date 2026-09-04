@@ -232,6 +232,33 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
   - *Fase 7*: `_RowingProgress` "FTP"-sectie (huidige W + split + wattgrafiek).
   - Nog door de gebruiker te bevestigen met de fysieke trainer: exacte doel-splits
     vs. het machinedisplay, en of de ramp-faaldrempel goed aanvoelt.
+- **Iteratie 7 — FTP-verfijning & plan-personalisatie** (code-compleet,
+  `73f10c1` … `ff5bfd4`):
+  - *Fase A* — **Critical Power**: `rowing_ftp.dart` `bestAvgWatts(samples, window)`
+    (met een 75 %-gevuld-venster-eis; `bestMinuteWatts` is nu een wrapper),
+    `criticalPower(a, b)` (2-punts `P=W'/t+CP`, null bij vlakke/te-dichte punten),
+    `FtpMethod` op `FtpResult`. `computeFtp` probeert CP uit beste 60s + 240s voor
+    de ramptest en een lange korte-test; anders de protocolfactor. Resultaatscherm
+    toont de methode.
+  - *Fase B* — **doelvermogen per segment** (schema **v8**:
+    `program_row_segments.target_watts`, `programs.ftp_watts_at_gen`;
+    `migrateV7toV8` = ADD COLUMN + reseed sjablonen). `RowingPlanGenerator.generate(
+    input, {ftpWatts})` bakt per niet-rust segment `RowingZones.fromFtp(ftp)[zone]
+    .targetWatts` in; builder geeft de huidige FTP mee. `ProgramRepository
+    .rewriteRowTargets(programId, ftpWatts)` herberekent bij FTP-drift
+    (`rowTargetsStale`, >4 %). `target_pace.dart` `segmentTargetSplitSeconds` leest
+    het opgeslagen doel met terugval op de live zone-berekening; losse
+    catalogus-workouts krijgen het doel via `withFtpTargets` in `startWorkout`
+    (niet voor `ftp_*`-tests). Sjablonen + pre-FTP-plannen → NULL, live-berekening.
+  - *Fase C* — `_RowingDayCard` (Vandaag): `dayPaceSummary`-regel (langzaamste +
+    snelste doel-split) onder het profiel + "Richttempo's bijwerken"-knop bij drift.
+  - *Fase D* — `discard()`, logboek-swipe en sessiedetail-verwijderen invalideren
+    nu `rowingProgressProviders` (weekafstand/tempo-trend/streak was stale tot
+    herstart).
+  - **Bewust geschrapt**: doelwaarden naar de trainer schrijven (FTMS control
+    point). De trainer is een waterroeier zonder instelbare weerstand —
+    `MachineControlPoint.setTargetPower` bestaat in `flutter_ftms` maar heeft geen
+    fysiek effect.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
