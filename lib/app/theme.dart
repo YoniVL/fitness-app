@@ -1,14 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// A consistent spacing scale — use these instead of ad-hoc SizedBox values.
-abstract class Gap {
-  static const xs = SizedBox(height: 4, width: 4);
-  static const s = SizedBox(height: 8, width: 8);
-  static const m = SizedBox(height: 12, width: 12);
-  static const l = SizedBox(height: 16, width: 16);
-  static const xl = SizedBox(height: 24, width: 24);
-}
-
 /// The training-intensity ramp (easy → max effort) used across the rowing
 /// segment (interval profiles, live-screen cues, ramp-test indicator). One
 /// source, read via `Theme.of(context).extension<RowZonePalette>()`.
@@ -202,17 +193,4 @@ class AppTheme {
       ),
     );
   }
-}
-
-/// Standard screen-section heading.
-class SectionHeader extends StatelessWidget {
-  const SectionHeader(this.text, {super.key, this.padding});
-  final String text;
-  final EdgeInsetsGeometry? padding;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: padding ?? const EdgeInsets.fromLTRB(16, 20, 16, 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-      );
 }
