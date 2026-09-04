@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme.dart';
 import '../../../domain/models/program.dart';
 import '../../../domain/rowing_plan_generator.dart';
 import '../../../domain/rowing_workouts.dart';
@@ -48,16 +49,33 @@ List<ProfileBlock> profileFromGenerated(List<GeneratedRowSegment> segs) => [
         ),
     ];
 
-/// Colour for an intensity zone. Echoes the reference chart: blue → green →
-/// yellow → orange → red, rest grey.
-Color intensityColor(RowIntensity zone, ColorScheme scheme) => switch (zone) {
-      RowIntensity.rest => scheme.outlineVariant,
-      RowIntensity.easy => const Color(0xFF64B5F6),
-      RowIntensity.steady => const Color(0xFF66BB6A),
-      RowIntensity.threshold => const Color(0xFFFFCA28),
-      RowIntensity.hard => const Color(0xFFFF7043),
-      RowIntensity.max => const Color(0xFFEF5350),
-    };
+/// Colour for an intensity zone, from the shared [RowZonePalette]. Echoes the
+/// reference chart: blue → green → yellow → orange → red, rest grey.
+Color intensityColor(RowIntensity zone, ColorScheme scheme) {
+  final p = RowZonePalette.standard;
+  return switch (zone) {
+    RowIntensity.rest => p.rest,
+    RowIntensity.easy => p.easy,
+    RowIntensity.steady => p.steady,
+    RowIntensity.threshold => p.threshold,
+    RowIntensity.hard => p.hard,
+    RowIntensity.max => p.max,
+  };
+}
+
+/// Same ramp, read from the current [BuildContext]'s theme (falls back to the
+/// standard palette if a screen somehow has no theme extension registered).
+Color intensityColorOf(BuildContext context, RowIntensity zone) {
+  final p = Theme.of(context).extension<RowZonePalette>() ?? RowZonePalette.standard;
+  return switch (zone) {
+    RowIntensity.rest => p.rest,
+    RowIntensity.easy => p.easy,
+    RowIntensity.steady => p.steady,
+    RowIntensity.threshold => p.threshold,
+    RowIntensity.hard => p.hard,
+    RowIntensity.max => p.max,
+  };
+}
 
 /// A horizontal strip of blocks: width ∝ duration, height ∝ stroke rate,
 /// colour by intensity zone. The visual signature of a rowing session.

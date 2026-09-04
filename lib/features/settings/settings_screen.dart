@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,16 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Instellingen')),
       body: ListView(
         children: [
+          if (kDebugMode) ...[
+            ListTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Thema-preview (dev)'),
+              subtitle: const Text('Tijdelijk — kiest het groen-palet voor iteratie 9'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/dev/theme'),
+            ),
+            const Divider(),
+          ],
           _sectionHeader(context, 'Mijn materiaal'),
           owned.when(
             loading: () => const LinearProgressIndicator(),
