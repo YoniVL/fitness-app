@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/theme.dart';
 import '../../data/repositories/exercise_repository.dart';
 import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
@@ -13,6 +14,10 @@ import '../../domain/models/rowing.dart';
 import '../../domain/models/strength_set.dart';
 import '../../domain/models/workout_session.dart';
 import '../../domain/rowing_format.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/spacing.dart';
+import '../../ui/stat_tile.dart';
 import '../rowing/widgets/interval_profile.dart';
 
 class _SessionView {
@@ -67,10 +72,8 @@ class SessionDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: discipline.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (d) {
+      body: discipline.view(
+        (d) {
           if (d == null) {
             return const Center(child: Text('Sessie niet gevonden'));
           }
@@ -78,6 +81,8 @@ class SessionDetailScreen extends ConsumerWidget {
               ? _RowingDetailBody(sessionId: sessionId)
               : _StrengthDetailBody(sessionId: sessionId);
         },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e) => Center(child: Text('Fout: $e')),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -134,24 +139,14 @@ class SessionDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sessie verwijderen?'),
-        content: const Text('Dit kan niet ongedaan worden gemaakt.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuleren'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Verwijderen'),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Sessie verwijderen?',
+      message: 'Dit kan niet ongedaan worden gemaakt.',
+      confirmLabel: 'Verwijderen',
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok) return;
     final wasRowing = ref.read(_sessionDisciplineProvider(sessionId)).valueOrNull ==
         Discipline.rowing;
     await ref.read(workoutSessionRepositoryProvider).deleteSession(sessionId);
@@ -172,12 +167,12 @@ class _StrengthDetailBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final view = ref.watch(_sessionViewProvider(sessionId));
-    return view.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Fout: $e')),
-      data: (data) => data == null
+    return view.view(
+      (data) => data == null
           ? const Center(child: Text('Sessie niet gevonden'))
           : _Body(view: data),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e) => Center(child: Text('Fout: $e')),
     );
   }
 }
@@ -192,10 +187,9 @@ class _RowingDetailBody extends ConsumerWidget {
     final theme = Theme.of(context);
     final dateFmt = DateFormat('EEEE d MMMM y · HH:mm', 'nl');
 
-    return detail.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Fout: $e')),
-      data: (data) {
+    final zones = theme.extension<RowZonePalette>() ?? RowZonePalette.standard;
+    return detail.view(
+      (data) {
         if (data == null) {
           return const Center(child: Text('Sessie niet gevonden'));
         }
@@ -203,36 +197,48 @@ class _RowingDetailBody extends ConsumerWidget {
         final avgPace = paceSecPer500(
             r.totalDistanceM, Duration(seconds: r.durationSeconds));
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: Insets.screen,
           children: [
             Text(dateFmt.format(data.session.startedAt),
                 style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            Gap.m,
             Wrap(
               spacing: 20,
               runSpacing: 8,
               children: [
-                _Stat(
+                StatTile(
                     label: 'Afstand',
-                    value: distanceLabel(r.totalDistanceM)),
-                _Stat(
+                    value: distanceLabel(r.totalDistanceM),
+                    size: StatSize.small),
+                StatTile(
                     label: 'Duur',
-                    value: hmsLabel(Duration(seconds: r.durationSeconds))),
-                _Stat(label: 'Tempo', value: paceLabel(avgPace)),
+                    value: hmsLabel(Duration(seconds: r.durationSeconds)),
+                    size: StatSize.small),
+                StatTile(
+                    label: 'Tempo',
+                    value: paceLabel(avgPace),
+                    size: StatSize.small),
                 if (r.avgStrokeRate > 0)
-                  _Stat(label: 'Slag', value: spmLabel(r.avgStrokeRate)),
+                  StatTile(
+                      label: 'Slag',
+                      value: spmLabel(r.avgStrokeRate),
+                      size: StatSize.small),
                 if (r.avgPower > 0)
-                  _Stat(label: 'Vermogen', value: powerLabel(r.avgPower)),
+                  StatTile(
+                      label: 'Vermogen',
+                      value: powerLabel(r.avgPower),
+                      size: StatSize.small),
                 if (r.totalEnergyKcal > 0)
-                  _Stat(
+                  StatTile(
                       label: 'Energie',
-                      value: '${r.totalEnergyKcal.round()} kcal'),
+                      value: '${r.totalEnergyKcal.round()} kcal',
+                      size: StatSize.small),
               ],
             ),
             if (data.planSegments.isNotEmpty) ...[
               const Divider(height: 32),
               Text('Geplande sessie', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 12),
+              Gap.m,
               IntervalProfile(
                 blocks: profileFromSegments(data.planSegments),
                 height: 72,
@@ -264,32 +270,32 @@ class _RowingDetailBody extends ConsumerWidget {
               const Divider(height: 32),
               Text('Tempo tijdens de sessie',
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 12),
+              Gap.m,
               SizedBox(height: 180, child: _PaceChart(samples: data.samples)),
             ],
             if (_hasField(data.samples, (s) => s.strokeRate)) ...[
               const SizedBox(height: 20),
               Text('Slagtempo', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 12),
+              Gap.m,
               SizedBox(
                 height: 140,
                 child: _SampleChart(
                   samples: data.samples,
                   value: (s) => s.strokeRate,
-                  color: const Color(0xFF66BB6A),
+                  color: zones.steady,
                 ),
               ),
             ],
             if (_hasField(data.samples, (s) => s.heartRate?.toDouble())) ...[
               const SizedBox(height: 20),
               Text('Hartslag', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 12),
+              Gap.m,
               SizedBox(
                 height: 140,
                 child: _SampleChart(
                   samples: data.samples,
                   value: (s) => s.heartRate?.toDouble(),
-                  color: const Color(0xFFEF5350),
+                  color: zones.max,
                 ),
               ),
             ],
@@ -302,6 +308,8 @@ class _RowingDetailBody extends ConsumerWidget {
           ],
         );
       },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e) => Center(child: Text('Fout: $e')),
     );
   }
 }
@@ -509,26 +517,38 @@ class _Body extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: Insets.screen,
       children: [
         Text(dateFmt.format(session.startedAt),
             style: theme.textTheme.titleMedium),
-        const SizedBox(height: 12),
+        Gap.m,
         Wrap(
           spacing: 20,
           runSpacing: 8,
           children: [
             if (session.duration != null)
-              _Stat(label: 'Duur', value: _fmtDuration(session.duration!)),
-            _Stat(label: 'Sets', value: '${view.detail.workingSetCount}'),
-            _Stat(label: 'Oefeningen', value: '${view.detail.exerciseCount}'),
-            _Stat(label: 'Reps', value: '${view.detail.totalReps}'),
+              StatTile(
+                  label: 'Duur',
+                  value: _fmtDuration(session.duration!),
+                  size: StatSize.small),
+            StatTile(
+                label: 'Sets',
+                value: '${view.detail.workingSetCount}',
+                size: StatSize.small),
+            StatTile(
+                label: 'Oefeningen',
+                value: '${view.detail.exerciseCount}',
+                size: StatSize.small),
+            StatTile(
+                label: 'Reps',
+                value: '${view.detail.totalReps}',
+                size: StatSize.small),
           ],
         ),
         if (muscles.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          Gap.l,
           Text('Getrainde spieren', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
+          Gap.s,
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -547,7 +567,7 @@ class _Body extends StatelessWidget {
             view.exerciseNames[entry.key]?.name ?? 'Oefening ${entry.key}',
             style: theme.textTheme.titleMedium,
           ),
-          const SizedBox(height: 4),
+          Gap.xs,
           ...entry.value.map(
             (s) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -556,14 +576,14 @@ class _Body extends StatelessWidget {
                   SizedBox(width: 28, child: Text('${s.setIndex}')),
                   Text('${s.reps} reps'),
                   if (s.isWarmup) ...[
-                    const SizedBox(width: 8),
+                    Gap.s,
                     Text('opwarming', style: theme.textTheme.labelSmall),
                   ],
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
         ],
         if (session.notes != null && session.notes!.isNotEmpty) ...[
           const Divider(),
@@ -578,23 +598,5 @@ class _Body extends StatelessWidget {
     final h = d.inHours;
     final m = d.inMinutes % 60;
     return h > 0 ? '${h}u ${m}m' : '${m}m';
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: theme.textTheme.titleLarge),
-        Text(label, style: theme.textTheme.labelSmall),
-      ],
-    );
   }
 }
