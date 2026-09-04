@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/repositories/settings_repository.dart';
 import '../../../domain/models/program.dart';
 import '../../../domain/rowing_ftp.dart';
+import '../../../ui/confirm_dialog.dart';
 
 /// If the FTP-implied level differs from the stored one, ask whether to switch.
 Future<void> maybePromptLevelFromFtp(
@@ -13,26 +14,16 @@ Future<void> maybePromptLevelFromFtp(
       ref.read(rowingLevelProvider).valueOrNull ?? ProgramLevel.medium;
   if (suggested == current) return;
 
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Trainingsniveau'),
-      content: Text(
-        'Op basis van je FTP past niveau "${suggested.label}" beter '
+  final ok = await confirmDialog(
+    context,
+    title: 'Trainingsniveau',
+    message: 'Op basis van je FTP past niveau "${suggested.label}" beter '
         '(nu "${current.label}").\n\n'
         'Ruwe schatting — geen lichaamsgewicht meegerekend.',
-      ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Laat staan')),
-        FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Naar ${suggested.label}')),
-      ],
-    ),
+    cancelLabel: 'Laat staan',
+    confirmLabel: 'Naar ${suggested.label}',
   );
-  if (ok == true) {
+  if (ok) {
     await ref.read(settingsRepositoryProvider).setRowingLevel(suggested);
     ref.invalidate(rowingLevelProvider);
   }

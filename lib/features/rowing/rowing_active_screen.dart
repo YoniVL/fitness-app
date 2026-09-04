@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
@@ -366,7 +367,8 @@ class _NowNextCard extends StatelessWidget {
         zone: seg.zone, spm: seg.targetStrokeRate, isRest: seg.isRest);
     final zone = intensityColorOf(context, segZone);
     final targetSplit = segmentTargetSplitSeconds(seg, ftp, dragK);
-    final cue = paceCue(state.live?.paceSec500m, targetSplit, scheme);
+    final cue = paceCue(state.live?.paceSec500m, targetSplit, scheme,
+        zones: theme.extension<RowZonePalette>() ?? RowZonePalette.standard);
     final nextSplitLabel =
         next == null ? null : segmentTargetSplitLabel(next, ftp, dragK);
 

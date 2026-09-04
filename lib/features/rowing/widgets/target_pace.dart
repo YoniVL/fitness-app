@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme.dart';
 import '../../../domain/models/program.dart';
 import '../../../domain/rowing_ftp.dart';
 import '../../../domain/rowing_format.dart';
@@ -62,12 +63,15 @@ String? dayPaceSummary(
 }
 
 /// A silent on-pace indicator: compares the live split to the block's target.
-/// Null when there is no plausible live pace or target.
+/// Null when there is no plausible live pace or target. [zones] defaults to
+/// the standard palette so this stays a pure, widget-free function to test;
+/// pass `Theme.of(context).extension<RowZonePalette>()` where a theme is live.
 ({String label, Color color})? paceCue(
   double? livePace,
   double? targetSplit,
-  ColorScheme scheme,
-) {
+  ColorScheme scheme, {
+  RowZonePalette zones = RowZonePalette.standard,
+}) {
   if (livePace == null ||
       livePace <= 40 ||
       livePace > 900 ||
@@ -77,10 +81,10 @@ String? dayPaceSummary(
   }
   final delta = livePace - targetSplit; // + = slower than target
   if (delta <= -3) {
-    return (label: 'iets rustiger', color: const Color(0xFF64B5F6));
+    return (label: 'iets rustiger', color: zones.easy);
   }
   if (delta >= 3) {
-    return (label: 'aandrukken', color: const Color(0xFFFF7043));
+    return (label: 'aandrukken', color: zones.hard);
   }
   return (label: 'op tempo', color: scheme.primary);
 }

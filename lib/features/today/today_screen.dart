@@ -14,6 +14,8 @@ import '../../domain/models/rowing_plan.dart';
 import '../../domain/progression.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../ui/async_view.dart';
+import '../../ui/spacing.dart';
 import '../rowing/ble/connect_sheet.dart';
 import '../rowing/log_rowing_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
@@ -119,31 +121,27 @@ class _StrengthToday extends ConsumerWidget {
         ref.invalidate(recentSessionsProvider);
       },
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: Insets.screen,
         children: [
           const _WeekStrip(discipline: Discipline.strength),
-          const SizedBox(height: 16),
-          active.maybeWhen(
-            data: (s) => s == null || s.blocks.isEmpty
-                ? const SizedBox.shrink()
-                : _ResumeCard(setCount: s.totalSets),
-            orElse: () => const SizedBox.shrink(),
-          ),
-          program.when(
+          Gap.l,
+          active.viewOrNothing((s) => s == null || s.blocks.isEmpty
+              ? const SizedBox.shrink()
+              : _ResumeCard(setCount: s.totalSets)),
+          program.view(
+            (p) => p == null ? const _NoProgramCard() : _ProgramDayCard(active: p),
             loading: () => const Card(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(child: CircularProgressIndicator()),
               ),
             ),
-            error: (e, _) => Card(
+            error: (e) => Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Kon programma niet laden: $e'),
               ),
             ),
-            data: (p) =>
-                p == null ? const _NoProgramCard() : _ProgramDayCard(active: p),
           ),
           const SizedBox(height: 20),
           OutlinedButton.icon(
@@ -177,29 +175,23 @@ class _RowingToday extends ConsumerWidget {
         ref.invalidate(recentSessionsProvider);
       },
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: Insets.screen,
         children: [
           const _WeekStrip(discipline: Discipline.rowing),
-          const SizedBox(height: 16),
-          activeRowing.maybeWhen(
-            data: (s) => s == null
-                ? const SizedBox.shrink()
-                : Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.rowing),
-                      title: const Text('Roeisessie bezig'),
-                      subtitle: const Text('Hervat waar je gebleven was'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.push('/rowing/active'),
-                    ),
+          Gap.l,
+          activeRowing.viewOrNothing((s) => s == null
+              ? const SizedBox.shrink()
+              : Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.rowing),
+                    title: const Text('Roeisessie bezig'),
+                    subtitle: const Text('Hervat waar je gebleven was'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/rowing/active'),
                   ),
-            orElse: () => const SizedBox.shrink(),
-          ),
-          rowingProgram.maybeWhen(
-            data: (p) =>
-                p == null ? const _NoRowingPlanCard() : _RowingDayCard(active: p),
-            orElse: () => const SizedBox.shrink(),
-          ),
+                )),
+          rowingProgram.viewOrNothing((p) =>
+              p == null ? const _NoRowingPlanCard() : _RowingDayCard(active: p)),
           const SizedBox(height: 20),
           OutlinedButton.icon(
             onPressed: () async {
@@ -211,7 +203,7 @@ class _RowingToday extends ConsumerWidget {
             icon: const Icon(Icons.rowing),
             label: const Text('Losse roeisessie'),
           ),
-          const SizedBox(height: 8),
+          Gap.s,
           TextButton.icon(
             onPressed: () => showLogRowingSheet(context, ref),
             icon: const Icon(Icons.edit_outlined),
@@ -254,10 +246,10 @@ class _NoProgramCard extends StatelessWidget {
           children: [
             Text('Nog geen programma gekozen',
                 style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            Gap.s,
             const Text(
                 'Kies een programma in de bibliotheek of stel er zelf een samen.'),
-            const SizedBox(height: 12),
+            Gap.m,
             FilledButton(
               onPressed: () => context.go('/strength/library'),
               child: const Text('Naar de bibliotheek'),
@@ -282,11 +274,11 @@ class _NoRowingPlanCard extends StatelessWidget {
           children: [
             Text('Nog geen roeiplan gekozen',
                 style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            Gap.s,
             const Text(
                 'Kies een plan in de bibliotheek of stel er zelf een samen. '
                 'Of start hieronder een losse sessie.'),
-            const SizedBox(height: 12),
+            Gap.m,
             FilledButton(
               onPressed: () => context.go('/rowing/library'),
               child: const Text('Naar de bibliotheek'),
@@ -319,7 +311,7 @@ class _WeekStrip extends ConsumerWidget {
       return Row(
         children: [
           Expanded(child: week),
-          const SizedBox(width: 12),
+          Gap.m,
           Expanded(
             child: _StatChip(
               icon: Icons.straighten,
@@ -336,7 +328,7 @@ class _WeekStrip extends ConsumerWidget {
     return Row(
       children: [
         Expanded(child: week),
-        const SizedBox(width: 12),
+        Gap.m,
         Expanded(
           child: _StatChip(
             icon: Icons.local_fire_department,
@@ -409,7 +401,7 @@ class _RowingDayCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(active.program.name, style: theme.textTheme.labelMedium),
-            const SizedBox(height: 4),
+            Gap.xs,
             Row(
               children: [
                 Expanded(
@@ -434,58 +426,52 @@ class _RowingDayCard extends ConsumerWidget {
               style: theme.textTheme.bodySmall,
             ),
             if (!planDone)
-              info.maybeWhen(
-                data: (i) {
-                  final ftp = ref.watch(rowingFtpProvider).valueOrNull;
-                  final dragK =
-                      ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
-                  final pace = dayPaceSummary(i.$3, ftp, dragK);
-                  final stale = rowTargetsStale(
-                      active.program.ftpWattsAtGen, ftp?.watts);
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: IntervalProfile(
-                          blocks: profileFromSegments(i.$3),
-                          height: 32,
-                        ),
+              info.viewOrNothing((i) {
+                final ftp = ref.watch(rowingFtpProvider).valueOrNull;
+                final dragK =
+                    ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
+                final pace = dayPaceSummary(i.$3, ftp, dragK);
+                final stale = rowTargetsStale(
+                    active.program.ftpWattsAtGen, ftp?.watts);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: IntervalProfile(
+                        blocks: profileFromSegments(i.$3),
+                        height: 32,
                       ),
-                      if (pace != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(pace,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant)),
-                        ),
-                      if (stale)
-                        TextButton(
-                          style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, 32),
-                              tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap),
-                          onPressed: () async {
-                            final w = ref
-                                .read(rowingFtpProvider)
-                                .valueOrNull
-                                ?.watts;
-                            if (w == null) return;
-                            await ref
-                                .read(programRepositoryProvider)
-                                .rewriteRowTargets(active.program.id, w);
-                            ref.invalidate(activeRowingProgramProvider);
-                            ref.invalidate(_rowDayInfoProvider(day.id));
-                          },
-                          child: const Text("Richttempo's bijwerken"),
-                        ),
-                    ],
-                  );
-                },
-                orElse: () => const SizedBox.shrink(),
-              ),
-            const SizedBox(height: 12),
+                    ),
+                    if (pace != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(pace,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                      ),
+                    if (stale)
+                      TextButton(
+                        style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 32),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                        onPressed: () async {
+                          final w =
+                              ref.read(rowingFtpProvider).valueOrNull?.watts;
+                          if (w == null) return;
+                          await ref
+                              .read(programRepositoryProvider)
+                              .rewriteRowTargets(active.program.id, w);
+                          ref.invalidate(activeRowingProgramProvider);
+                          ref.invalidate(_rowDayInfoProvider(day.id));
+                        },
+                        child: const Text("Richttempo's bijwerken"),
+                      ),
+                  ],
+                );
+              }),
+            Gap.m,
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -544,14 +530,14 @@ class _ProgramDayCard extends ConsumerWidget {
               '${active.currentDayIndex + 1}/${active.dayCount}',
               style: theme.textTheme.labelMedium,
             ),
-            const SizedBox(height: 4),
+            Gap.xs,
             Text(day.label, style: theme.textTheme.headlineSmall),
             if (active.round > 1)
               Text(_roundLabel(ref, active.round),
                   style: theme.textTheme.bodySmall),
-            const SizedBox(height: 12),
-            ref.watch(_dayPreviewProvider(day.id)).maybeWhen(
-                  data: (rows) => Column(
+            Gap.m,
+            ref.watch(_dayPreviewProvider(day.id)).viewOrNothing(
+                  (rows) => Column(
                     children: [
                       for (final (name, sets) in rows)
                         Padding(
@@ -571,9 +557,8 @@ class _ProgramDayCard extends ConsumerWidget {
                         ),
                     ],
                   ),
-                  orElse: () => const SizedBox.shrink(),
                 ),
-            const SizedBox(height: 12),
+            Gap.m,
             SizedBox(
               width: double.infinity,
               child: FilledButton(
