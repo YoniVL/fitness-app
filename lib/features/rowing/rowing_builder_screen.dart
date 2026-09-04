@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/program_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_plan_generator.dart';
@@ -37,9 +38,25 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    ref
+        .read(settingsRepositoryProvider)
+        .rowingLevel()
+        .then((l) => mounted ? setState(() => _level = l) : null);
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     super.dispose();
+  }
+
+  void _setLevel(ProgramLevel l) {
+    setState(() => _level = l);
+    // Shared with the workout catalogue.
+    ref.read(settingsRepositoryProvider).setRowingLevel(l);
+    ref.invalidate(rowingLevelProvider);
   }
 
   void _generate() {
@@ -151,7 +168,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
                 ButtonSegment(value: l, label: Text(l.label)),
             ],
             selected: {_level},
-            onSelectionChanged: (s) => setState(() => _level = s.first),
+            onSelectionChanged: (s) => _setLevel(s.first),
           ),
           const SizedBox(height: 16),
           _label('Sessieduur (meerdere mag — meer variatie)'),

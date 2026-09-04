@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../domain/models/program.dart';
 import '../../domain/taxonomy.dart';
 import '../database/app_database.dart';
 
@@ -93,6 +94,15 @@ class SettingsRepository {
     if (raw != null) return raw == 'true' || raw == '1';
     return (await getString(SettingsKeys.rowingDeviceId)) == null;
   }
+
+  /// The training level the workout catalogue renders at and the plan builder
+  /// starts from. Defaults to medium.
+  Future<ProgramLevel> rowingLevel() async =>
+      ProgramLevel.fromName(await getString(SettingsKeys.rowingLevel)) ??
+      ProgramLevel.medium;
+
+  Future<void> setRowingLevel(ProgramLevel level) =>
+      set(SettingsKeys.rowingLevel, level.name);
 }
 
 class SettingsKeys {
@@ -108,6 +118,7 @@ class SettingsKeys {
   static const rowingDeviceName = 'rowing_device_name';
   static const rowingDemoMode = 'rowing_demo_mode';
   static const rowingCueSound = 'rowing_cue_sound';
+  static const rowingLevel = 'rowing_level';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(
@@ -138,4 +149,9 @@ final autoProgressionProvider = FutureProvider<bool>(
 
 final warmupSuggestionsProvider = FutureProvider<bool>(
   (ref) => ref.watch(settingsRepositoryProvider).warmupSuggestions(),
+);
+
+/// The rowing training level (catalogue previews + plan builder default).
+final rowingLevelProvider = FutureProvider<ProgramLevel>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingLevel(),
 );

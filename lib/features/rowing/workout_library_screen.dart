@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/home_shell.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_workouts.dart';
@@ -10,11 +11,11 @@ import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
 
-/// Level used to render the catalogue previews and one-off sessions.
-const _catalogueLevel = ProgramLevel.medium;
-
-List<ProgramRowSegment> workoutSegments(RowWorkout w) {
-  final blocks = w.blocks(_catalogueLevel, 0.6);
+/// The concrete segments for a catalogue workout at [level] (a fixed mid `build`
+/// factor — catalogue workouts aren't part of a periodised plan).
+List<ProgramRowSegment> workoutSegments(RowWorkout w,
+    [ProgramLevel level = ProgramLevel.medium]) {
+  final blocks = w.blocks(level, 0.6);
   return [
     for (var i = 0; i < blocks.length; i++)
       ProgramRowSegment(
@@ -31,18 +32,21 @@ List<ProgramRowSegment> workoutSegments(RowWorkout w) {
   ];
 }
 
-class WorkoutLibraryScreen extends StatefulWidget {
+class WorkoutLibraryScreen extends ConsumerStatefulWidget {
   const WorkoutLibraryScreen({super.key});
 
   @override
-  State<WorkoutLibraryScreen> createState() => _WorkoutLibraryScreenState();
+  ConsumerState<WorkoutLibraryScreen> createState() =>
+      _WorkoutLibraryScreenState();
 }
 
-class _WorkoutLibraryScreenState extends State<WorkoutLibraryScreen> {
+class _WorkoutLibraryScreenState extends ConsumerState<WorkoutLibraryScreen> {
   RowSessionType? _filter;
 
   @override
   Widget build(BuildContext context) {
+    final level =
+        ref.watch(rowingLevelProvider).valueOrNull ?? ProgramLevel.medium;
     final byType = <RowSessionType, List<RowWorkout>>{};
     for (final w in rowWorkouts) {
       byType.putIfAbsent(w.type, () => []).add(w);
@@ -59,6 +63,35 @@ class _WorkoutLibraryScreenState extends State<WorkoutLibraryScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              children: [
+                Text('Niveau',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SegmentedButton<ProgramLevel>(
+                    showSelectedIcon: false,
+                    style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact),
+                    segments: [
+                      for (final l in ProgramLevel.values)
+                        ButtonSegment(value: l, label: Text(l.label)),
+                    ],
+                    selected: {level},
+                    onSelectionChanged: (s) async {
+                      await ref
+                          .read(settingsRepositoryProvider)
+                          .setRowingLevel(s.first);
+                      ref.invalidate(rowingLevelProvider);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
           SizedBox(
             height: 52,
             child: ListView(
@@ -95,7 +128,7 @@ class _WorkoutLibraryScreenState extends State<WorkoutLibraryScreen> {
                         style: Theme.of(context).textTheme.titleMedium),
                   ),
                   for (final w in byType[type]!)
-                    _WorkoutRow(workout: w),
+                    _WorkoutRow(workout: w, level: level),
                 ],
                 const SizedBox(height: 24),
               ],
@@ -108,8 +141,9 @@ class _WorkoutLibraryScreenState extends State<WorkoutLibraryScreen> {
 }
 
 class _WorkoutRow extends ConsumerWidget {
-  const _WorkoutRow({required this.workout});
+  const _WorkoutRow({required this.workout, required this.level});
   final RowWorkout workout;
+  final ProgramLevel level;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -120,14 +154,14 @@ class _WorkoutRow extends ConsumerWidget {
           context: context,
           showDragHandle: true,
           isScrollControlled: true,
-          builder: (_) => _WorkoutSheet(workout: workout),
+          builder: (_) => _WorkoutSheet(workout: workout, level: level),
         );
         if (start != true || !context.mounted) return;
         await ensureRowerConnected(context, ref);
         if (!context.mounted) return;
-        await ref
-            .read(activeRowingProvider.notifier)
-            .startWorkout(workoutSegments(workout), kind: workout.type.name);
+        await ref.read(activeRowingProvider.notifier).startWorkout(
+            workoutSegments(workout, level),
+            kind: workout.type.name);
         if (context.mounted) context.push('/rowing/active');
       },
       child: Padding(
@@ -145,7 +179,7 @@ class _WorkoutRow extends ConsumerWidget {
                           color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 8),
                   IntervalProfile(
-                    blocks: profileFromSegments(workoutSegments(workout)),
+                    blocks: profileFromSegments(workoutSegments(workout, level)),
                     height: 26,
                   ),
                 ],
@@ -160,13 +194,14 @@ class _WorkoutRow extends ConsumerWidget {
 }
 
 class _WorkoutSheet extends StatelessWidget {
-  const _WorkoutSheet({required this.workout});
+  const _WorkoutSheet({required this.workout, required this.level});
   final RowWorkout workout;
+  final ProgramLevel level;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final segments = workoutSegments(workout);
+    final segments = workoutSegments(workout, level);
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
           20, 0, 20, 20 + MediaQuery.viewPaddingOf(context).bottom),
