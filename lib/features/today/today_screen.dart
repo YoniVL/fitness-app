@@ -13,10 +13,12 @@ import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/progression.dart';
 import '../../domain/rowing_format.dart';
+import '../../domain/rowing_ftp.dart';
 import '../rowing/ble/connect_sheet.dart';
 import '../rowing/log_rowing_sheet.dart';
 import '../rowing/state/active_rowing_provider.dart';
 import '../rowing/widgets/interval_profile.dart';
+import '../rowing/widgets/target_pace.dart';
 import '../strength/state/active_workout_provider.dart';
 
 /// "3 blokken" / "1 blok".
@@ -433,13 +435,54 @@ class _RowingDayCard extends ConsumerWidget {
             ),
             if (!planDone)
               info.maybeWhen(
-                data: (i) => Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: IntervalProfile(
-                    blocks: profileFromSegments(i.$3),
-                    height: 32,
-                  ),
-                ),
+                data: (i) {
+                  final ftp = ref.watch(rowingFtpProvider).valueOrNull;
+                  final dragK =
+                      ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
+                  final pace = dayPaceSummary(i.$3, ftp, dragK);
+                  final stale = rowTargetsStale(
+                      active.program.ftpWattsAtGen, ftp?.watts);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: IntervalProfile(
+                          blocks: profileFromSegments(i.$3),
+                          height: 32,
+                        ),
+                      ),
+                      if (pace != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(pace,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant)),
+                        ),
+                      if (stale)
+                        TextButton(
+                          style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 32),
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap),
+                          onPressed: () async {
+                            final w = ref
+                                .read(rowingFtpProvider)
+                                .valueOrNull
+                                ?.watts;
+                            if (w == null) return;
+                            await ref
+                                .read(programRepositoryProvider)
+                                .rewriteRowTargets(active.program.id, w);
+                            ref.invalidate(activeRowingProgramProvider);
+                            ref.invalidate(_rowDayInfoProvider(day.id));
+                          },
+                          child: const Text("Richttempo's bijwerken"),
+                        ),
+                    ],
+                  );
+                },
                 orElse: () => const SizedBox.shrink(),
               ),
             const SizedBox(height: 12),
