@@ -11,6 +11,11 @@ import '../../domain/models/program.dart';
 import '../../domain/rowing_achievements.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../ui/app_section.dart';
+import '../../ui/async_view.dart';
+import '../../ui/empty_state.dart';
+import '../../ui/spacing.dart';
+import '../../ui/stat_tile.dart';
 import '../rowing/state/rowing_achievements_provider.dart';
 
 final _selectedExerciseProvider = StateProvider<int?>((ref) => null);
@@ -37,7 +42,7 @@ class ProgressScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Voortgang')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: Insets.screenList,
         children: [
           if (streak >= 2) ...[
             Card(
@@ -46,17 +51,15 @@ class ProgressScreen extends ConsumerWidget {
                 title: Text('$streak weken op rij getraind'),
               ),
             ),
-            const SizedBox(height: 16),
+            Gap.l,
           ],
-          _Section(
+          AppSection(
             title: 'Sets per week',
-            child: weekly.when(
-              loading: () => const _ChartLoading(),
-              error: (e, _) => Text('Fout: $e'),
-              data: (points) {
+            child: weekly.view(
+              (points) {
                 final withData = points.where((p) => p.value > 0).length;
                 if (withData == 0) {
-                  return const _Empty('Nog geen afgeronde trainingen.');
+                  return const EmptyState('Nog geen afgeronde trainingen.');
                 }
                 if (withData < 3) {
                   final total = points.fold(0, (s, p) => s + p.value);
@@ -69,28 +72,26 @@ class ProgressScreen extends ConsumerWidget {
                 }
                 return _WeeklySetsChart(points: points);
               },
+              loadingHeight: 180,
             ),
           ),
-          const SizedBox(height: 8),
-          _Section(
+          Gap.s,
+          AppSection(
             title: 'Sets per spiergroep · laatste 30 dagen',
-            child: muscles.when(
-              loading: () => const _ChartLoading(),
-              error: (e, _) => Text('Fout: $e'),
-              data: (rows) => rows.isEmpty
-                  ? const _Empty('Nog niets getraind deze maand.')
+            child: muscles.view(
+              (rows) => rows.isEmpty
+                  ? const EmptyState('Nog niets getraind deze maand.')
                   : _MuscleBars(rows: rows),
+              loadingHeight: 180,
             ),
           ),
-          const SizedBox(height: 8),
-          _Section(
+          Gap.s,
+          AppSection(
             title: 'Per oefening · beste set',
-            child: trained.when(
-              loading: () => const _ChartLoading(),
-              error: (e, _) => Text('Fout: $e'),
-              data: (exercises) {
+            child: trained.view(
+              (exercises) {
                 if (exercises.isEmpty) {
-                  return const _Empty('Log eerst enkele trainingen.');
+                  return const EmptyState('Log eerst enkele trainingen.');
                 }
                 final selected = ref.watch(_selectedExerciseProvider) ??
                     exercises.first.id;
@@ -108,22 +109,22 @@ class ProgressScreen extends ConsumerWidget {
                           .read(_selectedExerciseProvider.notifier)
                           .state = v,
                     ),
-                    const SizedBox(height: 8),
+                    Gap.s,
                     _ExerciseHistoryChart(exerciseId: selected),
                   ],
                 );
               },
+              loadingHeight: 180,
             ),
           ),
-          const SizedBox(height: 8),
-          _Section(
+          Gap.s,
+          AppSection(
             title: 'Persoonlijke records · beste set',
-            child: records.when(
-              loading: () => const _ChartLoading(),
-              error: (e, _) => Text('Fout: $e'),
-              data: (rows) => rows.isEmpty
-                  ? const _Empty('Nog geen records — log enkele trainingen.')
+            child: records.view(
+              (rows) => rows.isEmpty
+                  ? const EmptyState('Nog geen records — log enkele trainingen.')
                   : _RecordList(rows: rows),
+              loadingHeight: 180,
             ),
           ),
         ],
@@ -209,7 +210,7 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
     final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: Insets.screenList,
       children: [
         if (streak >= 2) ...[
           Card(
@@ -218,44 +219,46 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
               title: Text('$streak weken op rij geroeid'),
             ),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
         ],
         const _AchievementsEntry(),
-        const SizedBox(height: 8),
-        _Section(
+        Gap.s,
+        AppSection(
           title: 'Laatste 30 dagen',
           child: totals == null
-              ? const _ChartLoading()
+              ? const LoadingBox(height: 180)
               : Row(
                   children: [
                     Expanded(
-                      child: _MiniStat(
-                          value: '${totals.sessions}', label: 'sessies'),
+                      child: StatTile(
+                          label: 'sessies',
+                          value: '${totals.sessions}',
+                          size: StatSize.small),
                     ),
                     Expanded(
-                      child: _MiniStat(
+                      child: StatTile(
+                          label: 'afstand',
                           value: distanceLabel(totals.distanceM),
-                          label: 'afstand'),
+                          size: StatSize.small),
                     ),
                     Expanded(
-                      child: _MiniStat(
+                      child: StatTile(
+                          label: 'tijd',
                           value: hmsLabel(
                               Duration(seconds: totals.durationSeconds)),
-                          label: 'tijd'),
+                          size: StatSize.small),
                     ),
                   ],
                 ),
         ),
-        const SizedBox(height: 8),
-        _Section(
+        Gap.s,
+        AppSection(
           title: 'Afstand per week',
-          child: weekly.when(
-            loading: () => const _ChartLoading(),
-            error: (e, _) => Text('Fout: $e'),
-            data: (points) {
+          child: weekly.view(
+            (points) {
               final withData = points.where((p) => p.distanceM > 0).length;
               if (withData == 0) {
-                return const _Empty('Nog geen afgeronde roeisessies.');
+                return const EmptyState('Nog geen afgeronde roeisessies.');
               }
               if (withData < 2) {
                 final total = points.fold(0.0, (s, p) => s + p.distanceM);
@@ -267,10 +270,11 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
               }
               return _WeeklyDistanceChart(points: points);
             },
+            loadingHeight: 180,
           ),
         ),
-        const SizedBox(height: 8),
-        _Section(
+        Gap.s,
+        AppSection(
           title: 'Gemiddeld tempo · per sessie',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,20 +290,19 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
-              pace.when(
-                loading: () => const _ChartLoading(),
-                error: (e, _) => Text('Fout: $e'),
-                data: (points) => points.length < 3
-                    ? const _Empty('Log enkele roeisessies met afstand.')
+              Gap.m,
+              pace.view(
+                (points) => points.length < 3
+                    ? const EmptyState('Log enkele roeisessies met afstand.')
                     : _PaceTrendChart(points: points),
+                loadingHeight: 180,
               ),
             ],
           ),
         ),
         if (ftpHistory.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _Section(
+          Gap.s,
+          AppSection(
             title: 'FTP',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,7 +313,7 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
                   style: theme.textTheme.titleMedium,
                 ),
                 if (ftpHistory.length >= 2) ...[
-                  const SizedBox(height: 8),
+                  Gap.s,
                   SizedBox(
                       height: 120, child: _FtpTrendChart(history: ftpHistory)),
                 ],
@@ -319,14 +322,14 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
           ),
         ],
         if (benchmarks.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _Section(
+          Gap.s,
+          AppSection(
             title: 'Testen',
             child: Column(
               children: [
                 for (final b in benchmarks) ...[
                   _BenchmarkTile(benchmark: b),
-                  if (b != benchmarks.last) const SizedBox(height: 16),
+                  if (b != benchmarks.last) Gap.l,
                 ],
               ],
             ),
@@ -413,7 +416,7 @@ class _BenchmarkTile extends StatelessWidget {
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         if (b.attempts.length >= 2) ...[
-          const SizedBox(height: 8),
+          Gap.s,
           SizedBox(height: 120, child: _BenchmarkChart(benchmark: b)),
         ],
       ],
@@ -531,26 +534,6 @@ class _FtpTrendChart extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.value, required this.label});
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: theme.textTheme.titleLarge),
-        Text(label,
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      ],
     );
   }
 }
@@ -727,48 +710,6 @@ class _PaceTrendChart extends StatelessWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChartLoading extends StatelessWidget {
-  const _ChartLoading();
-  @override
-  Widget build(BuildContext context) => const SizedBox(
-        height: 180,
-        child: Center(child: CircularProgressIndicator()),
-      );
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
-      );
-}
-
 class _WeeklySetsChart extends StatelessWidget {
   const _WeeklySetsChart({required this.points});
   final List<WeeklyPoint> points;
@@ -894,7 +835,7 @@ class _MuscleBars extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                Gap.s,
                 SizedBox(
                   width: 28,
                   child: Text('${r.sets}',
@@ -919,12 +860,12 @@ class _ExerciseHistoryChart extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final fmt = DateFormat('d/M');
 
-    return history.when(
-      loading: () => const _ChartLoading(),
-      error: (e, _) => Text('Fout: $e'),
-      data: (points) {
+    return history.view(
+      loadingHeight: 180,
+      (points) {
         if (points.length < 2) {
-          return const _Empty('Nog te weinig data — train deze oefening vaker.');
+          return const EmptyState(
+              'Nog te weinig data — train deze oefening vaker.');
         }
         final maxReps = points
             .map((p) => p.bestReps)
