@@ -33,6 +33,17 @@ class FtpScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
           _CurrentCard(ftp: ftp, dragK: dragK),
+          if (ftp != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () async {
+                  await ref.read(settingsRepositoryProvider).clearRowingFtp();
+                  ref.invalidate(rowingFtpProvider);
+                },
+                child: const Text('FTP wissen'),
+              ),
+            ),
           const SizedBox(height: 8),
           Text(
             'Je FTP is het vermogen dat je ongeveer een uur volhoudt — de basis '

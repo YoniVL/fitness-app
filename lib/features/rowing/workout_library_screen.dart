@@ -11,6 +11,7 @@ import '../../domain/rowing_workouts.dart';
 import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
+import 'widgets/level_suggestion.dart';
 import 'widgets/target_pace.dart';
 
 /// The concrete segments for a catalogue workout at [level] (a fixed mid `build`
@@ -49,6 +50,7 @@ class _WorkoutLibraryScreenState extends ConsumerState<WorkoutLibraryScreen> {
   Widget build(BuildContext context) {
     final level =
         ref.watch(rowingLevelProvider).valueOrNull ?? ProgramLevel.medium;
+    final ftp = ref.watch(rowingFtpProvider).valueOrNull;
     final byType = <RowSessionType, List<RowWorkout>>{};
     for (final w in rowWorkouts) {
       byType.putIfAbsent(w.type, () => []).add(w);
@@ -94,6 +96,11 @@ class _WorkoutLibraryScreenState extends ConsumerState<WorkoutLibraryScreen> {
               ],
             ),
           ),
+          if (ftp != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: LevelSuggestionCard(ftpWatts: ftp.watts),
+            ),
           SizedBox(
             height: 52,
             child: ListView(

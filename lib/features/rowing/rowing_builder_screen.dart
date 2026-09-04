@@ -11,6 +11,7 @@ import '../../domain/rowing_ftp.dart';
 import '../../domain/rowing_plan_generator.dart';
 import '../../domain/rowing_workouts.dart' show RowIntensity;
 import 'widgets/interval_profile.dart';
+import 'widgets/level_suggestion.dart';
 import 'widgets/week_load_chart.dart';
 
 const _bands = <(int, int)>[
@@ -165,6 +166,11 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
           ),
           const SizedBox(height: 16),
           _label('Niveau'),
+          if (ref.watch(rowingFtpProvider).valueOrNull case final f?)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: LevelSuggestionCard(ftpWatts: f.watts),
+            ),
           SegmentedButton<ProgramLevel>(
             segments: [
               for (final l in ProgramLevel.values)
