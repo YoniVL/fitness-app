@@ -177,7 +177,7 @@ class ProgramGenerator {
       return GeneratedExercise(
         exercise: ex,
         sets: s,
-        reps: defaultRepsFor(pattern),
+        reps: ex.isTimeBased ? defaultHoldSeconds : defaultRepsFor(pattern),
         restBetweenSets: input.restBetweenSets,
         restAfterExercise: input.restAfterExercise,
       );

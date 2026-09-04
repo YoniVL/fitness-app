@@ -191,7 +191,8 @@ class _DayCard extends StatelessWidget {
                     children: [
                       Expanded(child: Text(row.exercise.name)),
                       Text(
-                        '${row.prescription.targetSets} × ${row.prescription.targetReps}',
+                        '${row.prescription.targetSets} × '
+                        '${row.exercise.formatReps(row.prescription.targetReps)}',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],

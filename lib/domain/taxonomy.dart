@@ -174,3 +174,6 @@ const Map<MovementPattern, Set<String>> patternMuscleGroups = {
 
 /// Reasonable rep target for a pattern.
 int defaultRepsFor(MovementPattern pattern) => pattern.isIsolation ? 13 : 9;
+
+/// Reasonable hold duration (seconds) for a time-based exercise (plank, …).
+const defaultHoldSeconds = 30;

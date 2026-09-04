@@ -9,6 +9,7 @@ import '../../../domain/models/program.dart';
 import '../../../domain/models/strength_set.dart';
 import '../../../domain/models/workout_session.dart';
 import '../../../domain/progression.dart';
+import '../../../domain/taxonomy.dart';
 import 'rest_timer_notifier.dart';
 
 /// One exercise inside the active session: its (possibly overridden) targets and
@@ -240,7 +241,9 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkoutState?> {
     final block = ExerciseBlock(
       exercise: ex,
       targetSets: last.isNotEmpty ? last.length : 3,
-      targetReps: last.isNotEmpty ? last.first.reps : 10,
+      targetReps: last.isNotEmpty
+          ? last.first.reps
+          : (ex.isTimeBased ? defaultHoldSeconds : 10),
       restBetweenSets: rests.between,
       restAfterExercise: rests.after,
     );

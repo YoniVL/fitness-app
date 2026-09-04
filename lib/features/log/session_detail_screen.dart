@@ -574,7 +574,9 @@ class _Body extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(width: 28, child: Text('${s.setIndex}')),
-                  Text('${s.reps} reps'),
+                  Text((view.exerciseNames[entry.key]?.isTimeBased ?? false)
+                      ? '${s.reps}s'
+                      : '${s.reps} reps'),
                   if (s.isWarmup) ...[
                     Gap.s,
                     Text('opwarming', style: theme.textTheme.labelSmall),

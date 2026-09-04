@@ -248,6 +248,28 @@ Future<void> migrateV7toV8(Database db) async {
   await seedRowingTemplates(db);
 }
 
+/// v8 -> v9: `exercises.is_time_based`, for hold-based moves (Plank, …) whose
+/// "reps" are really a duration in seconds. Also reasserts `is_unilateral` —
+/// 'Dead bug' was missing from [unilateralExerciseNames] until now.
+Future<void> migrateV8toV9(Database db) async {
+  await db.execute(
+      'ALTER TABLE exercises ADD COLUMN is_time_based INTEGER NOT NULL DEFAULT 0');
+
+  final timePlaceholders =
+      List.filled(timeBasedExerciseNames.length, '?').join(',');
+  await db.rawUpdate(
+    'UPDATE exercises SET is_time_based = 1 WHERE name IN ($timePlaceholders)',
+    timeBasedExerciseNames,
+  );
+
+  final unilateralPlaceholders =
+      List.filled(unilateralExerciseNames.length, '?').join(',');
+  await db.rawUpdate(
+    'UPDATE exercises SET is_unilateral = 1 WHERE name IN ($unilateralPlaceholders)',
+    unilateralExerciseNames,
+  );
+}
+
 /// v6 -> v7: rowing session archetype on plan days, ad-hoc workout structure +
 /// session kind + robust elapsed on rowing sessions, and a reseed of the rowing
 /// templates with the periodised generator (build/deload curve + benchmarks).

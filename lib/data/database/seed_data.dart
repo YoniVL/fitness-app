@@ -67,6 +67,12 @@ const unilateralExerciseNames = <String>[
   'Dumbbell concentration curl',
   'Dumbbell kickback',
   'Dumbbell side bend',
+  'Dead bug',
+];
+
+/// Exercises where "reps" means a hold in seconds, not repetitions.
+const timeBasedExerciseNames = <String>[
+  'Plank',
 ];
 
 /// v3 name -> v4 canonical name. Names are English with an equipment prefix
@@ -281,6 +287,7 @@ Future<Map<String, int>> _seedExercises(
       'equipment': ex.equipment.join(','),
       'pattern': ex.pattern.name,
       'is_unilateral': unilateralExerciseNames.contains(ex.name) ? 1 : 0,
+      'is_time_based': timeBasedExerciseNames.contains(ex.name) ? 1 : 0,
       'media_key': null,
       'is_custom': 0,
     });

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
+import '../../domain/models/exercise.dart';
 import '../../ui/async_view.dart';
 import '../../ui/confirm_dialog.dart';
 import '../../ui/spacing.dart';
@@ -505,11 +506,12 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                 if (block.exercise.pattern != null)
                   Text(block.exercise.pattern!.label,
                       style: theme.textTheme.bodySmall),
-                _LastTimeLabel(exerciseId: block.exercise.id),
+                _LastTimeLabel(exercise: block.exercise),
                 if (block.isProgressed)
                   _MiniChip(
                     icon: Icons.trending_up,
-                    label: 'schema ${block.baseTargetSets}×${block.baseTargetReps}',
+                    label: 'schema ${block.baseTargetSets}×'
+                        '${block.exercise.formatReps(block.baseTargetReps)}',
                     color: theme.colorScheme.primary,
                   ),
                 if (missingGear)
@@ -543,7 +545,8 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
               children: [
                 for (final s in block.sets)
                   Chip(
-                    label: Text('${s.reps}${s.isWarmup ? ' W' : ''}'),
+                    label: Text(
+                        '${block.exercise.formatReps(s.reps)}${s.isWarmup ? ' W' : ''}'),
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -579,11 +582,12 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
               Gap.s,
             ],
             NumberStepper(
-              label:
-                  'Reps · set ${block.completedSets + 1}/${block.targetSets}',
+              label: '${block.exercise.repsFieldLabel} · '
+                  'set ${block.completedSets + 1}/${block.targetSets}',
               value: reps,
-              min: 1,
-              max: 100,
+              step: block.exercise.isTimeBased ? 5 : 1,
+              min: block.exercise.isTimeBased ? 5 : 1,
+              max: block.exercise.isTimeBased ? 300 : 100,
               onChanged: (v) => setState(() => _reps = v),
             ),
             Gap.xs,
@@ -681,7 +685,13 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _dialogRow('Sets', sets, step: 1, min: 1, max: 10),
-              _dialogRow('Reps', reps, step: 1, min: 1, max: 50),
+              _dialogRow(
+                block.exercise.repsFieldLabel,
+                reps,
+                step: block.exercise.isTimeBased ? 5 : 1,
+                min: block.exercise.isTimeBased ? 5 : 1,
+                max: block.exercise.isTimeBased ? 300 : 50,
+              ),
               _dialogRow('Rust tussen sets (s)', restSet,
                   step: 15, min: 0, max: 300),
               _dialogRow('Rust na oefening (s)', restEx,
@@ -764,16 +774,17 @@ class _MiniChip extends StatelessWidget {
 }
 
 class _LastTimeLabel extends ConsumerWidget {
-  const _LastTimeLabel({required this.exerciseId});
-  final int exerciseId;
+  const _LastTimeLabel({required this.exercise});
+  final Exercise exercise;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final last = ref.watch(lastPerformanceProvider(exerciseId)).valueOrNull;
+    final last = ref.watch(lastPerformanceProvider(exercise.id)).valueOrNull;
     if (last == null) return const SizedBox.shrink();
     final reps = last.where((s) => !s.isWarmup).map((s) => s.reps).toList();
     if (reps.isEmpty) return const SizedBox.shrink();
-    return Text('Vorige keer: ${reps.join(' · ')}',
+    final formatted = reps.map(exercise.formatReps).join(' · ');
+    return Text('Vorige keer: $formatted',
         style: Theme.of(context).textTheme.bodySmall);
   }
 }

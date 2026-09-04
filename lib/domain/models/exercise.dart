@@ -13,6 +13,7 @@ class Exercise {
     this.equipmentTags = const [Equipment.bodyweight],
     this.pattern,
     this.isUnilateral = false,
+    this.isTimeBased = false,
     this.mediaKey,
     this.isCustom = false,
     this.notes,
@@ -30,6 +31,10 @@ class Exercise {
   /// True when the exercise is done one side at a time (one-arm row, split
   /// squat, …). The generator keeps such exercises on an even number of sets.
   final bool isUnilateral;
+
+  /// True when "reps" means a hold in seconds (plank, …) rather than
+  /// repetitions. Sets/rest still apply as normal; only the unit changes.
+  final bool isTimeBased;
   final String? mediaKey;
   final bool isCustom;
   final String? notes;
@@ -49,6 +54,7 @@ class Exercise {
         equipmentTags: _parseEquipment(map['equipment'] as String?),
         pattern: MovementPattern.fromName(map['pattern'] as String?),
         isUnilateral: (map['is_unilateral'] as int? ?? 0) == 1,
+        isTimeBased: (map['is_time_based'] as int? ?? 0) == 1,
         mediaKey: map['media_key'] as String?,
         isCustom: (map['is_custom'] as int? ?? 0) == 1,
         notes: map['notes'] as String?,
@@ -62,6 +68,7 @@ class Exercise {
         'equipment': equipmentTags.join(','),
         'pattern': pattern?.name,
         'is_unilateral': isUnilateral ? 1 : 0,
+        'is_time_based': isTimeBased ? 1 : 0,
         'media_key': mediaKey,
         'is_custom': isCustom ? 1 : 0,
         'notes': notes,
@@ -80,4 +87,12 @@ class Exercise {
         .whereType<int>()
         .toList(growable: false);
   }
+}
+
+/// Presents a "reps" number the way this exercise counts it: a plain rep
+/// count, or a hold duration in seconds for [Exercise.isTimeBased] moves.
+extension ExerciseRepsFormat on Exercise {
+  String get repsFieldLabel => isTimeBased ? 'Seconden' : 'Reps';
+
+  String formatReps(int reps) => isTimeBased ? '${reps}s' : '$reps';
 }

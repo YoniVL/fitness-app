@@ -9,6 +9,7 @@ import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../data/repositories/rowing_repository.dart';
+import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/progression.dart';
@@ -37,7 +38,7 @@ final _dayPreviewProvider =
     for (final pe in pes)
       (
         names[pe.exerciseId]?.name ?? 'Oefening',
-        '${pe.targetSets} × ${pe.targetReps}'
+        '${pe.targetSets} × ${names[pe.exerciseId]?.formatReps(pe.targetReps) ?? pe.targetReps}'
       )
   ];
 });

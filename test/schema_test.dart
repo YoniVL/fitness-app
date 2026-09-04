@@ -35,7 +35,8 @@ void main() {
     final exCols = (await db.rawQuery('PRAGMA table_info(exercises)'))
         .map((r) => r['name'] as String)
         .toSet();
-    expect(exCols, containsAll(['equipment', 'pattern', 'is_unilateral']));
+    expect(exCols,
+        containsAll(['equipment', 'pattern', 'is_unilateral', 'is_time_based']));
     final peCols = (await db.rawQuery('PRAGMA table_info(program_exercises)'))
         .map((r) => r['name'] as String)
         .toSet();
@@ -82,6 +83,16 @@ void main() {
     final unilateral = Sqflite.firstIntValue(await db
         .rawQuery('SELECT COUNT(*) FROM exercises WHERE is_unilateral = 1'));
     expect(unilateral, greaterThanOrEqualTo(5));
+
+    // Dead bug alternates sides — flagged unilateral so "reps" reads per side.
+    final deadBug =
+        await db.query('exercises', where: 'name = ?', whereArgs: ['Dead bug']);
+    expect(deadBug.single['is_unilateral'], 1);
+
+    // Plank is a hold, not reps — flagged time-based.
+    final plank =
+        await db.query('exercises', where: 'name = ?', whereArgs: ['Plank']);
+    expect(plank.single['is_time_based'], 1);
 
     // Push/Pull/Legs has three days, each with prescribed exercises.
     final ppl = await db.query('programs',

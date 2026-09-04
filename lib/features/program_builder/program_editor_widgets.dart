@@ -160,8 +160,9 @@ class _DayEditorSheetState extends State<DayEditorSheet> {
   Future<void> _addExercise() async {
     final ex = await _pickExercise();
     if (ex == null) return;
+    final reps = ex.isTimeBased ? defaultHoldSeconds : 10;
     setState(
-        () => widget.day.exercises.add(EditableExercise(ex, 3, 10, 30, 60)));
+        () => widget.day.exercises.add(EditableExercise(ex, 3, reps, 30, 60)));
     widget.onChanged();
   }
 
@@ -215,6 +216,7 @@ class ExerciseEditRow extends StatelessWidget {
     final theme = Theme.of(context);
     final setStep = entry.exercise.isUnilateral ? 2.0 : 1.0;
     final setMin = entry.exercise.isUnilateral ? 2.0 : 1.0;
+    final timeBased = entry.exercise.isTimeBased;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -265,10 +267,11 @@ class ExerciseEditRow extends StatelessWidget {
                   },
                 ),
                 NumberStepper(
-                  label: 'Reps',
+                  label: entry.exercise.repsFieldLabel,
                   value: entry.reps.toDouble(),
-                  min: 1,
-                  max: 30,
+                  step: timeBased ? 5 : 1,
+                  min: timeBased ? 5 : 1,
+                  max: timeBased ? 180 : 30,
                   onChanged: (v) {
                     entry.reps = v.round();
                     onChanged();
