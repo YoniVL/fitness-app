@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/exercise.dart';
 import '../../domain/taxonomy.dart';
+import '../../ui/spacing.dart';
 import '../strength/widgets/number_stepper.dart';
 
 /// In-memory, editable copy of a prescribed exercise. Used by both the program
@@ -247,7 +248,7 @@ class ExerciseEditRow extends StatelessWidget {
             if (entry.exercise.isUnilateral)
               Text('Per kant — sets blijven even',
                   style: theme.textTheme.labelSmall),
-            const SizedBox(height: 4),
+            Gap.xs,
             Wrap(
               spacing: 16,
               runSpacing: 8,

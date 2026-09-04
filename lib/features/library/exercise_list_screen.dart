@@ -5,6 +5,9 @@ import '../../data/repositories/exercise_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/muscle_group.dart';
 import '../../domain/taxonomy.dart';
+import '../../ui/async_view.dart';
+import '../../ui/empty_state.dart';
+import '../../ui/spacing.dart';
 import '../exercises/exercise_media.dart';
 
 void _showDetail(
@@ -22,13 +25,13 @@ void _showDetail(
         children: [
           if (hasExercisePhoto(ex.name)) ...[
             ExerciseDemo(exerciseName: ex.name, maxHeight: 230),
-            const SizedBox(height: 12),
+            Gap.m,
           ],
           Text(ex.name, style: Theme.of(context).textTheme.titleLarge),
           if (ex.pattern != null)
             Text(ex.pattern!.label,
                 style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 12),
+          Gap.m,
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -41,11 +44,11 @@ void _showDetail(
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          Gap.s,
           Text('Materiaal: ${ex.equipmentTags.map(Equipment.label).join(', ')}',
               style: Theme.of(context).textTheme.bodySmall),
           if (hasExercisePhoto(ex.name)) ...[
-            const SizedBox(height: 4),
+            Gap.xs,
             Text('Foto: everkinetic (CC BY-SA 3.0) — zie Instellingen › Credits.',
                 style: Theme.of(context).textTheme.labelSmall),
           ],
@@ -103,10 +106,8 @@ class ExerciseListScreen extends ConsumerWidget {
           ),
           SizedBox(
             height: 48,
-            child: muscleGroups.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
-              data: (groups) => ListView(
+            child: muscleGroups.viewOrNothing(
+              (groups) => ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
@@ -130,10 +131,8 @@ class ExerciseListScreen extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: exercises.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Fout: $e')),
-              data: (list) => _ExerciseList(
+            child: exercises.view(
+              (list) => _ExerciseList(
                 list: list,
                 groups: {
                   for (final g in muscleGroups.valueOrNull ?? const [])
@@ -168,7 +167,7 @@ class _ExerciseList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (list.isEmpty) {
-      return const Center(child: Text('Geen oefeningen gevonden'));
+      return const Center(child: EmptyState('Geen oefeningen gevonden'));
     }
     return ListView.builder(
       itemCount: list.length,

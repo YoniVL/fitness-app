@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../ui/spacing.dart';
+
 /// Number field with big -/+ tap targets. Works for reps, sets and rest seconds.
 class NumberStepper extends StatefulWidget {
   const NumberStepper({
@@ -63,7 +65,7 @@ class _NumberStepperState extends State<NumberStepper> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(widget.label, style: Theme.of(context).textTheme.labelMedium),
-        const SizedBox(height: 4),
+        Gap.xs,
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [

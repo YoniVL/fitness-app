@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/workout_session_repository.dart';
 import '../../exercises/exercise_media.dart';
+import '../../../ui/spacing.dart';
 import '../state/rest_timer_notifier.dart';
 
 /// Full-screen rest view shown between sets and after an exercise: big countdown,
@@ -40,7 +41,7 @@ class RestFullscreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 12),
+              Gap.m,
               Text('RUST',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium
@@ -66,7 +67,7 @@ class RestFullscreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              Gap.l,
               if (nextExerciseName != null) ...[
                 Text('Volgende',
                     textAlign: TextAlign.center,
@@ -107,14 +108,14 @@ class RestFullscreen extends ConsumerWidget {
                     label: '−15s',
                     onTap: () => notifier.addSeconds(-15),
                   ),
-                  const SizedBox(width: 16),
+                  Gap.l,
                   _RoundButton(
                     label: '+15s',
                     onTap: () => notifier.addSeconds(15),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              Gap.m,
               FilledButton(
                 style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52)),
