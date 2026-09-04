@@ -169,6 +169,46 @@ class SettingsRepository {
 
   Future<void> setRowingDragK(double k) =>
       set(SettingsKeys.rowingDragK, k.toStringAsFixed(4));
+
+  // --- Rowing achievements -----------------------------------------------
+
+  /// `{achievementId: unlockedAt}` for the unlocked rowing achievements.
+  Future<Map<String, DateTime>> rowingAchievementsUnlocked() async {
+    final raw = await getString(SettingsKeys.rowingAchievements);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      return {
+        for (final e in (jsonDecode(raw) as Map).cast<String, Object?>().entries)
+          e.key: DateTime.fromMillisecondsSinceEpoch((e.value as num).toInt()),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Merges [newlyUnlocked] into the stored map — an existing unlock date is
+  /// never overwritten.
+  Future<void> unlockRowingAchievements(
+      Map<String, DateTime> newlyUnlocked) async {
+    if (newlyUnlocked.isEmpty) return;
+    final merged = {
+      for (final e in newlyUnlocked.entries) e.key: e.value,
+      ...await rowingAchievementsUnlocked(),
+    };
+    await set(
+      SettingsKeys.rowingAchievements,
+      jsonEncode({
+        for (final e in merged.entries)
+          e.key: e.value.millisecondsSinceEpoch,
+      }),
+    );
+  }
+
+  Future<bool> rowingAchievementsSeeded() =>
+      getBool(SettingsKeys.rowingAchievementsSeeded, false);
+
+  Future<void> markRowingAchievementsSeeded() =>
+      setBool(SettingsKeys.rowingAchievementsSeeded, true);
 }
 
 class SettingsKeys {
@@ -190,6 +230,8 @@ class SettingsKeys {
   static const rowingFtpSource = 'rowing_ftp_source';
   static const rowingFtpHistory = 'rowing_ftp_history';
   static const rowingDragK = 'rowing_drag_k';
+  static const rowingAchievements = 'rowing_achievements';
+  static const rowingAchievementsSeeded = 'rowing_achievements_seeded';
 }
 
 final settingsRepositoryProvider = Provider<SettingsRepository>(

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing.dart';
 import '../../domain/models/workout_session.dart';
+import '../../domain/rowing_achievements.dart';
 import '../database/app_database.dart';
 
 /// Compact JSON for the segments of an ad-hoc (catalogue) rowing workout, so
@@ -430,6 +431,83 @@ class RowingRepository {
           RowingBenchmark(
               std, byDist[std]!..sort((a, b) => a.date.compareTo(b.date))),
     ];
+  }
+
+  /// One pass over the finished rowing sessions for the achievement engine.
+  /// FTP fields are left null/zero — the provider merges those from settings.
+  Future<AchievementStats> achievementStats() async {
+    final rows = await _finishedRows();
+    if (rows.isEmpty) return const AchievementStats();
+
+    final dates = <DateTime>[];
+    var totalD = 0.0, longestD = 0.0;
+    var totalT = 0, longestT = 0;
+    double? bestSplit;
+    final kinds = <String>{};
+    var weekend = false, comeback = false, ftpSessions = 0;
+    int? earliestH, latestH;
+
+    for (var i = 0; i < rows.length; i++) {
+      final r = rows[i];
+      final at = DateTime.fromMillisecondsSinceEpoch(r['started_at'] as int);
+      final d = (r['distance_m'] as num?)?.toDouble() ?? 0;
+      final t = (r['duration_seconds'] as num?)?.toInt() ?? 0;
+      dates.add(at);
+      totalD += d;
+      totalT += t;
+      if (d > longestD) longestD = d;
+      if (t > longestT) longestT = t;
+      if (d >= 1000 && t > 0) {
+        final split = t / d * 500;
+        if (bestSplit == null || split < bestSplit) bestSplit = split;
+      }
+      if (r['kind'] != null) {
+        kinds.add(r['kind'] as String);
+        if ((r['kind'] as String).startsWith('ftp_')) ftpSessions++;
+      }
+      if (at.weekday == DateTime.saturday || at.weekday == DateTime.sunday) {
+        weekend = true;
+      }
+      earliestH = earliestH == null ? at.hour : (at.hour < earliestH ? at.hour : earliestH);
+      latestH = latestH == null ? at.hour : (at.hour > latestH ? at.hour : latestH);
+      if (i > 0) {
+        final prev =
+            DateTime.fromMillisecondsSinceEpoch(rows[i - 1]['started_at'] as int);
+        if (at.difference(prev).inDays >= 30) comeback = true;
+      }
+    }
+
+    final benchmarks = {
+      for (final b in await benchmarkHistory()) b.distanceM: b.bestSeconds,
+    };
+    final first = dates.first;
+    final now = DateTime.now();
+    final months =
+        (now.year - first.year) * 12 + now.month - first.month - (now.day < first.day ? 1 : 0);
+
+    return AchievementStats(
+      totalDistanceM: totalD,
+      totalDurationSeconds: totalT,
+      sessionCount: rows.length,
+      longestSessionM: longestD,
+      longestSessionSeconds: longestT,
+      bestAvgSplitSeconds: bestSplit,
+      currentWeekStreak: currentWeekStreak(dates),
+      longestWeekStreak: longestWeekStreak(dates),
+      currentDayStreak: currentDayStreak(dates),
+      longestDayStreak: longestDayStreak(dates),
+      sessionKinds: kinds,
+      monthsSinceFirst: months < 0 ? 0 : months,
+      best2kSeconds: benchmarks[2000],
+      best5kSeconds: benchmarks[5000],
+      best500mSeconds: benchmarks[500],
+      ftpTestCount: ftpSessions,
+      didRampTest: kinds.contains('ftp_ramp'),
+      rowedWeekendDay: weekend,
+      earliestStartHour: earliestH,
+      latestStartHour: latestH,
+      hadComeback: comeback,
+    );
   }
 }
 

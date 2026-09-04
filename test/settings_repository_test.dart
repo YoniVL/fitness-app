@@ -55,6 +55,24 @@ void main() {
     expect(h.map((f) => f.watts).toList(), [210, 200]); // Jul before Aug
   });
 
+  test('rowing achievements: merge never overwrites an existing unlock date',
+      () async {
+    expect(await repo.rowingAchievementsUnlocked(), isEmpty);
+    expect(await repo.rowingAchievementsSeeded(), isFalse);
+
+    final first = DateTime(2026, 1, 1);
+    await repo.unlockRowingAchievements({'a': first, 'b': DateTime(2026, 1, 2)});
+    await repo.unlockRowingAchievements(
+        {'a': DateTime(2026, 6, 1), 'c': DateTime(2026, 6, 1)});
+
+    final map = await repo.rowingAchievementsUnlocked();
+    expect(map.keys.toSet(), {'a', 'b', 'c'});
+    expect(map['a'], first); // not overwritten
+
+    await repo.markRowingAchievementsSeeded();
+    expect(await repo.rowingAchievementsSeeded(), isTrue);
+  });
+
   test('rowingDragK defaults to the generic constant and round-trips', () async {
     expect(await repo.rowingDragK(), kGeneric);
     await repo.setRowingDragK(3.15);

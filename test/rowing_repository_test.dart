@@ -114,6 +114,37 @@ void main() {
     expect(await rowing.weekStreak(), 1);
   });
 
+  test('achievementStats aggregates the finished sessions', () async {
+    final base = DateTime(2026, 3, 2, 6, 30); // a Monday, early
+    await rowing.logManualSession(
+        distanceM: 6000,
+        duration: const Duration(minutes: 25),
+        kind: 'endurance',
+        when: base);
+    await rowing.logManualSession(
+        distanceM: 8000,
+        duration: const Duration(minutes: 32),
+        kind: 'drempel',
+        when: base.add(const Duration(days: 1)));
+    await rowing.logManualSession(
+        distanceM: 2000,
+        duration: const Duration(minutes: 7, seconds: 40),
+        kind: 'test',
+        when: base.add(const Duration(days: 2)));
+
+    final s = await rowing.achievementStats();
+    expect(s.sessionCount, 3);
+    expect(s.totalDistanceM, 16000);
+    expect(s.longestSessionM, 8000);
+    expect(s.longestSessionSeconds, 32 * 60);
+    expect(s.sessionKinds, {'endurance', 'drempel', 'test'});
+    expect(s.currentDayStreak, 0); // base is in the past
+    expect(s.longestDayStreak, 3);
+    expect(s.best2kSeconds, 7 * 60 + 40);
+    expect(s.earliestStartHour, lessThan(7)); // started before 07:00
+    expect(s.bestAvgSplitSeconds, closeTo(460 / 2000 * 500, 0.01)); // the 2k
+  });
+
   test('deleting a session drops it from the weekly distance', () async {
     final keep = await rowing.logManualSession(
         distanceM: 4000, duration: const Duration(minutes: 20));

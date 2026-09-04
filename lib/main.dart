@@ -9,6 +9,7 @@ import 'app/router.dart';
 import 'app/theme.dart';
 import 'data/database/app_database.dart';
 import 'features/rowing/state/active_rowing_provider.dart';
+import 'features/rowing/state/rowing_achievements_provider.dart';
 import 'features/strength/state/rest_timer_notifier.dart';
 import 'services/rest_foreground_service.dart';
 
@@ -39,6 +40,9 @@ Future<void> main() async {
   // Open (and, first run, create + seed) the local database up front so the
   // first screen doesn't flash a loader.
   await AppDatabase.instance.database;
+  // One-time: mark the achievements already earned from past sessions as
+  // unlocked, so they don't fire a stack of celebration sheets later.
+  await maybeBackfillRowingAchievements(AppDatabase.instance);
   runApp(const ProviderScope(child: FitnessApp()));
 }
 
