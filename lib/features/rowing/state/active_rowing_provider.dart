@@ -548,6 +548,10 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     _pending.clear();
     await _rowing.discardSession(s.session.id);
     await _rower.disconnect();
+    ref.invalidate(recentSessionsProvider);
+    for (final p in rowingProgressProviders) {
+      ref.invalidate(p);
+    }
     state = const AsyncData(null);
   }
 }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/home_shell.dart';
+import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/rowing_format.dart';
@@ -70,6 +71,11 @@ class LogScreen extends ConsumerWidget {
                         .read(workoutSessionRepositoryProvider)
                         .deleteSession(summary.session.id);
                     ref.invalidate(recentSessionsProvider);
+                    if (summary.session.discipline == Discipline.rowing) {
+                      for (final p in rowingProgressProviders) {
+                        ref.invalidate(p);
+                      }
+                    }
                   },
                   child: _SessionTile(summary: summary, basePath: _base),
                 );

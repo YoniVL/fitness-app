@@ -152,8 +152,15 @@ class SessionDetailScreen extends ConsumerWidget {
       ),
     );
     if (ok != true) return;
+    final wasRowing = ref.read(_sessionDisciplineProvider(sessionId)).valueOrNull ==
+        Discipline.rowing;
     await ref.read(workoutSessionRepositoryProvider).deleteSession(sessionId);
     ref.invalidate(recentSessionsProvider);
+    if (wasRowing) {
+      for (final p in rowingProgressProviders) {
+        ref.invalidate(p);
+      }
+    }
     if (context.mounted) context.pop();
   }
 }

@@ -114,6 +114,21 @@ void main() {
     expect(await rowing.weekStreak(), 1);
   });
 
+  test('deleting a session drops it from the weekly distance', () async {
+    final keep = await rowing.logManualSession(
+        distanceM: 4000, duration: const Duration(minutes: 20));
+    final drop = await rowing.logManualSession(
+        distanceM: 3000, duration: const Duration(minutes: 16));
+    expect((await rowing.weeklyDistance()).last.distanceM, 7000);
+
+    await WorkoutSessionRepository(AppDatabase.instance).deleteSession(drop);
+    expect((await rowing.weeklyDistance()).last.distanceM, 4000);
+    expect((await rowing.weeklyDistance()).last.sessions, 1);
+
+    // Sanity: the kept session is untouched.
+    expect(await rowing.rowingDetail(keep), isNotNull);
+  });
+
   test('rowingDetail returns the plan segments for a plan session', () async {
     final programs = ProgramRepository(
         AppDatabase.instance, SettingsRepository(AppDatabase.instance));
