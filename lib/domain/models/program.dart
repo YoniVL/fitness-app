@@ -72,6 +72,7 @@ class Program {
     this.daysPerWeek,
     this.equipmentProfile = const [],
     this.goal,
+    this.ftpWattsAtGen,
   });
 
   final int id;
@@ -85,6 +86,11 @@ class Program {
 
   /// The rowing training goal, for generated / preset rowing plans.
   final RowingGoal? goal;
+
+  /// The FTP (watts) this rowing plan's per-segment targets were generated
+  /// against, or null when it was built without an FTP. Used to detect when the
+  /// targets have drifted from the user's current FTP.
+  final double? ftpWattsAtGen;
 
   /// Equipment tags this program assumes (see [Equipment]). A template is only
   /// shown in the library when the user owns all of these.
@@ -104,6 +110,7 @@ class Program {
         daysPerWeek: map['days_per_week'] as int?,
         equipmentProfile: Equipment.parse(map['equipment_profile'] as String?),
         goal: RowingGoal.fromName(map['goal'] as String?),
+        ftpWattsAtGen: (map['ftp_watts_at_gen'] as num?)?.toDouble(),
       );
 
   Map<String, Object?> toMap() => {
@@ -117,6 +124,7 @@ class Program {
         'days_per_week': daysPerWeek,
         'equipment_profile': equipmentProfile.join(','),
         'goal': goal?.name,
+        'ftp_watts_at_gen': ftpWattsAtGen,
       };
 }
 
@@ -219,6 +227,7 @@ class ProgramRowSegment {
     this.isRest = false,
     this.drillKey,
     this.zone,
+    this.targetWatts,
   });
 
   final int id;
@@ -236,6 +245,11 @@ class ProgramRowSegment {
   /// interval profile colours it right regardless of the raw stroke rate.
   final String? zone;
 
+  /// The target power (watts) for this segment, baked in from the user's FTP
+  /// when the plan was generated. Null for rest, for pre-FTP plans, and for
+  /// library templates.
+  final double? targetWatts;
+
   factory ProgramRowSegment.fromMap(Map<String, Object?> map) => ProgramRowSegment(
         id: map['id'] as int,
         programDayId: map['program_day_id'] as int,
@@ -246,6 +260,7 @@ class ProgramRowSegment {
         isRest: (map['is_rest'] as int? ?? 0) == 1,
         drillKey: map['drill_key'] as String?,
         zone: map['zone'] as String?,
+        targetWatts: (map['target_watts'] as num?)?.toDouble(),
       );
 
   Map<String, Object?> toMap() => {
@@ -258,7 +273,21 @@ class ProgramRowSegment {
         'is_rest': isRest ? 1 : 0,
         'drill_key': drillKey,
         'zone': zone,
+        'target_watts': targetWatts,
       };
+
+  ProgramRowSegment withTargetWatts(double? watts) => ProgramRowSegment(
+        id: id,
+        programDayId: programDayId,
+        orderIndex: orderIndex,
+        durationSeconds: durationSeconds,
+        targetStrokeRate: targetStrokeRate,
+        intensityLabel: intensityLabel,
+        isRest: isRest,
+        drillKey: drillKey,
+        zone: zone,
+        targetWatts: watts,
+      );
 }
 
 /// The active program plus where the user is in it.

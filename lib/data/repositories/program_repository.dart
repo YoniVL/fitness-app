@@ -3,6 +3,8 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../../domain/rowing_ftp.dart';
+import '../../domain/rowing_workouts.dart' show RowIntensity;
 import '../database/app_database.dart';
 import 'settings_repository.dart';
 
@@ -16,6 +18,7 @@ class NewProgramDraft {
     this.level,
     this.daysPerWeek,
     this.rowingGoal,
+    this.ftpWattsAtGen,
     required this.days,
   });
 
@@ -26,6 +29,9 @@ class NewProgramDraft {
   final ProgramLevel? level;
   final int? daysPerWeek;
   final RowingGoal? rowingGoal;
+
+  /// The FTP a generated rowing plan's per-segment targets were built against.
+  final double? ftpWattsAtGen;
   final List<NewProgramDayDraft> days;
 }
 
@@ -52,6 +58,7 @@ class NewRowSegmentDraft {
     this.isRest = false,
     this.drillKey,
     this.zone,
+    this.targetWatts,
   });
   final int durationSeconds;
   final int? targetStrokeRate;
@@ -59,6 +66,7 @@ class NewRowSegmentDraft {
   final bool isRest;
   final String? drillKey;
   final String? zone;
+  final double? targetWatts;
 }
 
 class NewProgramExerciseDraft {
@@ -136,6 +144,7 @@ class ProgramRepository {
         'days_per_week': draft.daysPerWeek,
         'equipment_profile': draft.equipmentProfile.join(','),
         'goal': draft.rowingGoal?.name,
+        'ftp_watts_at_gen': draft.ftpWattsAtGen,
       });
       for (var d = 0; d < draft.days.length; d++) {
         final day = draft.days[d];
@@ -169,6 +178,7 @@ class ProgramRepository {
             'is_rest': s.isRest ? 1 : 0,
             'drill_key': s.drillKey,
             'zone': s.zone,
+            'target_watts': s.targetWatts,
           });
         }
       }
@@ -284,6 +294,42 @@ class ProgramRepository {
         whereArgs: [programDayId],
         orderBy: 'order_index');
     return rows.map(ProgramRowSegment.fromMap).toList();
+  }
+
+  /// Recomputes `target_watts` for every non-rest segment of [programId] from
+  /// its stored zone against [ftpWatts], and records [ftpWatts] as the plan's
+  /// generation FTP. Used when the user's FTP has drifted from the plan.
+  Future<void> rewriteRowTargets(int programId, double ftpWatts) async {
+    final db = await _appDb.database;
+    final zones = RowingZones.fromFtp(ftpWatts);
+    await db.transaction((txn) async {
+      final segs = await txn.rawQuery(
+        'SELECT s.id AS id, s.zone AS zone, s.is_rest AS is_rest '
+        'FROM program_row_segments s '
+        'JOIN program_days d ON d.id = s.program_day_id '
+        'WHERE d.program_id = ?',
+        [programId],
+      );
+      for (final row in segs) {
+        final isRest = (row['is_rest'] as int? ?? 0) == 1;
+        final zone = _rowIntensity(row['zone'] as String?);
+        final watts = (isRest || zone == null)
+            ? null
+            : zones[zone]?.targetWatts.roundToDouble();
+        await txn.update('program_row_segments', {'target_watts': watts},
+            where: 'id = ?', whereArgs: [row['id']]);
+      }
+      await txn.update('programs', {'ftp_watts_at_gen': ftpWatts},
+          where: 'id = ?', whereArgs: [programId]);
+    });
+  }
+
+  static RowIntensity? _rowIntensity(String? name) {
+    if (name == null) return null;
+    for (final z in RowIntensity.values) {
+      if (z.name == name) return z;
+    }
+    return null;
   }
 
   // --- Active program + progression cursor --------------------------

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'models/program.dart';
 import 'models/rowing_plan.dart';
+import 'rowing_ftp.dart';
 import 'rowing_workouts.dart';
 
 /// One segment of a generated rowing session.
@@ -13,6 +14,7 @@ class GeneratedRowSegment {
     this.isRest = false,
     this.drillKey,
     this.zone,
+    this.targetWatts,
   });
 
   final int durationSeconds;
@@ -22,13 +24,23 @@ class GeneratedRowSegment {
   final String? drillKey;
   final String? zone;
 
-  factory GeneratedRowSegment.fromBlock(RowBlock b) => GeneratedRowSegment(
+  /// Target power (watts) from the user's FTP, or null when generated without
+  /// one. Filled by [RowingPlanGenerator] where the FTP is known.
+  final double? targetWatts;
+
+  factory GeneratedRowSegment.fromBlock(RowBlock b, {double? ftpWatts}) =>
+      GeneratedRowSegment(
         durationSeconds: b.seconds,
         targetSpm: b.spm,
         intensityLabel: b.label,
         isRest: b.isRest,
         drillKey: b.drillKey,
         zone: b.intensity.name,
+        targetWatts: (b.isRest || ftpWatts == null)
+            ? null
+            : RowingZones.fromFtp(ftpWatts)[b.intensity]
+                ?.targetWatts
+                .roundToDouble(),
       );
 }
 
@@ -58,6 +70,7 @@ class GeneratedRowingPlan {
     required this.sessionsPerWeek,
     required this.weeks,
     required this.sessions,
+    this.ftpWattsAtGen,
   });
 
   final String name;
@@ -66,6 +79,9 @@ class GeneratedRowingPlan {
   final int sessionsPerWeek;
   final int weeks;
   final List<GeneratedRowSession> sessions;
+
+  /// The FTP the per-segment targets were generated against, or null.
+  final double? ftpWattsAtGen;
 }
 
 class RowingPlanInput {
@@ -155,7 +171,7 @@ class RowingPlanGenerator {
 
   final Random _rng;
 
-  GeneratedRowingPlan generate(RowingPlanInput input) {
+  GeneratedRowingPlan generate(RowingPlanInput input, {double? ftpWatts}) {
     final spw = input.sessionsPerWeek.clamp(2, 5);
     final weeks = input.weeks.clamp(4, 16);
     final bands = (input.bands.isEmpty ? {(20, 30)} : input.bands).toList()
@@ -229,8 +245,9 @@ class RowingPlanGenerator {
           weekIndex: w,
           type: types[slot],
           label: 'Wk ${w + 1} · ${picks[slot].name}',
-          segments:
-              built[slot].map(GeneratedRowSegment.fromBlock).toList(),
+          segments: built[slot]
+              .map((b) => GeneratedRowSegment.fromBlock(b, ftpWatts: ftpWatts))
+              .toList(),
         ));
       }
     }
@@ -245,6 +262,7 @@ class RowingPlanGenerator {
       sessionsPerWeek: spw,
       weeks: weeks,
       sessions: sessions,
+      ftpWattsAtGen: ftpWatts,
     );
   }
 

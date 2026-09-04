@@ -234,6 +234,20 @@ Future<void> migrateV5toV6(Database db) async {
   await seedRowingTemplates(db);
 }
 
+/// v7 -> v8: FTP-personalised plans — a target power per rowing segment, baked
+/// in at generation time, plus the FTP the plan was generated against (so we can
+/// tell when it has drifted). Templates are reseeded (no user FTP at seed time,
+/// so their `target_watts` is NULL).
+Future<void> migrateV7toV8(Database db) async {
+  await db.execute(
+      'ALTER TABLE program_row_segments ADD COLUMN target_watts REAL');
+  await db.execute('ALTER TABLE programs ADD COLUMN ftp_watts_at_gen REAL');
+
+  await db.delete('programs',
+      where: "discipline = 'rowing' AND is_template = 1");
+  await seedRowingTemplates(db);
+}
+
 /// v6 -> v7: rowing session archetype on plan days, ad-hoc workout structure +
 /// session kind + robust elapsed on rowing sessions, and a reseed of the rowing
 /// templates with the periodised generator (build/deload curve + benchmarks).

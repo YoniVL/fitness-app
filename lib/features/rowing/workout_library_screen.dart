@@ -251,14 +251,7 @@ class _WorkoutSheet extends StatelessWidget {
                     [
                       _fmt(s.durationSeconds),
                       if (s.targetStrokeRate != null) '${s.targetStrokeRate} spm',
-                      if (targetSplitLabel(
-                              segmentZone(
-                                  zone: s.zone,
-                                  spm: s.targetStrokeRate,
-                                  isRest: s.isRest),
-                              ftp,
-                              dragK)
-                          case final t?)
+                      if (segmentTargetSplitLabel(s, ftp, dragK) case final t?)
                         '@$t',
                     ].join(' · '),
                     style: theme.textTheme.bodySmall?.copyWith(

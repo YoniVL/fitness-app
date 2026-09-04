@@ -775,6 +775,7 @@ Future<int> _insertRowingPlan(
     'days_per_week': plan.sessionsPerWeek,
     'equipment_profile': '',
     'goal': plan.goal.name,
+    'ftp_watts_at_gen': plan.ftpWattsAtGen,
   });
   for (var d = 0; d < plan.sessions.length; d++) {
     final session = plan.sessions[d];
@@ -795,6 +796,7 @@ Future<int> _insertRowingPlan(
         'is_rest': seg.isRest ? 1 : 0,
         'drill_key': seg.drillKey,
         'zone': seg.zone,
+        'target_watts': seg.targetWatts,
       });
     }
   }

@@ -58,6 +58,67 @@ void main() {
     expect(drillSegs.single.drillKey, 'benen');
   });
 
+  test('createProgram stores the per-segment target watts and generation FTP',
+      () async {
+    final id = await repo.createProgram(NewProgramDraft(
+      name: 'FTP-plan',
+      category: ProgramCategory.rowGenerated,
+      discipline: Discipline.rowing,
+      equipmentProfile: const [],
+      rowingGoal: RowingGoal.uithouding,
+      ftpWattsAtGen: 200,
+      days: [
+        NewProgramDayDraft(label: 'Dag 1', rowSessionType: 'endurance', segments: [
+          NewRowSegmentDraft(
+              durationSeconds: 1200,
+              targetStrokeRate: 20,
+              intensityLabel: 'Endurance',
+              zone: 'steady',
+              targetWatts: 150),
+          NewRowSegmentDraft(
+              durationSeconds: 120,
+              intensityLabel: 'Rust',
+              isRest: true,
+              zone: 'rest'),
+        ]),
+      ],
+    ));
+
+    expect((await repo.programById(id))!.ftpWattsAtGen, 200);
+    final segs = await repo.rowSegmentsForDay((await repo.daysForProgram(id)).single.id);
+    expect(segs.first.targetWatts, 150);
+    expect(segs.last.targetWatts, isNull); // rest
+  });
+
+  test('rewriteRowTargets recomputes segment watts for a new FTP', () async {
+    final id = await repo.createProgram(NewProgramDraft(
+      name: 'FTP-plan',
+      category: ProgramCategory.rowGenerated,
+      discipline: Discipline.rowing,
+      equipmentProfile: const [],
+      rowingGoal: RowingGoal.uithouding,
+      ftpWattsAtGen: 200,
+      days: [
+        NewProgramDayDraft(label: 'Dag 1', rowSessionType: 'drempel', segments: [
+          NewRowSegmentDraft(
+              durationSeconds: 600,
+              intensityLabel: 'Drempel',
+              zone: 'threshold',
+              targetWatts: 178), // 89 % of 200
+          NewRowSegmentDraft(
+              durationSeconds: 120, intensityLabel: 'Rust', isRest: true, zone: 'rest'),
+        ]),
+      ],
+    ));
+
+    await repo.rewriteRowTargets(id, 250);
+
+    expect((await repo.programById(id))!.ftpWattsAtGen, 250);
+    final segs = await repo.rowSegmentsForDay((await repo.daysForProgram(id)).single.id);
+    expect(segs.first.targetWatts, closeTo(250 * 0.89, 1)); // ~222
+    expect(segs.last.targetWatts, isNull);
+  });
+
   test('updateProgramContent replaces days/exercises in place for an own program',
       () async {
     final ownId = await repo.createProgram(NewProgramDraft(

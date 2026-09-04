@@ -21,8 +21,8 @@ void main() {
         weeks: weeks,
       );
 
-  GeneratedRowingPlan gen(RowingPlanInput i) =>
-      RowingPlanGenerator(rng: Random(42)).generate(i);
+  GeneratedRowingPlan gen(RowingPlanInput i, {double? ftpWatts}) =>
+      RowingPlanGenerator(rng: Random(42)).generate(i, ftpWatts: ftpWatts);
 
   test('produces weeks × sessionsPerWeek sessions', () {
     final plan = gen(input(spw: 3, weeks: 9));
@@ -142,6 +142,39 @@ void main() {
     // "threshold"; the stored zone must keep it "steady".
     for (final seg in work) {
       expect(seg.zone, 'steady', reason: seg.intensityLabel);
+    }
+  });
+
+  test('without an FTP, segments carry no target watts', () {
+    final plan = gen(input());
+    expect(plan.ftpWattsAtGen, isNull);
+    expect(plan.sessions.expand((s) => s.segments).every((s) => s.targetWatts == null),
+        isTrue);
+  });
+
+  test('with an FTP, non-rest segments get a zone-scaled target power', () {
+    final plan = gen(input(), ftpWatts: 200);
+    expect(plan.ftpWattsAtGen, 200);
+    final work = plan.sessions
+        .expand((s) => s.segments)
+        .where((s) => !s.isRest && s.zone == 'steady');
+    expect(work, isNotEmpty);
+    for (final s in work) {
+      // steady is 75 % of FTP → 150 W.
+      expect(s.targetWatts, 150);
+    }
+    // Rest segments never carry a target.
+    expect(
+        plan.sessions.expand((s) => s.segments).where((s) => s.isRest).every(
+            (s) => s.targetWatts == null),
+        isTrue);
+    // Harder zones pull a higher target than easier ones.
+    final byZone = <String, double>{};
+    for (final s in plan.sessions.expand((s) => s.segments)) {
+      if (!s.isRest && s.targetWatts != null) byZone[s.zone!] = s.targetWatts!;
+    }
+    if (byZone.containsKey('easy') && byZone.containsKey('threshold')) {
+      expect(byZone['threshold']!, greaterThan(byZone['easy']!));
     }
   });
 

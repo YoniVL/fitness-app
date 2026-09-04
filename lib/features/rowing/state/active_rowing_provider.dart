@@ -294,8 +294,14 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
+      // Bake the current FTP's pace targets into a catalogue workout (a guided
+      // FTP test is all-out — no target cue there).
+      final isFtpTest = kind?.startsWith('ftp_') ?? false;
+      final segs = isFtpTest
+          ? segments
+          : withFtpTargets(segments, (await _settings.rowingFtp())?.watts);
       final ids = await _rowing.startSession(
-        segmentsJson: encodeRowSegments(segments),
+        segmentsJson: encodeRowSegments(segs),
         kind: kind,
       );
       final session = WorkoutSession(
@@ -307,7 +313,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       return ActiveRowingState(
         session: session,
         rowingSessionId: ids.rowingSessionId,
-        segments: segments,
+        segments: segs,
         kind: kind,
         pausedReason: PauseReason.notStarted,
       );

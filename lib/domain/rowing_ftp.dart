@@ -428,6 +428,45 @@ FtpResult computeFtp(FtpSessionData detail, FtpProtocol protocol) {
   return FtpResult(watts: 0, protocol: protocol, lowConfidence: true);
 }
 
+RowIntensity? _zoneByName(String? name) {
+  if (name == null) return null;
+  for (final z in RowIntensity.values) {
+    if (z.name == name) return z;
+  }
+  return null;
+}
+
+/// Bakes an FTP-derived target power into each non-rest segment that doesn't
+/// already carry one. Used for ad-hoc catalogue workouts, which have no
+/// `program_day` to store targets on. Returns the list unchanged when there is
+/// no FTP.
+List<ProgramRowSegment> withFtpTargets(
+    List<ProgramRowSegment> segs, double? ftpWatts) {
+  if (ftpWatts == null || ftpWatts <= 0) return segs;
+  final zones = RowingZones.fromFtp(ftpWatts);
+  double? wattsFor(String? zoneName) {
+    final z = _zoneByName(zoneName);
+    return z == null ? null : zones[z]?.targetWatts.roundToDouble();
+  }
+
+  return [
+    for (final s in segs)
+      if (s.isRest || s.targetWatts != null)
+        s
+      else
+        s.withTargetWatts(wattsFor(s.zone)),
+  ];
+}
+
+/// Whether a plan's baked-in segment targets are worth recomputing: there is a
+/// current FTP, and either the plan was built without one or its generation FTP
+/// has drifted more than 4 %.
+bool rowTargetsStale(double? ftpAtGen, double? currentFtp) {
+  if (currentFtp == null || currentFtp <= 0) return false;
+  if (ftpAtGen == null || ftpAtGen <= 0) return true;
+  return (currentFtp - ftpAtGen).abs() / currentFtp > 0.04;
+}
+
 /// A rough training-level suggestion from FTP. 2k power ≈ FTP / 0.76. No body
 /// weight is considered, so this is only a starting point.
 ProgramLevel suggestedLevelFromFtp(double ftpWatts) {

@@ -64,14 +64,17 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
   }
 
   void _generate() {
-    final plan = RowingPlanGenerator().generate(RowingPlanInput(
-      sessionsPerWeek: _sessions,
-      goal: _goal,
-      level: _level,
-      bands: _selectedBands.isEmpty ? {_bands[1]} : _selectedBands,
-      weeks: _weeks,
-      name: _name.text,
-    ));
+    final plan = RowingPlanGenerator().generate(
+      RowingPlanInput(
+        sessionsPerWeek: _sessions,
+        goal: _goal,
+        level: _level,
+        bands: _selectedBands.isEmpty ? {_bands[1]} : _selectedBands,
+        weeks: _weeks,
+        name: _name.text,
+      ),
+      ftpWatts: ref.read(rowingFtpProvider).valueOrNull?.watts,
+    );
     setState(() => _plan = plan);
   }
 
@@ -98,6 +101,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             level: plan.level,
             daysPerWeek: plan.sessionsPerWeek,
             rowingGoal: plan.goal,
+            ftpWattsAtGen: plan.ftpWattsAtGen,
             days: [
               for (final s in plan.sessions)
                 NewProgramDayDraft(
@@ -112,6 +116,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
                         isRest: seg.isRest,
                         drillKey: seg.drillKey,
                         zone: seg.zone,
+                        targetWatts: seg.targetWatts,
                       ),
                   ],
                 ),

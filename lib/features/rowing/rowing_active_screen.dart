@@ -356,17 +356,10 @@ class _NowNextCard extends StatelessWidget {
     final segZone = segmentZone(
         zone: seg.zone, spm: seg.targetStrokeRate, isRest: seg.isRest);
     final zone = intensityColor(segZone, scheme);
-    final targetSplit = targetSplitSeconds(segZone, ftp, dragK);
+    final targetSplit = segmentTargetSplitSeconds(seg, ftp, dragK);
     final cue = paceCue(state.live?.paceSec500m, targetSplit, scheme);
-    final nextSplitLabel = next == null
-        ? null
-        : targetSplitLabel(
-            segmentZone(
-                zone: next.zone,
-                spm: next.targetStrokeRate,
-                isRest: next.isRest),
-            ftp,
-            dragK);
+    final nextSplitLabel =
+        next == null ? null : segmentTargetSplitLabel(next, ftp, dragK);
 
     return Card(
       margin: EdgeInsets.zero,

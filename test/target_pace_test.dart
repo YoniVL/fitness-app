@@ -1,8 +1,23 @@
+import 'package:fitnesstracker/domain/models/program.dart';
 import 'package:fitnesstracker/domain/rowing_ftp.dart';
 import 'package:fitnesstracker/domain/rowing_workouts.dart' show RowIntensity;
 import 'package:fitnesstracker/features/rowing/widgets/target_pace.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+ProgramRowSegment _seg(String zone,
+        {bool rest = false, double? watts, int? spm}) =>
+    ProgramRowSegment(
+      id: 0,
+      programDayId: 0,
+      orderIndex: 0,
+      durationSeconds: 300,
+      targetStrokeRate: spm,
+      intensityLabel: zone,
+      isRest: rest,
+      zone: rest ? null : zone,
+      targetWatts: watts,
+    );
 
 void main() {
   const scheme = ColorScheme.dark();
@@ -51,6 +66,58 @@ void main() {
     test('ignores an implausible live pace', () {
       expect(paceCue(5, target(RowIntensity.steady), scheme), isNull);
       expect(paceCue(1000, target(RowIntensity.steady), scheme), isNull);
+    });
+  });
+
+  group('segmentTargetSplitSeconds', () {
+    test('a baked-in target wins over the live FTP zone calc', () {
+      final baked = _seg('steady', watts: 100); // very easy → slow split
+      final live = _seg('steady'); // 75 % of 200 = 150 W
+      expect(segmentTargetSplitSeconds(baked, ftp, kGeneric),
+          greaterThan(segmentTargetSplitSeconds(live, ftp, kGeneric)!));
+      expect(segmentTargetSplitSeconds(baked, null, kGeneric),
+          closeTo(splitForWatts(100), 0.01));
+    });
+
+    test('null for rest and when there is nothing to go on', () {
+      expect(segmentTargetSplitSeconds(_seg('steady', rest: true), ftp, kGeneric),
+          isNull);
+      expect(segmentTargetSplitSeconds(_seg('steady'), null, kGeneric), isNull);
+    });
+  });
+
+  group('dayPaceSummary', () {
+    test('null when no segment has a target', () {
+      expect(dayPaceSummary([_seg('steady'), _seg('hard')], null, kGeneric),
+          isNull);
+    });
+
+    test('one zone → a single split', () {
+      final s = dayPaceSummary([_seg('steady', watts: 150)], null, kGeneric)!;
+      expect(s, startsWith('richttempo '));
+      expect(s, contains('/500m'));
+    });
+
+    test('two zones → duur + piek', () {
+      final s = dayPaceSummary(
+          [_seg('easy', watts: 120), _seg('hard', watts: 200)],
+          null,
+          kGeneric)!;
+      expect(s, contains('duur'));
+      expect(s, contains('piek'));
+    });
+  });
+
+  group('rowTargetsStale', () {
+    test('false without a current FTP', () {
+      expect(rowTargetsStale(180, null), isFalse);
+    });
+    test('true when the plan was built without an FTP', () {
+      expect(rowTargetsStale(null, 200), isTrue);
+    });
+    test('within 4 % is not stale', () {
+      expect(rowTargetsStale(197, 200), isFalse);
+      expect(rowTargetsStale(180, 200), isTrue);
     });
   });
 }

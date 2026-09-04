@@ -203,6 +203,42 @@ void main() {
     });
   });
 
+  group('withFtpTargets', () {
+    ProgramRowSegment seg(String zone, {bool rest = false, double? w}) =>
+        ProgramRowSegment(
+          id: 0,
+          programDayId: 0,
+          orderIndex: 0,
+          durationSeconds: 300,
+          intensityLabel: zone,
+          isRest: rest,
+          zone: rest ? null : zone,
+          targetWatts: w,
+        );
+
+    test('bakes a zone-scaled target into non-rest segments', () {
+      final out = withFtpTargets(
+          [seg('steady'), seg('rest', rest: true), seg('threshold')], 200);
+      expect(out[0].targetWatts, 150); // 75 %
+      expect(out[1].targetWatts, isNull); // rest
+      expect(out[2].targetWatts, 178); // 89 %
+    });
+
+    test('leaves an existing target and returns unchanged without an FTP', () {
+      expect(withFtpTargets([seg('steady', w: 99)], 200).single.targetWatts, 99);
+      expect(withFtpTargets([seg('steady')], null).single.targetWatts, isNull);
+    });
+  });
+
+  group('rowTargetsStale', () {
+    test('drift thresholds', () {
+      expect(rowTargetsStale(null, null), isFalse);
+      expect(rowTargetsStale(null, 200), isTrue);
+      expect(rowTargetsStale(200, 205), isFalse);
+      expect(rowTargetsStale(200, 240), isTrue);
+    });
+  });
+
   group('suggestedLevelFromFtp', () {
     test('bands', () {
       expect(suggestedLevelFromFtp(90), ProgramLevel.beginner);
