@@ -1,7 +1,6 @@
 import 'package:go_router/go_router.dart';
 
 import '../domain/models/program.dart';
-import '../features/dev/theme_preview_screen.dart';
 import '../features/home/discipline_chooser_screen.dart';
 import '../features/library/exercise_list_screen.dart';
 import '../features/library/library_screen.dart';
@@ -129,12 +128,6 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/rowing/achievements',
       builder: (context, state) => const RowingAchievementsScreen(),
-    ),
-    // Debug-only theme A/B preview — see the iteration 9 plan; removed once a
-    // palette is picked.
-    GoRoute(
-      path: '/dev/theme',
-      builder: (context, state) => const ThemePreviewScreen(),
     ),
     GoRoute(
       path: '/workout/active',

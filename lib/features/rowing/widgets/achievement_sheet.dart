@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../domain/rowing_achievements.dart';
+import '../../../ui/spacing.dart';
 import 'achievement_badge.dart';
 
 /// Shows a celebratory bottom sheet for the [newlyUnlocked] achievements.
@@ -28,7 +29,7 @@ Future<void> showAchievementsUnlockedSheet(
                 style: theme.textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
+              Gap.l,
               for (final a in newlyUnlocked)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -52,7 +53,7 @@ Future<void> showAchievementsUnlockedSheet(
                     ],
                   ),
                 ),
-              const SizedBox(height: 16),
+              Gap.l,
               FilledButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Top!'),

@@ -24,7 +24,7 @@ class DisciplineChooserScreen extends StatelessWidget {
               Text('Wat ga je doen?',
                   style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant)),
-              const SizedBox(height: 24),
+              Gap.xl,
               Expanded(
                 child: _ChoiceCard(
                   icon: Icons.fitness_center,
@@ -42,7 +42,7 @@ class DisciplineChooserScreen extends StatelessWidget {
                   onTap: () => context.go('/rowing/today'),
                 ),
               ),
-              const SizedBox(height: 8),
+              Gap.s,
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(

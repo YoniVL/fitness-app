@@ -1,7 +1,9 @@
-# Fitness Tracker — Claude notes
+# Cadans — Claude notes
 
 Native Android app (Flutter) voor krachttraining + roeitraining. Lokale opslag,
 geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
+Weergavenaam **Cadans** sinds iteratie 9; de interne pakketnaam blijft
+`fitnesstracker` (zie die iteratie hieronder).
 
 ## Stack
 - Flutter 3.47 / Dart 3.13, `flutter_riverpod` (v2, geen codegen), `sqflite`,
@@ -286,6 +288,34 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
+- **Iteratie 9 — naam, icoon, thema-verfijning + consistentie-pass** (code-compleet,
+  `95b2c71` … afwerking):
+  - **Naam**: weergavenaam → **Cadans** (`AndroidManifest.xml` label,
+    `MaterialApp.title`, opstartscherm, back-up-bestandsnaam). Interne
+    pakketnaam (`fitnesstracker`) en package-id ongemoeid.
+  - **Icoon**: `tool/generate_app_icon.py` (Pillow, 4× supersample + LANCZOS —
+    geen externe rasterizer nodig) tekent het pulsgolf-mark naar
+    `assets/icon/{icon,icon_foreground}.png`; `flutter_launcher_icons`
+    genereert de adaptive-icon-mipmaps. Script opnieuw draaien bij een
+    kleurwijziging van `AppTheme.seed`.
+  - **Thema**: `lib/app/theme.dart` — `AppTheme.seed` (Cadans-groen) met
+    `DynamicSchemeVariant.fidelity` (gekozen via een tijdelijk `/dev/theme`-
+    A/B-scherm, weer verwijderd). Componentthema's voor divider/list-tile/
+    chip/snackbar/dialog/navigationbar/segmented-button/progress-indicator.
+    `RowZonePalette` (de trainingszone-ramp) is een `ThemeExtension` — enige
+    bron voor die kleuren, gelezen via `Theme.of(context).extension<RowZonePalette>()`
+    of `intensityColorOf(context, zone)`.
+  - **`lib/ui/` — gedeelde UI-kit** (nieuw): `Gap` + `Insets` (spacing.dart),
+    `AppSection`/`AppSectionHeader` (kaart-sectie resp. losse kop), `StatTile`
+    (`StatSize` small/medium/big/hero, `StatLabelPosition` above/below) voor
+    elke "label + waarde"-weergave, `AsyncValueView`-extensie
+    (`.view(data, {loading, error})` en `.viewOrNothing(data)`) die de
+    `.when(...)`-boilerplate vervangt, `EmptyState`, `confirmDialog(...)` voor
+    elke ja/nee-bevestiging. Overgenomen op vrijwel elk scherm van de app —
+    lokale `_Section`/`_Stat`/`_MiniStat`/`_ChartLoading`/`_Empty`/
+    `_sectionHeader`-varianten zijn weg.
+  - Geen schema, geen migratie; puur rendering — gedrag ongewijzigd,
+    `flutter test` bleef groen na elke fase.
 - Plan: `C:\Users\figo_\.claude\plans\soft-leaping-goblet.md`.
 
 ## Valkuilen (echt gebeurd)
