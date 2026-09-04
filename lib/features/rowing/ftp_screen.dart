@@ -11,6 +11,8 @@ import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/spacing.dart';
 import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 
@@ -29,7 +31,7 @@ class FtpScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('FTP · roeitest')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: Insets.screenList,
         children: [
           _CurrentCard(ftp: ftp, dragK: dragK),
           if (ftp != null)
@@ -43,7 +45,7 @@ class FtpScreen extends ConsumerWidget {
                 child: const Text('FTP wissen'),
               ),
             ),
-          const SizedBox(height: 8),
+          Gap.s,
           Text(
             'Je FTP is het vermogen dat je ongeveer een uur volhoudt — de basis '
             'voor de richttempo\'s per zone. Zet ’m met een test, handmatig, '
@@ -51,7 +53,7 @@ class FtpScreen extends ConsumerWidget {
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 12),
+          Gap.m,
           Card(
             child: Column(
               children: [
@@ -81,11 +83,11 @@ class FtpScreen extends ConsumerWidget {
           if (history.length >= 2) ...[
             const SizedBox(height: 20),
             Text('Verloop', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 8),
+            Gap.s,
             SizedBox(height: 120, child: _HistoryChart(history: history)),
           ],
           if (history.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            Gap.m,
             for (final h in history.reversed)
               ListTile(
                 dense: true,
@@ -272,24 +274,15 @@ class FtpScreen extends ConsumerWidget {
       return;
     }
     final dragK = ref.read(rowingDragKProvider).valueOrNull ?? kGeneric;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('FTP overnemen?'),
-        content: Text('${res.watts.round()} W · '
-            '${paceLabel(splitForWatts(res.watts, dragK: dragK))}'
-            '${res.lowConfidence ? '\n\nRuwe schatting — weinig meetdata.' : ''}'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuleren')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Opslaan')),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'FTP overnemen?',
+      message: '${res.watts.round()} W · '
+          '${paceLabel(splitForWatts(res.watts, dragK: dragK))}'
+          '${res.lowConfidence ? '\n\nRuwe schatting — weinig meetdata.' : ''}',
+      confirmLabel: 'Opslaan',
     );
-    if (ok != true || !context.mounted) return;
+    if (!ok || !context.mounted) return;
     await _save(ref, RowingFtp(
       watts: res.watts,
       setAt: DateTime.now(),
@@ -329,7 +322,7 @@ class _CurrentCard extends StatelessWidget {
             ? Row(
                 children: [
                   Icon(Icons.speed, color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 12),
+                  Gap.m,
                   Text('Nog geen FTP ingesteld',
                       style: theme.textTheme.titleMedium),
                 ],
@@ -338,7 +331,7 @@ class _CurrentCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Huidige FTP', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: 4),
+                  Gap.xs,
                   Text('${f.watts.round()} W',
                       style: theme.textTheme.displaySmall
                           ?.copyWith(fontWeight: FontWeight.w700)),

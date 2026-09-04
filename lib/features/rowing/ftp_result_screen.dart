@@ -6,6 +6,8 @@ import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../ui/async_view.dart';
+import '../../ui/spacing.dart';
 import 'widgets/level_suggestion.dart';
 
 /// Shown after a guided FTP test finishes: the computed FTP, with the option to
@@ -25,10 +27,10 @@ class FtpResultScreen extends ConsumerWidget {
         title: const Text('Testresultaat'),
         automaticallyImplyLeading: false,
       ),
-      body: detailAsync.when(
+      body: detailAsync.view(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (detail) {
+        error: (e) => Center(child: Text('Fout: $e')),
+        (detail) {
           if (detail == null) {
             return const Center(child: Text('Sessie niet gevonden'));
           }
@@ -45,7 +47,7 @@ class FtpResultScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
             children: [
               Text(proto.label, style: theme.textTheme.labelLarge),
-              const SizedBox(height: 16),
+              Gap.l,
               if (res.watts <= 0)
                 Text(
                   'Kon geen bruikbaar vermogen uit deze sessie halen. '
@@ -54,7 +56,7 @@ class FtpResultScreen extends ConsumerWidget {
                 )
               else ...[
                 Text('Je FTP', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
+                Gap.xs,
                 Text('${res.watts.round()} W',
                     style: theme.textTheme.displayMedium
                         ?.copyWith(fontWeight: FontWeight.w800)),
@@ -76,7 +78,7 @@ class FtpResultScreen extends ConsumerWidget {
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
                 if (res.lowConfidence) ...[
-                  const SizedBox(height: 12),
+                  Gap.m,
                   Text('Ruwe schatting — weinig meetdata in het meetblok.',
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
@@ -86,7 +88,7 @@ class FtpResultScreen extends ConsumerWidget {
                   onPressed: () => _save(context, ref, res, proto),
                   child: const Text('Opslaan als mijn FTP'),
                 ),
-                const SizedBox(height: 8),
+                Gap.s,
               ],
               TextButton(
                 onPressed: () =>

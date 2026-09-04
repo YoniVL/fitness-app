@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../data/repositories/settings_repository.dart';
+import '../../../ui/empty_state.dart';
+import '../../../ui/spacing.dart';
 import '../rower_service.dart';
 import 'ble_rower_service.dart';
 
@@ -188,7 +190,7 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
                 Text(_error!,
                     style: TextStyle(color: theme.colorScheme.error)),
               ],
-              const SizedBox(height: 8),
+              Gap.s,
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
@@ -217,19 +219,12 @@ class _ConnectSheetState extends ConsumerState<_ConnectSheet> {
                         ),
                       ),
                     if (devices.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: Text(
-                            _scanning
-                                ? 'Zoeken naar trainers…'
-                                : 'Geen toestellen gevonden.\n'
-                                    'Staat je trainer aan?',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant),
-                          ),
-                        ),
+                      EmptyState(
+                        _scanning
+                            ? 'Zoeken naar trainers…'
+                            : 'Geen toestellen gevonden.\n'
+                                'Staat je trainer aan?',
+                        icon: Icons.bluetooth_searching,
                       )
                     else
                       for (final r in devices)

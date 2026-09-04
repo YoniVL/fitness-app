@@ -10,6 +10,7 @@ import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
 import '../../domain/rowing_plan_generator.dart';
 import '../../domain/rowing_workouts.dart' show RowIntensity;
+import '../../ui/spacing.dart';
 import 'widgets/interval_profile.dart';
 import 'widgets/level_suggestion.dart';
 import 'widgets/week_load_chart.dart';
@@ -139,7 +140,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             controller: _name,
             decoration: const InputDecoration(labelText: 'Naam (optioneel)'),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Doel'),
           Wrap(
             spacing: 8,
@@ -157,7 +158,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             child: Text(_goal.description,
                 style: Theme.of(context).textTheme.bodySmall),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Sessies per week'),
           SegmentedButton<int>(
             segments: const [
@@ -169,7 +170,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             selected: {_sessions},
             onSelectionChanged: (s) => setState(() => _sessions = s.first),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Niveau'),
           if (ref.watch(rowingFtpProvider).valueOrNull case final f?)
             Padding(
@@ -184,7 +185,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             selected: {_level},
             onSelectionChanged: (s) => _setLevel(s.first),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Sessieduur (meerdere mag — meer variatie)'),
           Wrap(
             spacing: 8,
@@ -199,7 +200,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           _label('Planlengte'),
           SegmentedButton<int>(
             segments: const [
@@ -210,7 +211,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
             selected: {_weeks},
             onSelectionChanged: (s) => setState(() => _weeks = s.first),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           FilledButton.icon(
             style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
             onPressed: _busy ? null : _generate,
@@ -255,15 +256,15 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
       const Divider(height: 32),
       Text('${plan.weeks} weken · ${plan.sessionsPerWeek}×/week',
           style: theme.textTheme.titleMedium),
-      const SizedBox(height: 4),
+      Gap.xs,
       Text('Trainingsminuten per week', style: theme.textTheme.labelMedium),
-      const SizedBox(height: 8),
+      Gap.s,
       WeekLoadChart(minutesPerWeek: weekMinutes),
       if (ftp != null) ...[
         const SizedBox(height: 10),
         _RichttempoLegend(ftp: ftp, dragK: dragK),
       ],
-      const SizedBox(height: 12),
+      Gap.m,
       for (final week in byWeek.keys)
         Card(
           child: Padding(
@@ -288,7 +289,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
                                         theme.colorScheme.onSurfaceVariant)),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        Gap.xs,
                         IntervalProfile(
                           blocks: profileFromGenerated(s.segments),
                           height: 34,
@@ -329,7 +330,7 @@ class _RichttempoLegend extends StatelessWidget {
         Text('Richttempo /500m  ·  FTP ${ftp.watts.round()} W',
             style: theme.textTheme.labelMedium
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 4),
+        Gap.xs,
         Wrap(
           spacing: 12,
           runSpacing: 4,

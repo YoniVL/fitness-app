@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/repositories/rowing_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
+import '../../ui/spacing.dart';
 import 'state/rowing_achievements_provider.dart';
 import 'widgets/achievement_sheet.dart';
 
@@ -124,7 +125,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Roeisessie loggen', style: theme.textTheme.titleLarge),
-        const SizedBox(height: 16),
+        Gap.l,
         TextField(
           controller: _distance,
           keyboardType: TextInputType.number,
@@ -134,7 +135,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
             suffixText: 'm',
           ),
         ),
-        const SizedBox(height: 12),
+        Gap.m,
         Row(
           children: [
             Expanded(
@@ -145,7 +146,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
                 decoration: const InputDecoration(labelText: 'Minuten'),
               ),
             ),
-            const SizedBox(width: 12),
+            Gap.m,
             Expanded(
               child: TextField(
                 controller: _seconds,
@@ -156,7 +157,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        Gap.m,
         TextField(
           controller: _spm,
           keyboardType: TextInputType.number,
@@ -166,7 +167,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
             suffixText: 'spm',
           ),
         ),
-        const SizedBox(height: 12),
+        Gap.m,
         DropdownButtonFormField<int>(
           initialValue: _kindIndex,
           decoration: const InputDecoration(labelText: 'Soort'),
@@ -176,7 +177,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
           ],
           onChanged: (v) => setState(() => _kindIndex = v ?? 0),
         ),
-        const SizedBox(height: 4),
+        Gap.xs,
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.event),
@@ -184,14 +185,14 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
           subtitle: Text(DateFormat('EEE d MMM y · HH:mm', 'nl').format(_when)),
           onTap: _pickWhen,
         ),
-        const SizedBox(height: 12),
+        Gap.m,
         TextField(
           controller: _notes,
           textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(labelText: 'Notitie (optioneel)'),
         ),
         if (_error != null) ...[
-          const SizedBox(height: 12),
+          Gap.m,
           Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
         ],
         const SizedBox(height: 20),

@@ -8,6 +8,7 @@ import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_ftp.dart';
 import '../../domain/rowing_workouts.dart';
+import '../../ui/spacing.dart';
 import 'ble/connect_sheet.dart';
 import 'state/active_rowing_provider.dart';
 import 'widgets/interval_profile.dart';
@@ -74,7 +75,7 @@ class _WorkoutLibraryScreenState extends ConsumerState<WorkoutLibraryScreen> {
                 Text('Niveau',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                const SizedBox(width: 12),
+                Gap.m,
                 Expanded(
                   child: SegmentedButton<ProgramLevel>(
                     showSelectedIcon: false,
@@ -139,7 +140,7 @@ class _WorkoutLibraryScreenState extends ConsumerState<WorkoutLibraryScreen> {
                   for (final w in byType[type]!)
                     _WorkoutRow(workout: w, level: level),
                 ],
-                const SizedBox(height: 24),
+                Gap.xl,
               ],
             ),
           ),
@@ -185,11 +186,11 @@ class _WorkoutRow extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(workout.name, style: theme.textTheme.bodyLarge),
-                  const SizedBox(height: 2),
+                  Gap.xs,
                   Text('~${workout.approxMinutes} min · ${workout.focus}',
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
-                  const SizedBox(height: 8),
+                  Gap.s,
                   IntervalProfile(
                     blocks: profileFromSegments(workoutSegments(workout, level)),
                     height: 26,
@@ -229,12 +230,12 @@ class _WorkoutSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(workout.name, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 4),
+          Gap.xs,
           Text(workout.focus, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 16),
+          Gap.l,
           IntervalProfile(
               blocks: profileFromSegments(segments), height: 84),
-          const SizedBox(height: 16),
+          Gap.l,
           for (final s in segments)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),

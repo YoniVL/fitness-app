@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../ui/spacing.dart';
+import '../../ui/stat_tile.dart';
 import 'state/ramp_test_provider.dart';
 import 'state/rowing_achievements_provider.dart';
 import 'widgets/achievement_sheet.dart';
@@ -76,12 +79,13 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
     final live = s.live;
     final liveW = live?.powerW ?? 0;
 
+    final zones = theme.extension<RowZonePalette>()!;
     final (holdLabel, holdColor) = s.phase == RampPhase.waiting
         ? ('', scheme.onSurfaceVariant)
         : switch (rampHold(s.recentAvgWatts, s.targetWatts)) {
             RampHold.onPace => ('op tempo', scheme.primary),
-            RampHold.close => ('bijna', const Color(0xFFFFCA28)),
-            RampHold.dropping => ('je valt terug', const Color(0xFFFF7043)),
+            RampHold.close => ('bijna', zones.threshold),
+            RampHold.dropping => ('je valt terug', zones.hard),
           };
 
     return Scaffold(
@@ -124,33 +128,34 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                                 color: scheme.onSurfaceVariant)),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    Gap.s,
                     LinearProgressIndicator(
                       value: s.stepElapsed.inSeconds / RampProtocol.stepSeconds,
                       minHeight: 4,
                     ),
-                    const SizedBox(height: 12),
+                    Gap.m,
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
-                            child: _Big(
+                            child: StatTile(
                               label: 'DOEL',
                               value: '${s.targetWatts.round()} W',
-                              sub: paceLabel(
-                                  splitForWatts(s.targetWatts, dragK: dragK),
-                                  withUnit: false),
+                              size: StatSize.hero,
+                              labelPosition: StatLabelPosition.above,
+                              sub: '${paceLabel(splitForWatts(s.targetWatts, dragK: dragK), withUnit: false)} /500m',
                               color: scheme.onSurface,
                             ),
                           ),
                           const SizedBox(width: 20),
                           Expanded(
-                            child: _Big(
+                            child: StatTile(
                               label: 'JIJ',
                               value: '${liveW.round()} W',
-                              sub: paceLabel(live?.paceSec500m,
-                                  withUnit: false),
+                              size: StatSize.hero,
+                              labelPosition: StatLabelPosition.above,
+                              sub: '${paceLabel(live?.paceSec500m, withUnit: false)} /500m',
                               color: holdColor,
                               badge: holdLabel,
                             ),
@@ -158,21 +163,30 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    Gap.s,
                     Row(
                       children: [
                         Expanded(
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              _Small('Slag', spmLabel(live?.strokeRate)),
-                              _Small('Tijd', hmsLabel(s.elapsed)),
+                              StatTile(
+                                  label: 'Slag',
+                                  value: spmLabel(live?.strokeRate),
+                                  size: StatSize.small),
+                              StatTile(
+                                  label: 'Tijd',
+                                  value: hmsLabel(s.elapsed),
+                                  size: StatSize.small),
                               if ((live?.heartRate ?? 0) > 0)
-                                _Small('HS', '${live!.heartRate}'),
+                                StatTile(
+                                    label: 'HS',
+                                    value: '${live!.heartRate}',
+                                    size: StatSize.small),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        Gap.l,
                         Expanded(
                           child: FilledButton.icon(
                             style: FilledButton.styleFrom(
@@ -191,78 +205,6 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                 ),
         ),
       ),
-    );
-  }
-}
-
-class _Big extends StatelessWidget {
-  const _Big({
-    required this.label,
-    required this.value,
-    required this.sub,
-    required this.color,
-    this.badge = '',
-  });
-  final String label;
-  final String value;
-  final String sub;
-  final Color color;
-  final String badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(label,
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            if (badge.isNotEmpty) ...[
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(badge,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(color: color, fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ],
-        ),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(value,
-              style: theme.textTheme.displayLarge
-                  ?.copyWith(fontWeight: FontWeight.w800, color: color)),
-        ),
-        Text('$sub /500m',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      ],
-    );
-  }
-}
-
-class _Small extends StatelessWidget {
-  const _Small(this.label, this.value);
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(value, style: theme.textTheme.titleLarge),
-        Text(label,
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      ],
     );
   }
 }

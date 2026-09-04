@@ -8,6 +8,10 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/spacing.dart';
+import '../../ui/stat_tile.dart';
 import 'ble/connect_sheet.dart';
 import 'rower_service.dart';
 import 'state/active_rowing_provider.dart';
@@ -80,22 +84,12 @@ class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen>
           PopupMenuButton<String>(
             onSelected: (v) async {
               if (v != 'discard') return;
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Sessie weggooien?'),
-                  content: const Text('Niets wordt opgeslagen.'),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Annuleren')),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Weggooien')),
-                  ],
-                ),
-              );
-              if (ok != true) return;
+              final ok = await confirmDialog(context,
+                  title: 'Sessie weggooien?',
+                  message: 'Niets wordt opgeslagen.',
+                  confirmLabel: 'Weggooien',
+                  destructive: true);
+              if (!ok) return;
               await ref.read(activeRowingProvider.notifier).discard();
               if (context.mounted) context.go('/rowing/today');
             },
@@ -105,12 +99,12 @@ class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen>
           ),
         ],
       ),
-      body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (state) => state == null
+      body: async.view(
+        (state) => state == null
             ? const Center(child: Text('Geen actieve roeisessie'))
             : _Body(state: state),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e) => Center(child: Text('Fout: $e')),
       ),
     );
   }
@@ -135,7 +129,7 @@ class _StatusChip extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.bluetooth, size: 14, color: color),
-        const SizedBox(width: 4),
+        Gap.xs,
         Text(label, style: Theme.of(context).textTheme.labelMedium),
       ],
     );
@@ -159,40 +153,45 @@ class _Body extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Stat(
+        StatTile(
           label: 'Afstand',
           value: distanceLabel(live?.distanceM ?? 0),
-          size: _StatSize.hero,
+          size: StatSize.big,
+          labelPosition: StatLabelPosition.above,
         ),
         const SizedBox(height: 14),
-        _Stat(
+        StatTile(
           label: 'Tijd',
           value: hmsLabel(state.elapsed),
-          size: _StatSize.hero,
+          size: StatSize.big,
+          labelPosition: StatLabelPosition.above,
         ),
         const SizedBox(height: 20),
         Row(
           children: [
             Expanded(
-              child: _Stat(
+              child: StatTile(
                 label: 'Tempo /500m',
                 value: paceLabel(live?.paceSec500m, withUnit: false),
-                size: _StatSize.big,
+                size: StatSize.medium,
+                labelPosition: StatLabelPosition.above,
               ),
             ),
             Expanded(
-              child: _Stat(
+              child: StatTile(
                 label: 'Slag',
                 value: spmLabel(live?.strokeRate),
-                size: _StatSize.big,
+                size: StatSize.medium,
+                labelPosition: StatLabelPosition.above,
               ),
             ),
             if (hr > 0)
               Expanded(
-                child: _Stat(
+                child: StatTile(
                   label: 'Hartslag',
                   value: '$hr',
-                  size: _StatSize.big,
+                  size: StatSize.medium,
+                  labelPosition: StatLabelPosition.above,
                 ),
               ),
           ],
@@ -231,7 +230,7 @@ class _Body extends ConsumerWidget {
                         : 'Pauze'),
               ),
             ),
-            const SizedBox(width: 12),
+            Gap.m,
             Expanded(
               child: FilledButton.icon(
                 onPressed: () => _finish(context, ref),
@@ -265,7 +264,7 @@ class _Body extends ConsumerWidget {
                           alignment: Alignment.centerLeft, child: numbers),
                     ),
                   ),
-                  const SizedBox(width: 24),
+                  Gap.xl,
                   Expanded(
                     flex: 5,
                     child: Column(
@@ -365,7 +364,7 @@ class _NowNextCard extends StatelessWidget {
         : null;
     final segZone = segmentZone(
         zone: seg.zone, spm: seg.targetStrokeRate, isRest: seg.isRest);
-    final zone = intensityColor(segZone, scheme);
+    final zone = intensityColorOf(context, segZone);
     final targetSplit = segmentTargetSplitSeconds(seg, ftp, dragK);
     final cue = paceCue(state.live?.paceSec500m, targetSplit, scheme);
     final nextSplitLabel =
@@ -396,7 +395,7 @@ class _NowNextCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
-                      const SizedBox(width: 12),
+                      Gap.m,
                       Text(hmsLabel(remaining),
                           style: theme.textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w600)),
@@ -465,38 +464,6 @@ class _NowNextCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-enum _StatSize { hero, big }
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value, required this.size});
-  final String label;
-  final String value;
-  final _StatSize size;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final valueStyle = switch (size) {
-      _StatSize.hero => theme.textTheme.displaySmall
-          ?.copyWith(fontWeight: FontWeight.w700, height: 1.05),
-      _StatSize.big => theme.textTheme.headlineSmall,
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: theme.textTheme.labelMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(value, style: valueStyle),
-        ),
-      ],
     );
   }
 }

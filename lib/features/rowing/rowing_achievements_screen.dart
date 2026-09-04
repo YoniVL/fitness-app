@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../domain/rowing_achievements.dart';
 import '../../domain/rowing_format.dart';
+import '../../ui/async_view.dart';
+import '../../ui/spacing.dart';
 import 'state/rowing_achievements_provider.dart';
 import 'widgets/achievement_badge.dart';
 
@@ -15,10 +17,10 @@ class RowingAchievementsScreen extends ConsumerWidget {
     final async = ref.watch(rowingAchievementsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Prestaties')),
-      body: async.when(
+      body: async.view(
+        (view) => _Body(view: view),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fout: $e')),
-        data: (view) => _Body(view: view),
+        error: (e) => Center(child: Text('Fout: $e')),
       ),
     );
   }
@@ -45,29 +47,29 @@ class _Body extends StatelessWidget {
     ];
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: Insets.screenList,
       children: [
         Text('$unlockedCount van ${rowingAchievements.length} behaald',
             style: theme.textTheme.titleMedium),
-        const SizedBox(height: 4),
+        Gap.xs,
         Text('Nieuwe stappen komen vanzelf terwijl je blijft roeien.',
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 16),
+        Gap.l,
         for (final cat in ladderCats) ...[
           Text(cat.label, style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
+          Gap.s,
           for (final key in ladderKeys.where((k) => _catOf(k) == cat))
             _LadderCard(
               state: ladderState(key, earned),
               stats: view.stats,
               unlockedAt: view.unlockedAt,
             ),
-          const SizedBox(height: 12),
+          Gap.m,
         ],
         Text(AchievementCategory.ontdekking.label,
             style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
+        Gap.s,
         for (final a in rowingAchievements
             .where((a) => a.category == AchievementCategory.ontdekking))
           _OneOffTile(
@@ -108,13 +110,13 @@ class _LadderCard extends StatelessWidget {
           children: [
             AchievementBadge(
                 achievement: show, unlocked: state.reached != null),
-            const SizedBox(width: 14),
+            Gap.m,
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(show.title, style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 2),
+                  Gap.xs,
                   Text(
                     done
                         ? 'Alles behaald in deze reeks'
@@ -125,13 +127,13 @@ class _LadderCard extends StatelessWidget {
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   if (!done) ...[
-                    const SizedBox(height: 8),
+                    Gap.s,
                     ClipRRect(
                       borderRadius: BorderRadius.circular(3),
                       child: LinearProgressIndicator(
                           value: frac, minHeight: 5),
                     ),
-                    const SizedBox(height: 4),
+                    Gap.xs,
                     Text(_progressLine(state.next!, stats),
                         style: theme.textTheme.labelSmall
                             ?.copyWith(color: scheme.onSurfaceVariant)),

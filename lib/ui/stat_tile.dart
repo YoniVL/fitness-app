@@ -59,7 +59,7 @@ class StatTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: labelStyle),
-        if (badge != null) ...[
+        if (badge != null && badge!.isNotEmpty) ...[
           const SizedBox(width: 10),
           Text(badge!,
               style: theme.textTheme.labelMedium
