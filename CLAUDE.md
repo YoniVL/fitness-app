@@ -198,8 +198,7 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
       draagt totalen over bij een rehydrate.
     - Nog door de gebruiker met de fysieke trainer te bevestigen: exacte
       afstand vs. het display van de roeimachine, en herverbinden na power-cycle.
-- **Iteratie 6 — FTP-test & tempo-personalisatie** (fase 1–6 gecommit,
-  `62e0030` … ; fase 7 FTP-verloop op Voortgang nog te doen):
+- **Iteratie 6 — FTP-test & tempo-personalisatie** (code-compleet, `62e0030` … `8f38e32`):
   - `lib/domain/rowing_ftp.dart`: FTP in **watt** (EXR-model); `splitForWatts`/
     `wattsForSplit` via `W = k/(s/m)³` met `k` = `rowing_drag_k`, gekalibreerd in
     `finish()` uit de sessie-samples (`calibrateDragK`), generiek 2,80 als terugval.
@@ -228,6 +227,9 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
     gedurende 6 s (na 10 s in de stap) → auto-stop; of "Stop"-knop; of 12 s geen data.
     `ramp_test_screen.dart` (portret): DOEL/JIJ groot + `rampHold` kleurindicator.
     `computeFtp` ramp-tak: `bestMinuteWatts × 0,75` (opgeslagen als `avg_power`).
+  - *Fase 7*: `_RowingProgress` "FTP"-sectie (huidige W + split + wattgrafiek).
+  - Nog door de gebruiker te bevestigen met de fysieke trainer: exacte doel-splits
+    vs. het machinedisplay, en of de ramp-faaldrempel goed aanvoelt.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
