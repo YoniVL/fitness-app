@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/repositories/rowing_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/rowing_format.dart';
+import '../../domain/rowing_ftp.dart';
 
 final _selectedExerciseProvider = StateProvider<int?>((ref) => null);
 
@@ -199,6 +201,9 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
         ref.watch(rowingBenchmarkHistoryProvider).valueOrNull ?? const [];
     final streak = ref.watch(rowingWeekStreakProvider).valueOrNull ?? 0;
     final totals = ref.watch(rowingMonthTotalsProvider).valueOrNull;
+    final ftpHistory =
+        ref.watch(rowingFtpHistoryProvider).valueOrNull ?? const <RowingFtp>[];
+    final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -287,6 +292,27 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
             ],
           ),
         ),
+        if (ftpHistory.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _Section(
+            title: 'FTP',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${ftpHistory.last.watts.round()} W  ·  '
+                  '${paceLabel(ftpHistory.last.splitSeconds(dragK: dragK))}',
+                  style: theme.textTheme.titleMedium,
+                ),
+                if (ftpHistory.length >= 2) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                      height: 120, child: _FtpTrendChart(history: ftpHistory)),
+                ],
+              ],
+            ),
+          ),
+        ],
         if (benchmarks.isNotEmpty) ...[
           const SizedBox(height: 8),
           _Section(
@@ -386,6 +412,63 @@ class _BenchmarkChart extends StatelessWidget {
               getTitlesWidget: (v, m) => v == m.max || v == m.min
                   ? const SizedBox.shrink()
                   : Text(hmsLabel(Duration(seconds: v.round())),
+                      style: Theme.of(context).textTheme.labelSmall),
+            ),
+          ),
+        ),
+        lineTouchData: const LineTouchData(enabled: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: false,
+            color: scheme.primary,
+            barWidth: 2,
+            dotData: const FlDotData(show: true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FtpTrendChart extends StatelessWidget {
+  const _FtpTrendChart({required this.history});
+  final List<RowingFtp> history;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final spots = [
+      for (var i = 0; i < history.length; i++)
+        FlSpot(i.toDouble(), history[i].watts),
+    ];
+    final ws = history.map((h) => h.watts);
+    final mn = ws.reduce((a, b) => a < b ? a : b);
+    final mx = ws.reduce((a, b) => a > b ? a : b);
+    return LineChart(
+      LineChartData(
+        minY: mn - 10,
+        maxY: mx + 10,
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: scheme.onSurface.withValues(alpha: 0.08),
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(),
+          rightTitles: const AxisTitles(),
+          bottomTitles: const AxisTitles(),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 36,
+              getTitlesWidget: (v, m) => v == m.max || v == m.min
+                  ? const SizedBox.shrink()
+                  : Text('${v.round()}',
                       style: Theme.of(context).textTheme.labelSmall),
             ),
           ),
