@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
+import '../../ui/async_view.dart';
+import '../../ui/confirm_dialog.dart';
+import '../../ui/spacing.dart';
 import '../exercises/exercise_media.dart';
 import '../library/exercise_list_screen.dart';
 import 'state/active_workout_provider.dart';
@@ -107,11 +110,11 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
   }
 
   Widget _buildScaffold(AsyncValue<ActiveWorkoutState?> async) {
-    return async.when(
+    return async.view(
       loading: () => const Scaffold(
           body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('Fout: $e'))),
-      data: (state) {
+      error: (e) => Scaffold(body: Center(child: Text('Fout: $e'))),
+      (state) {
         if (state == null) {
           return const Scaffold(
               body: Center(child: Text('Geen training bezig')));
@@ -288,24 +291,14 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
   }
 
   Future<void> _discard() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Training weggooien?'),
-        content: const Text('Alle gelogde sets van deze sessie gaan verloren.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuleren'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Weggooien'),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Training weggooien?',
+      message: 'Alle gelogde sets van deze sessie gaan verloren.',
+      confirmLabel: 'Weggooien',
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok) return;
     await ref.read(activeWorkoutProvider.notifier).discard();
     if (mounted) context.go('/strength/today');
   }
@@ -355,7 +348,7 @@ class _EmptyHint extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('Nog geen oefeningen.', textAlign: TextAlign.center),
-              const SizedBox(height: 12),
+              Gap.m,
               FilledButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add),
@@ -395,9 +388,9 @@ class _DonePageState extends State<_DonePage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.check_circle, size: 72, color: theme.colorScheme.primary),
-          const SizedBox(height: 16),
+          Gap.l,
           Text('Alle oefeningen klaar', style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 24),
+          Gap.xl,
           TextField(
             controller: _note,
             minLines: 1,
@@ -408,7 +401,7 @@ class _DonePageState extends State<_DonePage> {
               hintText: 'Hoe voelde het? Wat aanpassen volgende keer?',
             ),
           ),
-          const SizedBox(height: 16),
+          Gap.l,
           SizedBox(
             width: double.infinity,
             child: FilledButton(
@@ -418,7 +411,7 @@ class _DonePageState extends State<_DonePage> {
               child: const Text('Dag afronden'),
             ),
           ),
-          const SizedBox(height: 8),
+          Gap.s,
           TextButton(
             onPressed: widget.onAdd,
             child: const Text('Toch nog een oefening'),
@@ -540,7 +533,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                           .withValues(alpha: 0.25)),
             ),
           ),
-          const SizedBox(height: 12),
+          Gap.m,
           // Done sets — plain, no actions mixed in.
           if (block.sets.isNotEmpty)
             Wrap(
@@ -575,7 +568,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          Gap.s,
           if (!block.isComplete) ...[
             if (suggestWarmup && block.sets.isEmpty) ...[
               Align(
@@ -583,7 +576,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                 child: Text('Tip: begin met 1–2 opwarmsets',
                     style: theme.textTheme.bodySmall),
               ),
-              const SizedBox(height: 8),
+              Gap.s,
             ],
             NumberStepper(
               label:
@@ -593,7 +586,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
               max: 100,
               onChanged: (v) => setState(() => _reps = v),
             ),
-            const SizedBox(height: 4),
+            Gap.xs,
             InkWell(
               onTap: () => setState(() => _warmup = !warmup),
               child: Row(
@@ -607,7 +600,7 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            Gap.s,
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -648,25 +641,14 @@ class _ExercisePageState extends ConsumerState<_ExercisePage> {
     if (state == null || widget.blockIndex >= state.blocks.length) return;
     final block = state.blocks[widget.blockIndex];
     if (block.sets.isNotEmpty) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Oefening vervangen?'),
-          content: Text(
-              'De ${block.sets.length} gelogde set(s) van "${block.exercise.name}" gaan verloren.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuleren'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Vervangen'),
-            ),
-          ],
-        ),
+      final ok = await confirmDialog(
+        context,
+        title: 'Oefening vervangen?',
+        message:
+            'De ${block.sets.length} gelogde set(s) van "${block.exercise.name}" gaan verloren.',
+        confirmLabel: 'Vervangen',
       );
-      if (ok != true) return;
+      if (!ok) return;
     }
     if (!mounted) return;
     final id = await Navigator.of(context).push<int>(
@@ -770,7 +752,7 @@ class _MiniChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 13, color: color),
-            const SizedBox(width: 4),
+            Gap.xs,
             Text(label,
                 style: Theme.of(context)
                     .textTheme
