@@ -326,7 +326,10 @@ class _Body extends ConsumerWidget {
     final id = await ref
         .read(activeRowingProvider.notifier)
         .finish(notes: note.isEmpty ? null : note);
-    if (context.mounted) {
+    if (!context.mounted) return;
+    if (id != null && (state.kind?.startsWith('ftp_') ?? false)) {
+      context.go('/rowing/ftp/result/$id');
+    } else {
       context.go(id != null ? '/rowing/log/session/$id' : '/rowing/today');
     }
   }

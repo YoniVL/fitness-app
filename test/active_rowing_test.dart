@@ -55,10 +55,19 @@ void main() {
   });
 
   test('copyWith keeps identity fields', () {
-    final s = _state([_seg(0, 60)]);
+    final s = ActiveRowingState(
+      session: WorkoutSession(
+          id: 1,
+          discipline: Discipline.rowing,
+          startedAt: DateTime(2026, 9, 3, 8)),
+      rowingSessionId: 1,
+      segments: [_seg(0, 60)],
+      kind: 'ftp_20min',
+    );
     final n = s.copyWith(segmentIndex: 5, pausedReason: PauseReason.user);
     expect(n.session.id, s.session.id);
     expect(n.rowingSessionId, s.rowingSessionId);
+    expect(n.kind, 'ftp_20min');
     expect(n.segmentIndex, 5);
     expect(n.paused, isTrue);
   });

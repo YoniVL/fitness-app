@@ -72,6 +72,7 @@ class ActiveRowingState {
     required this.session,
     required this.rowingSessionId,
     required this.segments,
+    this.kind,
     this.segmentIndex = 0,
     this.elapsed = Duration.zero,
     this.segmentElapsed = Duration.zero,
@@ -81,6 +82,9 @@ class ActiveRowingState {
 
   final WorkoutSession session;
   final int rowingSessionId;
+
+  /// `rowing_sessions.kind` — a `RowSessionType.name`, or `ftp_*` for a test.
+  final String? kind;
 
   /// Program segments, or empty for a free row (one open-ended block).
   final List<ProgramRowSegment> segments;
@@ -134,6 +138,7 @@ class ActiveRowingState {
         session: session,
         rowingSessionId: rowingSessionId,
         segments: segments,
+        kind: kind,
         segmentIndex: segmentIndex ?? this.segmentIndex,
         elapsed: elapsed ?? this.elapsed,
         segmentElapsed: segmentElapsed ?? this.segmentElapsed,
@@ -219,6 +224,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       session: session,
       rowingSessionId: db?.rowing.id ?? 0,
       segments: segments,
+      kind: db?.rowing.kind,
       segmentIndex: idx,
       elapsed: elapsed,
       segmentElapsed: elapsed - acc,
@@ -255,6 +261,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         session: session,
         rowingSessionId: ids.rowingSessionId,
         segments: segments,
+        kind: day.rowSessionType,
         pausedReason: PauseReason.notStarted,
       );
     });
@@ -301,6 +308,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         session: session,
         rowingSessionId: ids.rowingSessionId,
         segments: segments,
+        kind: kind,
         pausedReason: PauseReason.notStarted,
       );
     });
