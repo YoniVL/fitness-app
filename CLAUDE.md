@@ -198,6 +198,29 @@ geen cloud/accounts. Live BLE-koppeling met een FTMS-roeitrainer (later).
       draagt totalen over bij een rehydrate.
     - Nog door de gebruiker met de fysieke trainer te bevestigen: exacte
       afstand vs. het display van de roeimachine, en herverbinden na power-cycle.
+- **Iteratie 6 — FTP-test & tempo-personalisatie** (fase 1–5 gecommit,
+  `62e0030` … `31e01c1`; fase 6 ramp-test + fase 7 FTP-verloop nog te doen):
+  - `lib/domain/rowing_ftp.dart`: FTP in **watt** (EXR-model); `splitForWatts`/
+    `wattsForSplit` via `W = k/(s/m)³` met `k` = `rowing_drag_k`, gekalibreerd in
+    `finish()` uit de sessie-samples (`calibrateDragK`), generiek 2,80 als terugval.
+    `RowingZones.fromFtp` → per `RowIntensity` doel-watt + split-band
+    (easy 0,63 · steady 0,75 · threshold 0,89 · hard 1,00 · max 1,20 × FTP).
+    `computeFtp(FtpSessionData, FtpProtocol)` — effort-window-gemiddeld vermogen ×
+    0,95 (20 min) / 0,88 (kort) / 0,75×beste-minuut (ramp); terugval op afstand/tijd.
+    `suggestedLevelFromFtp`, `ftpTestSegments`.
+  - Opslag in `app_settings` (k/v + `rowing_ftp_history` JSON) — **geen migratie**.
+    Providers `rowingFtpProvider` / `rowingFtpHistoryProvider` / `rowingDragKProvider`.
+  - `ftp_screen.dart` (`/rowing/ftp`, via Instellingen → Roeien): handmatig (watt of
+    2k-tijd), "Doe een test" (protocolkiezer — ramp nog `_rampAvailable = false`),
+    "Overnemen uit logboek", geschiedenis, "FTP wissen".
+  - Geleide test = gewone `startWorkout(ftpTestSegments(p, level), kind: p.kind)`;
+    `ActiveRowingState.kind` (identiteitsveld) → `_finish` routet `ftp_*` naar
+    `ftp_result_screen.dart` (`/rowing/ftp/result/:id`) i.p.v. het sessiedetail.
+  - Richttempo overal via `widgets/target_pace.dart` (`targetSplitLabel`, stille
+    `paceCue`): live-scherm `_NowNextCard`, catalogus-sheet (`@2:05`), builder-preview.
+    Alles gated op `ftp != null`.
+  - `widgets/level_suggestion.dart`: `LevelSuggestionCard` bij de niveau-keuze +
+    `maybePromptLevelFromFtp` na een test.
 - **Navigatie-valkuil**: go_router relatieve `context.push('foo')` bleek niet
   betrouwbaar te resolven binnen de shells → overal absolute paden
   (`/rowing/log/session/$id` enz.).
