@@ -10,6 +10,7 @@ import '../features/log/session_detail_screen.dart';
 import '../features/program_builder/builder_screen.dart';
 import '../features/program_builder/program_editor_screen.dart';
 import '../features/progress/progress_screen.dart';
+import '../features/rowing/ftp_screen.dart';
 import '../features/rowing/rowing_active_screen.dart';
 import '../features/rowing/rowing_builder_screen.dart';
 import '../features/rowing/workout_library_screen.dart';
@@ -106,6 +107,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/rowing/builder',
       builder: (context, state) => const RowingBuilderScreen(),
+    ),
+    GoRoute(
+      path: '/rowing/ftp',
+      builder: (context, state) => const FtpScreen(),
     ),
     GoRoute(
       path: '/workout/active',

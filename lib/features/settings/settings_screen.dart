@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/rowing_format.dart';
+import '../../domain/rowing_ftp.dart';
 import '../../domain/taxonomy.dart';
 import '../exercises/exercise_media.dart';
 import '../rowing/ble/connect_sheet.dart';
@@ -132,6 +135,17 @@ class SettingsScreen extends ConsumerWidget {
                     'Geen trainer gekoppeld'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showConnectRowerSheet(context, ref),
+          ),
+          ListTile(
+            leading: const Icon(Icons.speed),
+            title: const Text('FTP (roeitest)'),
+            subtitle: Text(switch (ref.watch(rowingFtpProvider).valueOrNull) {
+              final f? => '${f.watts.round()} W · '
+                  '${paceLabel(f.splitSeconds(dragK: ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric))}',
+              _ => 'Nog niet ingesteld',
+            }),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/rowing/ftp'),
           ),
           demoMode.when(
             loading: () => const SizedBox.shrink(),
