@@ -758,26 +758,39 @@ class _RowingDayCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                     decoration: BoxDecoration(
                       border: Border(
                         top: BorderSide(color: p.rule, width: 2),
                         bottom: BorderSide(color: p.line),
                       ),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            '~${i.$1} MIN · ${_blocks(i.$2).toUpperCase()}',
-                            style: theme.textTheme.labelSmall
-                                ?.copyWith(fontSize: 10, letterSpacing: 1.0),
-                          ),
+                        Text(
+                          '~${i.$1} MIN · ${_blocks(i.$2).toUpperCase()}',
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(fontSize: 10, letterSpacing: 1.0),
                         ),
-                        if (pace != null)
-                          Text(pace.toUpperCase(),
+                        if (pace != null) ...[
+                          const SizedBox(height: 6),
+                          Text('DOELTEMPO',
                               style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: 10, letterSpacing: 0.6)),
+                                  fontSize: 9,
+                                  letterSpacing: 1.1,
+                                  color: p.accent)),
+                          const SizedBox(height: 2),
+                          Text(
+                            pace
+                                .replaceFirst('richttempo ', '')
+                                .replaceAll(' /500m', '')
+                                .toUpperCase(),
+                            style: AppTheme.numeric(size: 18, color: p.ink)
+                                .copyWith(letterSpacing: 0),
+                          ),
+                        ],
                       ],
                     ),
                   ),

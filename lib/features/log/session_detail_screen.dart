@@ -165,21 +165,23 @@ class _BottomBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton(
-                  onPressed: onDone,
-                  child: const Align(
-                      alignment: Alignment.centerLeft, child: Text('KLAAR')),
+          child: SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onDone,
+                    child: const Text('KLAAR'),
+                  ),
                 ),
-              ),
-              Gap.s,
-              OutlinedButton(
-                onPressed: onNote,
-                child: const Text('NOTITIE'),
-              ),
-            ],
+                Gap.s,
+                OutlinedButton(
+                  onPressed: onNote,
+                  child: const Text('NOTITIE'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

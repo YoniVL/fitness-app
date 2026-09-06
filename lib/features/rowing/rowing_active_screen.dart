@@ -234,7 +234,7 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final p = context.palette;
-    final zoneColor = context.zones.ramp[zone.index];
+    final zoneColor = intensityColorOf(context, zone);
     final title = hasSegments
         ? 'INTERVAL ${segmentIndex + 1} VAN $segmentCount · '
             '${segmentLabel.toUpperCase()}'
@@ -374,7 +374,6 @@ class _PacePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final p = context.palette;
-    final zones = context.zones;
     final delta = (pace != null && targetSplit != null)
         ? pace! - targetSplit!
         : null;
@@ -438,18 +437,43 @@ class _PacePanel extends StatelessWidget {
               ],
             ],
           ),
+          if (targetSplit != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(border: Border.all(color: p.line)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('DOEL',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 11, letterSpacing: 1.2, color: p.mute)),
+                  const SizedBox(width: 8),
+                  Text(paceLabel(targetSplit, withUnit: false),
+                      style: AppTheme.numeric(size: 22, color: p.ink)),
+                  const SizedBox(width: 4),
+                  Text('/500M',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 11, letterSpacing: 0.6, color: p.mute)),
+                ],
+              ),
+            ),
+          ],
           if (hasSegments) ...[
             const SizedBox(height: 14),
             Row(
               children: [
-                for (var i = 0; i < 6; i++) ...[
-                  if (i > 0) const SizedBox(width: 2),
+                for (final z in RowIntensity.values) ...[
+                  if (z != RowIntensity.values.first)
+                    const SizedBox(width: 2),
                   Expanded(
                     child: Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        color: zones.ramp[i],
-                        border: i == zone.index
+                        color: intensityColorOf(context, z),
+                        border: z == zone
                             ? Border.all(color: p.ink, width: 2)
                             : null,
                       ),
@@ -473,13 +497,7 @@ class _PacePanel extends StatelessWidget {
                       )),
               ],
             ),
-          ] else if (targetSplit != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text('DOEL ${paceLabel(targetSplit, withUnit: false)}',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(fontSize: 10, letterSpacing: 0.8)),
-            ),
+          ],
         ],
       ),
     );
