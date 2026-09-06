@@ -37,13 +37,9 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         children: [
           const AppSectionHeader('Mijn materiaal'),
-          owned.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (e, _) => Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Fout: $e'),
-            ),
-            data: (tags) => Column(
+          owned.view(
+            loadingHeight: 80,
+            (tags) => Column(
               children: [
                 for (final tag in Equipment.all)
                   CheckboxListTile(

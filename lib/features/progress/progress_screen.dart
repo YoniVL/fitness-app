@@ -613,8 +613,7 @@ class _WeeklyDistanceChart extends StatelessWidget {
                   toY: points[i].distanceM / 1000,
                   color: scheme.primary,
                   width: 14,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(4)),
+                  borderRadius: BorderRadius.zero,
                 ),
               ]),
           ],
@@ -781,8 +780,7 @@ class _WeeklySetsChart extends StatelessWidget {
                   toY: points[i].value.toDouble(),
                   color: scheme.primary,
                   width: 14,
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(4)),
+                  borderRadius: BorderRadius.zero,
                 ),
               ]),
           ],
@@ -816,20 +814,11 @@ class _MuscleBars extends StatelessWidget {
                   child: LayoutBuilder(
                     builder: (context, c) => Stack(
                       children: [
+                        Container(height: 16, color: scheme.outlineVariant),
                         Container(
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: scheme.onSurface.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        Container(
-                          height: 18,
+                          height: 16,
                           width: c.maxWidth * (r.sets / max),
-                          decoration: BoxDecoration(
-                            color: scheme.primary,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                          color: scheme.primary,
                         ),
                       ],
                     ),

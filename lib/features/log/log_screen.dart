@@ -83,8 +83,6 @@ class LogScreen extends ConsumerWidget {
               },
             );
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e) => Center(child: Text('Fout: $e')),
         ),
       ),
     );

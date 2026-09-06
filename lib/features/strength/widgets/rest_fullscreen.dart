@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/theme.dart';
 import '../../../data/repositories/workout_session_repository.dart';
 import '../../exercises/exercise_media.dart';
 import '../../../ui/spacing.dart';
@@ -24,62 +25,58 @@ class RestFullscreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final timer = ref.watch(restTimerProvider);
     final notifier = ref.read(restTimerProvider.notifier);
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
+    final p = context.palette;
 
     final remaining = timer.remainingSeconds.clamp(0, 9999);
     final mmss = '${(remaining ~/ 60).toString().padLeft(2, '0')}:'
         '${(remaining % 60).toString().padLeft(2, '0')}';
 
     return Scaffold(
-      // Opaque: this sits on top of the (still-mounted) exercise pager.
-      backgroundColor: Color.alphaBlend(
-          scheme.surfaceContainerHighest.withValues(alpha: 0.6), scheme.surface),
+      backgroundColor: p.surface,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Gap.m,
               Text('RUST',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(letterSpacing: 4, color: scheme.primary)),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      letterSpacing: 3, color: p.accent, fontSize: 12)),
               const Spacer(),
-              SizedBox(
-                width: 240,
-                height: 240,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 240,
-                      height: 240,
-                      child: CircularProgressIndicator(
-                        value: (1 - timer.progress).clamp(0.0, 1.0),
-                        strokeWidth: 10,
-                        backgroundColor:
-                            scheme.onSurface.withValues(alpha: 0.12),
+              Center(
+                child: SizedBox(
+                  width: 236,
+                  height: 236,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 236,
+                        height: 236,
+                        child: CircularProgressIndicator(
+                          value: (1 - timer.progress).clamp(0.0, 1.0),
+                          strokeWidth: 8,
+                          backgroundColor: p.line,
+                        ),
                       ),
-                    ),
-                    Text(mmss, style: theme.textTheme.displayMedium),
-                  ],
+                      Text(mmss, style: AppTheme.numeric(size: 60, color: p.ink)),
+                    ],
+                  ),
                 ),
               ),
               Gap.l,
               if (nextExerciseName != null) ...[
-                Text('Volgende',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.labelMedium),
+                Text('VOLGENDE',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(fontSize: 10, letterSpacing: 1.2)),
                 const SizedBox(height: 2),
-                Text(nextExerciseName!,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge),
+                Text(nextExerciseName!, style: theme.textTheme.titleLarge),
                 if (nextSetLabel != null)
-                  Text(nextSetLabel!,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium),
+                  Text(nextSetLabel!.toUpperCase(),
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(fontSize: 10, letterSpacing: 1.0)),
                 if (nextExerciseId != null)
                   Builder(builder: (context) {
                     final last = ref
@@ -92,65 +89,50 @@ class RestFullscreen extends ConsumerWidget {
                         const [];
                     if (reps.isEmpty) return const SizedBox.shrink();
                     return Text('Vorige keer: ${reps.join(' · ')}',
-                        textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall);
                   }),
                 if (hasExercisePhoto(nextExerciseName)) ...[
                   const SizedBox(height: 10),
-                  ExerciseDemo(exerciseName: nextExerciseName, maxHeight: 160),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child:
+                        ExerciseDemo(exerciseName: nextExerciseName, maxHeight: 150),
+                  ),
                 ],
               ],
               const Spacer(),
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _RoundButton(
-                    label: '−15s',
-                    onTap: () => notifier.addSeconds(-15),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => notifier.addSeconds(-15),
+                      child: const Center(child: Text('−15s')),
+                    ),
                   ),
-                  Gap.l,
-                  _RoundButton(
-                    label: '+15s',
-                    onTap: () => notifier.addSeconds(15),
+                  Gap.s,
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => notifier.addSeconds(15),
+                      child: const Center(child: Text('+15s')),
+                    ),
                   ),
                 ],
               ),
-              Gap.m,
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52)),
-                onPressed: notifier.skip,
-                child: const Text('Overslaan'),
+              Gap.s,
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: notifier.skip,
+                  child: Row(
+                    children: const [
+                      Expanded(child: Text('OVERSLAAN')),
+                      Icon(Icons.skip_next, size: 18),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.secondaryContainer,
-      shape: const StadiumBorder(),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-          child: Text(label,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: scheme.onSecondaryContainer)),
         ),
       ),
     );
