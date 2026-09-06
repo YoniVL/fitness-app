@@ -86,7 +86,7 @@ class FtpResultScreen extends ConsumerWidget {
                 const SizedBox(height: 28),
                 FilledButton(
                   onPressed: () => _save(context, ref, res, proto),
-                  child: const Text('Opslaan als mijn FTP'),
+                  child: const Text('OPSLAAN ALS MIJN FTP'),
                 ),
                 Gap.s,
               ],

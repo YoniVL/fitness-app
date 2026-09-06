@@ -52,7 +52,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('209 W'), findsOneWidget); // 220 * 0.95
-    expect(find.text('Opslaan als mijn FTP'), findsOneWidget);
+    expect(find.text('OPSLAAN ALS MIJN FTP'), findsOneWidget);
     expect(find.text('20-minutentest'), findsOneWidget);
   });
 }

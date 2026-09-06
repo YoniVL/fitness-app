@@ -114,7 +114,7 @@ class _ProgramEditorScreenState extends ConsumerState<ProgramEditorScreen> {
                     OutlinedButton.icon(
                       onPressed: _addDay,
                       icon: const Icon(Icons.add),
-                      label: const Text('Dag toevoegen'),
+                      label: const Text('DAG TOEVOEGEN'),
                     ),
                   ],
                 ),

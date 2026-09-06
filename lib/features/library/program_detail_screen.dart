@@ -235,7 +235,7 @@ class _DayCard extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: onStart,
-                  child: const Text('Start deze dag los'),
+                  child: const Text('START DEZE DAG LOS'),
                 ),
               ),
             ],
@@ -454,7 +454,7 @@ class _RowSessionCard extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: onStart,
-                  child: const Text('Start deze sessie'),
+                  child: const Text('START DEZE SESSIE'),
                 ),
               ),
             ),

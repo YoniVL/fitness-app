@@ -266,7 +266,7 @@ class _WorkoutSheet extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               icon: const Icon(Icons.play_arrow),
-              label: const Text('Start deze workout'),
+              label: const Text('START DEZE WORKOUT'),
               onPressed: () => Navigator.pop(context, true),
             ),
           ),

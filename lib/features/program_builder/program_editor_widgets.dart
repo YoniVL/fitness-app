@@ -114,7 +114,7 @@ class _DayEditorSheetState extends State<DayEditorSheet> {
               child: OutlinedButton.icon(
                 onPressed: _addExercise,
                 icon: const Icon(Icons.add),
-                label: const Text('Oefening toevoegen'),
+                label: const Text('OEFENING TOEVOEGEN'),
               ),
             ),
           ),
