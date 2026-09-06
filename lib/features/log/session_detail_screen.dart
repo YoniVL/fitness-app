@@ -315,7 +315,7 @@ class _StatGrid extends StatelessWidget {
               children: [
                 if (c.$3 != null)
                   TextSpan(
-                    text: c.$3,
+                    text: ' ${c.$3!.trim()}',
                     style: AppTheme.numeric(size: 14, color: p.mute)
                         .copyWith(letterSpacing: 0),
                   ),

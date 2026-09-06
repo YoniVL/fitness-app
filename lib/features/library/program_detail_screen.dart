@@ -97,30 +97,28 @@ class ProgramDetailScreen extends ConsumerWidget {
             padding: Insets.screen,
             children: [
               if (isStrength)
-                SizedBox(
-                  width: double.infinity,
-                  child: isActive
-                      ? OutlinedButton.icon(
-                          onPressed: null,
-                          icon: const Icon(Icons.check),
-                          label: const Text('Dit is je actieve programma'),
-                        )
-                      : FilledButton.icon(
-                          onPressed: () async {
-                            await ref
-                                .read(programRepositoryProvider)
-                                .setActiveProgram(programId);
-                            ref.invalidate(activeProgramProvider);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Ingesteld als je programma')),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.event_available),
-                          label: const Text('Kies als mijn programma'),
-                        ),
+                _ActiveProgramControl(
+                  isActive: isActive,
+                  activeLabel: 'Dit is je actieve programma',
+                  chooseLabel: 'Kies als mijn programma',
+                  onChoose: () async {
+                    await ref
+                        .read(programRepositoryProvider)
+                        .setActiveProgram(programId);
+                    ref.invalidate(activeProgramProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Ingesteld als je programma')),
+                      );
+                    }
+                  },
+                  onClear: () async {
+                    await ref
+                        .read(programRepositoryProvider)
+                        .clearActiveProgram();
+                    ref.invalidate(activeProgramProvider);
+                  },
                 ),
               if (isStrength) Gap.m,
               for (final dayView in view.days) ...[
@@ -139,8 +137,8 @@ class ProgramDetailScreen extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e) => Center(child: Text('Fout: $e')),
+        loading: () => const LoadingBox(height: 240),
+        error: (e) => const Center(child: ErrorBox(message: 'Fout')),
       ),
     );
   }
@@ -172,6 +170,52 @@ class ProgramDetailScreen extends ConsumerWidget {
       ref.invalidate(activeRowingProgramProvider);
     }
     if (context.mounted) context.pop();
+  }
+}
+
+/// The "choose / this is active + clear" control at the top of a program's
+/// detail page. When active it shows the state plus a way to drop the choice.
+class _ActiveProgramControl extends StatelessWidget {
+  const _ActiveProgramControl({
+    required this.isActive,
+    required this.activeLabel,
+    required this.chooseLabel,
+    required this.onChoose,
+    required this.onClear,
+  });
+
+  final bool isActive;
+  final String activeLabel;
+  final String chooseLabel;
+  final Future<void> Function() onChoose;
+  final Future<void> Function() onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isActive) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: onChoose,
+          icon: const Icon(Icons.event_available),
+          label: Text(chooseLabel.toUpperCase()),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: null,
+          icon: const Icon(Icons.check),
+          label: Text(activeLabel.toUpperCase()),
+        ),
+        TextButton(
+          onPressed: onClear,
+          child: const Text('Programmakeuze wissen'),
+        ),
+      ],
+    );
   }
 }
 
@@ -304,31 +348,28 @@ class _RowingPlanBody extends ConsumerWidget {
         ],
         if (isPlan) ...[
           Gap.m,
-          SizedBox(
-            width: double.infinity,
-            child: isActive
-                ? OutlinedButton.icon(
-                    onPressed: null,
-                    icon: const Icon(Icons.check),
-                    label: const Text('Je actieve roeiprogramma'),
-                  )
-                : FilledButton.icon(
-                    onPressed: () async {
-                      await ref
-                          .read(programRepositoryProvider)
-                          .setActiveRowingProgram(program.id);
-                      ref.invalidate(activeRowingProgramProvider);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content:
-                                  Text('Ingesteld als je roeiprogramma')),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.event_available),
-                    label: const Text('Kies als mijn roeiprogramma'),
-                  ),
+          _ActiveProgramControl(
+            isActive: isActive,
+            activeLabel: 'Je actieve roeiprogramma',
+            chooseLabel: 'Kies als mijn roeiprogramma',
+            onChoose: () async {
+              await ref
+                  .read(programRepositoryProvider)
+                  .setActiveRowingProgram(program.id);
+              ref.invalidate(activeRowingProgramProvider);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Ingesteld als je roeiprogramma')),
+                );
+              }
+            },
+            onClear: () async {
+              await ref
+                  .read(programRepositoryProvider)
+                  .clearActiveRowingProgram();
+              ref.invalidate(activeRowingProgramProvider);
+            },
           ),
         ],
         if (isPlan && groups.length > 1) ...[

@@ -189,7 +189,7 @@ class _Metric extends StatelessWidget {
               children: [
                 if (unit != null)
                   TextSpan(
-                    text: unit,
+                    text: ' $unit',
                     style: AppTheme.numeric(size: 14, color: p.mute)
                         .copyWith(letterSpacing: 0),
                   ),
