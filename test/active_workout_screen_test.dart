@@ -70,13 +70,13 @@ void main() {
     expect(tester.takeException(), isNull);
     // The pager opens on the first (current) exercise.
     expect(find.text('Bankdrukken'), findsOneWidget);
-    expect(find.text('Oefening 1/3'), findsOneWidget);
+    expect(find.text('OEFENING 1 VAN 3'), findsOneWidget);
     expect(find.byType(PageView), findsOneWidget);
-    expect(find.textContaining('set 1/3'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Klaar'), findsOneWidget);
+    expect(find.text('REEKS 01 · ACTIEF'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'REEKS KLAAR'), findsOneWidget);
 
-    // Regression guard: the "Klaar" button must actually occupy space.
-    final btn = tester.getRect(find.widgetWithText(FilledButton, 'Klaar'));
+    // Regression guard: the "REEKS KLAAR" button must actually occupy space.
+    final btn = tester.getRect(find.widgetWithText(FilledButton, 'REEKS KLAAR'));
     expect(btn.height, greaterThan(40));
     expect(btn.width, greaterThan(200));
   });

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../ui/spacing.dart';
+import '../../../app/theme.dart';
 
 /// Number field with big -/+ tap targets. Works for reps, sets and rest seconds.
+/// Modernist: a square bordered row — [−] [ big tabular number ] [+].
 class NumberStepper extends StatefulWidget {
   const NumberStepper({
     super.key,
@@ -60,45 +61,59 @@ class _NumberStepperState extends State<NumberStepper> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(widget.label, style: Theme.of(context).textTheme.labelMedium),
-        Gap.xs,
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _StepButton(
-              icon: Icons.remove,
-              onTap: widget.value > widget.min ? () => _bump(-widget.step) : null,
-            ),
-            SizedBox(
-              width: 72,
-              child: TextField(
-                controller: _controller,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-                keyboardType: TextInputType.numberWithOptions(
-                  decimal: widget.decimals > 0,
-                ),
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                ],
-                onChanged: (text) {
-                  final parsed = _parse(text);
-                  if (parsed != null) widget.onChanged(parsed);
-                },
+        Text(widget.label.toUpperCase(),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontSize: 9, letterSpacing: 1.1, color: p.mute)),
+        const SizedBox(height: 6),
+        DecoratedBox(
+          decoration: BoxDecoration(border: Border.all(color: p.line)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StepButton(
+                icon: Icons.remove,
+                onTap:
+                    widget.value > widget.min ? () => _bump(-widget.step) : null,
+                border: Border(right: BorderSide(color: p.line)),
               ),
-            ),
-            _StepButton(
-              icon: Icons.add,
-              onTap: widget.value < widget.max ? () => _bump(widget.step) : null,
-            ),
-          ],
+              SizedBox(
+                width: 96,
+                child: TextField(
+                  controller: _controller,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.numeric(size: 30, color: p.ink),
+                  keyboardType: TextInputType.numberWithOptions(
+                    decimal: widget.decimals > 0,
+                  ),
+                  decoration: const InputDecoration(
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  onChanged: (text) {
+                    final parsed = _parse(text);
+                    if (parsed != null) widget.onChanged(parsed);
+                  },
+                ),
+              ),
+              _StepButton(
+                icon: Icons.add,
+                onTap:
+                    widget.value < widget.max ? () => _bump(widget.step) : null,
+                border: Border(left: BorderSide(color: p.line)),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -106,32 +121,23 @@ class _NumberStepperState extends State<NumberStepper> {
 }
 
 class _StepButton extends StatelessWidget {
-  const _StepButton({required this.icon, required this.onTap});
+  const _StepButton({required this.icon, required this.onTap, required this.border});
   final IconData icon;
   final VoidCallback? onTap;
+  final BoxBorder border;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: onTap == null
-            ? scheme.surfaceContainerHighest.withValues(alpha: 0.4)
-            : scheme.secondaryContainer,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 52,
-            height: 52,
-            child: Icon(icon,
-                color: onTap == null
-                    ? scheme.onSurface.withValues(alpha: 0.3)
-                    : scheme.onSecondaryContainer),
-          ),
-        ),
+    final p = context.palette;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        height: 52,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(border: border),
+        child: Icon(icon,
+            size: 20, color: onTap == null ? p.line : p.ink),
       ),
     );
   }
