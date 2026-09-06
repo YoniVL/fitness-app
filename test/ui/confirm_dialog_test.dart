@@ -28,7 +28,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sessie verwijderen?'), findsOneWidget);
-    await tester.tap(find.text('Annuleren'));
+    await tester.tap(find.text('ANNULEREN'));
     await tester.pumpAndSettle();
 
     expect(result, isFalse);
@@ -40,7 +40,7 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Verwijderen'));
+    await tester.tap(find.text('VERWIJDEREN'));
     await tester.pumpAndSettle();
 
     expect(result, isTrue);

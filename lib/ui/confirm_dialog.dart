@@ -17,17 +17,18 @@ Future<bool> confirmDialog(
     builder: (context) => AlertDialog(
       title: Text(title),
       content: message == null ? null : Text(message),
+      actionsAlignment: MainAxisAlignment.end,
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text(cancelLabel),
+          child: Text(cancelLabel.toUpperCase()),
         ),
         FilledButton(
           style: destructive
               ? FilledButton.styleFrom(backgroundColor: scheme.error)
               : null,
           onPressed: () => Navigator.pop(context, true),
-          child: Text(confirmLabel),
+          child: Text(confirmLabel.toUpperCase()),
         ),
       ],
     ),

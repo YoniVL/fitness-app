@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../app/theme.dart';
+
 /// A "nothing here yet" placeholder — an icon, a short message, and an
-/// optional action. Replaces the ad-hoc `Center(child: Text(...))` blocks and
-/// the old per-screen `_Empty` locals.
+/// optional action. Modernist: flush-left, muted, square.
 class EmptyState extends StatelessWidget {
   const EmptyState(
     this.text, {
     super.key,
     this.icon,
     this.action,
-    this.padding = const EdgeInsets.symmetric(vertical: 24),
+    this.padding = const EdgeInsets.symmetric(vertical: 28),
   });
 
   final String text;
@@ -20,23 +21,23 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final p = context.palette;
     return Padding(
       padding: padding,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 32, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 8),
+            Icon(icon, size: 28, color: p.mute),
+            const SizedBox(height: 10),
           ],
           Text(
             text,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(color: p.mute),
           ),
           if (action != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             action!,
           ],
         ],

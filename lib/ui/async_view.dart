@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app/theme.dart';
+
 /// A centred spinner filling a fixed height — the standard "still loading"
 /// placeholder for a card or chart.
 class LoadingBox extends StatelessWidget {
@@ -8,8 +10,16 @@ class LoadingBox extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) =>
-      SizedBox(height: height, child: const Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) => SizedBox(
+        height: height,
+        child: const Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
 }
 
 /// A short inline error message — the standard "couldn't load this" state.
@@ -19,19 +29,19 @@ class ErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          Icon(Icons.error_outline, size: 18, color: scheme.error),
+          Icon(Icons.error_outline, size: 18, color: p.accent),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.error)),
+            child: Text(message.toUpperCase(),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: p.accent,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0)),
           ),
         ],
       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app/theme.dart';
+
 /// How prominent a [StatTile]'s value reads — from a compact summary row up to
 /// the live-screen hero number.
 enum StatSize { small, medium, big, hero }
@@ -7,9 +9,9 @@ enum StatSize { small, medium, big, hero }
 /// Whether the label sits above or below the value.
 enum StatLabelPosition { above, below }
 
-/// A "label + value" pair — the one stat widget for the whole app. Replaces
-/// the half-dozen near-identical `_Stat`/`_MiniStat`/`_Big`/`_Small` locals
-/// that used to live in individual screens.
+/// A "label + value" pair — the one stat widget for the whole app. Modernist:
+/// the value is set in extra-bold tabular figures with tight tracking, the
+/// label small and all-caps.
 class StatTile extends StatelessWidget {
   const StatTile({
     super.key,
@@ -39,31 +41,32 @@ class StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final p = context.palette;
 
-    final valueStyle = switch (size) {
-      StatSize.small => theme.textTheme.titleLarge,
-      StatSize.medium => theme.textTheme.headlineSmall,
-      StatSize.big => theme.textTheme.displaySmall
-          ?.copyWith(fontWeight: FontWeight.w700, height: 1.05),
-      StatSize.hero =>
-        theme.textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w800),
-    }?.copyWith(color: color);
+    final valueSize = switch (size) {
+      StatSize.small => 24.0,
+      StatSize.medium => 32.0,
+      StatSize.big => 38.0,
+      StatSize.hero => 56.0,
+    };
+    final valueStyle =
+        AppTheme.numeric(size: valueSize, color: color ?? p.ink);
 
-    final labelStyle = (size == StatSize.small
-            ? theme.textTheme.labelSmall
-            : theme.textTheme.labelMedium)
-        ?.copyWith(color: scheme.onSurfaceVariant);
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      letterSpacing: 1.2,
+      fontWeight: FontWeight.w700,
+      color: p.mute,
+    );
 
     final labelRow = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: labelStyle),
+        Text(label.toUpperCase(), style: labelStyle),
         if (badge != null && badge!.isNotEmpty) ...[
           const SizedBox(width: 10),
-          Text(badge!,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+          Text(badge!.toUpperCase(),
+              style: labelStyle?.copyWith(
+                  color: color ?? p.accent, fontWeight: FontWeight.w800)),
         ],
       ],
     );
@@ -80,13 +83,18 @@ class StatTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (labelPosition == StatLabelPosition.above) labelRow,
+        if (labelPosition == StatLabelPosition.above) ...[
+          labelRow,
+          const SizedBox(height: 2),
+        ],
         valueWidget,
-        if (labelPosition == StatLabelPosition.below) labelRow,
+        if (labelPosition == StatLabelPosition.below) ...[
+          const SizedBox(height: 2),
+          labelRow,
+        ],
         if (sub != null)
           Text(sub!,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant)),
+              style: theme.textTheme.bodySmall?.copyWith(color: p.mute)),
       ],
     );
   }

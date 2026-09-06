@@ -103,7 +103,9 @@ class _FitnessAppState extends ConsumerState<FitnessApp>
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Modernist refresh: dark is the primary mode. Light stays fully
+      // supported — flip to ThemeMode.system to follow the OS again.
+      themeMode: ThemeMode.dark,
       routerConfig: appRouter,
     );
   }
