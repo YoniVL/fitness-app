@@ -387,13 +387,15 @@ class _PacePanel extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                      pace == null || pace! <= 0
-                          ? '–:––'
-                          : paceLabel(pace, withUnit: false),
-                      style: AppTheme.numeric(
-                          size: 104,
-                          color: pace == null || pace! <= 0 ? p.mute : p.ink)),
+                  child: (pace == null || pace! <= 0)
+                      ? Padding(
+                          padding: const EdgeInsets.only(bottom: 18, top: 18),
+                          child: Text('WACHT OP DATA',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                  color: p.mute, letterSpacing: 1.5)),
+                        )
+                      : Text(paceLabel(pace, withUnit: false),
+                          style: AppTheme.numeric(size: 104, color: p.ink)),
                 ),
               ),
               if (delta != null && delta.abs() >= 1) ...[
@@ -496,8 +498,9 @@ class _PacePanel extends StatelessWidget {
   }
 }
 
-/// One metric: label, big value, optional trailing unit, optional target line.
-typedef _Cell = ({String label, String value, String? unit, String? target});
+/// One metric: label, big value, optional trailing unit. [accent] tints the
+/// value (used for the target-SPM cell, which is a goal, not a live reading).
+typedef _Cell = ({String label, String value, String? unit, bool accent});
 
 class _MetricGrid extends StatelessWidget {
   const _MetricGrid({
@@ -518,33 +521,48 @@ class _MetricGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showHr = heartRate > 0;
+    // The trainer feeds stroke rate, distance and time. Power and heart rate
+    // are only there with the right hardware — when a segment has a target
+    // stroke rate, that goal is the more useful thing to show in slot 2.
+    final _Cell slot2 = strokeTarget != null
+        ? (
+            label: 'SPM-doel',
+            value: '$strokeTarget',
+            unit: ' SPM',
+            accent: true,
+          )
+        : heartRate > 0
+            ? (
+                label: 'Hartslag',
+                value: '$heartRate',
+                unit: ' BPM',
+                accent: false,
+              )
+            : (
+                label: 'Vermogen',
+                value: (power ?? 0).round().toString(),
+                unit: ' W',
+                accent: false,
+              );
     final cells = <_Cell>[
       (
         label: 'Slagfrequentie',
         value: (strokeRate ?? 0).round().toString(),
         unit: ' SPM',
-        target: strokeTarget == null ? null : 'DOEL $strokeTarget SPM',
+        accent: false,
       ),
-      showHr
-          ? (label: 'Hartslag', value: '$heartRate', unit: ' BPM', target: null)
-          : (
-              label: 'Vermogen',
-              value: (power ?? 0).round().toString(),
-              unit: ' W',
-              target: null,
-            ),
+      slot2,
       (
         label: 'Afstand',
         value: distanceLabel(distanceM),
         unit: null,
-        target: null,
+        accent: false,
       ),
       (
         label: 'Verstreken',
         value: hmsLabel(elapsed),
         unit: null,
-        target: null,
+        accent: false,
       ),
     ];
     final p = context.palette;
@@ -602,7 +620,8 @@ class _MetricCell extends StatelessWidget {
             child: RichText(
               text: TextSpan(
                 text: data.value,
-                style: AppTheme.numeric(size: 48, color: p.ink),
+                style: AppTheme.numeric(
+                    size: 48, color: data.accent ? p.accent : p.ink),
                 children: [
                   if (data.unit != null)
                     TextSpan(
@@ -614,15 +633,6 @@ class _MetricCell extends StatelessWidget {
               ),
             ),
           ),
-          if (data.target != null) ...[
-            const SizedBox(height: 3),
-            Text(data.target!,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontSize: 11,
-                    letterSpacing: 0.8,
-                    fontWeight: FontWeight.w800,
-                    color: p.accent)),
-          ],
         ],
       ),
     );
