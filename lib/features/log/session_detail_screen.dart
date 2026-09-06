@@ -17,7 +17,6 @@ import '../../domain/rowing_format.dart';
 import '../../ui/async_view.dart';
 import '../../ui/confirm_dialog.dart';
 import '../../ui/spacing.dart';
-import '../../ui/stat_tile.dart';
 import '../rowing/widgets/interval_profile.dart';
 
 class _SessionView {
@@ -59,13 +58,8 @@ class SessionDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Samenvatting'),
+        title: const Text('Sessiedetail'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_note),
-            tooltip: 'Notitie',
-            onPressed: () => _editNote(context, ref, _currentNotes(ref)),
-          ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: () => _confirmDelete(context, ref),
@@ -81,19 +75,13 @@ class SessionDetailScreen extends ConsumerWidget {
               ? _RowingDetailBody(sessionId: sessionId)
               : _StrengthDetailBody(sessionId: sessionId);
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e) => Center(child: Text('Fout: $e')),
+        loading: () => const LoadingBox(height: 240),
+        error: (e) => const Center(child: ErrorBox(message: 'Fout')),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            onPressed: () => context.go(
-                isRowing ? '/rowing/today' : '/strength/today'),
-            child: const Text('Klaar'),
-          ),
-        ),
+      bottomNavigationBar: _BottomBar(
+        onDone: () =>
+            context.go(isRowing ? '/rowing/today' : '/strength/today'),
+        onNote: () => _editNote(context, ref, _currentNotes(ref)),
       ),
     );
   }
@@ -120,11 +108,11 @@ class SessionDetailScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annuleren'),
+            child: const Text('ANNULEREN'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Opslaan'),
+            child: const Text('OPSLAAN'),
           ),
         ],
       ),
@@ -160,22 +148,203 @@ class SessionDetailScreen extends ConsumerWidget {
   }
 }
 
-class _StrengthDetailBody extends ConsumerWidget {
-  const _StrengthDetailBody({required this.sessionId});
-  final int sessionId;
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({required this.onDone, required this.onNote});
+  final VoidCallback onDone;
+  final VoidCallback onNote;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final view = ref.watch(_sessionViewProvider(sessionId));
-    return view.view(
-      (data) => data == null
-          ? const Center(child: Text('Sessie niet gevonden'))
-          : _Body(view: data),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e) => Center(child: Text('Fout: $e')),
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        color: p.ground,
+        border: Border(top: BorderSide(color: p.rule, width: 2)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: onDone,
+                  child: const Align(
+                      alignment: Alignment.centerLeft, child: Text('KLAAR')),
+                ),
+              ),
+              Gap.s,
+              OutlinedButton(
+                onPressed: onNote,
+                child: const Text('NOTITIE'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
+
+// --- Shared Modernist building blocks ---------------------------------
+
+/// The kicker + big title block at the top of a detail screen.
+class _TitleBlock extends StatelessWidget {
+  const _TitleBlock({required this.kicker, required this.title});
+  final String kicker;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.rule, width: 2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(kicker.toUpperCase(),
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: p.accent, letterSpacing: 1.3, fontSize: 10)),
+          const SizedBox(height: 4),
+          Text(title, style: theme.textTheme.headlineSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailChip extends StatelessWidget {
+  const _DetailChip(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(border: Border.all(color: p.line)),
+      child: Text(
+        text.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: 10,
+              letterSpacing: 0.8,
+              color: p.mute,
+            ),
+      ),
+    );
+  }
+}
+
+/// A 2-column grid of big-number metric cells with 1px inner rules and a 2px
+/// bottom rule.
+class _StatGrid extends StatelessWidget {
+  const _StatGrid(this.cells);
+
+  /// (label, value, unit?) — unit renders small and muted after the value.
+  final List<(String, String, String?)> cells;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final rows = <Widget>[];
+    for (var i = 0; i < cells.length; i += 2) {
+      final left = cells[i];
+      final right = i + 1 < cells.length ? cells[i + 1] : null;
+      final lastRow = i + 2 >= cells.length;
+      rows.add(IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: p.line),
+                    bottom:
+                        lastRow ? BorderSide.none : BorderSide(color: p.line),
+                  ),
+                ),
+                child: _cell(context, left),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom:
+                        lastRow ? BorderSide.none : BorderSide(color: p.line),
+                  ),
+                ),
+                child: right == null
+                    ? const SizedBox.shrink()
+                    : _cell(context, right),
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.rule, width: 2)),
+      ),
+      child: Column(children: rows),
+    );
+  }
+
+  Widget _cell(BuildContext context, (String, String, String?) c) {
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(c.$1.toUpperCase(),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 9, letterSpacing: 1.1, color: p.mute)),
+          const SizedBox(height: 4),
+          RichText(
+            text: TextSpan(
+              text: c.$2,
+              style: AppTheme.numeric(size: 34, color: p.ink),
+              children: [
+                if (c.$3 != null)
+                  TextSpan(
+                    text: c.$3,
+                    style: AppTheme.numeric(size: 14, color: p.mute)
+                        .copyWith(letterSpacing: 0),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Text(text.toUpperCase(),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: 10, letterSpacing: 1.2, color: p.mute)),
+    );
+  }
+}
+
+// --- Rowing detail --------------------------------------------------
 
 class _RowingDetailBody extends ConsumerWidget {
   const _RowingDetailBody({required this.sessionId});
@@ -185,9 +354,10 @@ class _RowingDetailBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(rowingSessionDetailProvider(sessionId));
     final theme = Theme.of(context);
-    final dateFmt = DateFormat('EEEE d MMMM y · HH:mm', 'nl');
+    final p = context.palette;
+    final zones = context.zones;
+    final dateFmt = DateFormat('EEE d MMM · HH:mm', 'nl');
 
-    final zones = theme.extension<RowZonePalette>() ?? RowZonePalette.standard;
     return detail.view(
       (data) {
         if (data == null) {
@@ -196,120 +366,137 @@ class _RowingDetailBody extends ConsumerWidget {
         final r = data.rowing;
         final avgPace = paceSecPer500(
             r.totalDistanceM, Duration(seconds: r.durationSeconds));
+
         return ListView(
-          padding: Insets.screen,
+          padding: EdgeInsets.zero,
           children: [
-            Text(dateFmt.format(data.session.startedAt),
-                style: theme.textTheme.titleMedium),
-            Gap.m,
-            Wrap(
-              spacing: 20,
-              runSpacing: 8,
-              children: [
-                StatTile(
-                    label: 'Afstand',
-                    value: distanceLabel(r.totalDistanceM),
-                    size: StatSize.small),
-                StatTile(
-                    label: 'Duur',
-                    value: hmsLabel(Duration(seconds: r.durationSeconds)),
-                    size: StatSize.small),
-                StatTile(
-                    label: 'Tempo',
-                    value: paceLabel(avgPace),
-                    size: StatSize.small),
-                if (r.avgStrokeRate > 0)
-                  StatTile(
-                      label: 'Slag',
-                      value: spmLabel(r.avgStrokeRate),
-                      size: StatSize.small),
-                if (r.avgPower > 0)
-                  StatTile(
-                      label: 'Vermogen',
-                      value: powerLabel(r.avgPower),
-                      size: StatSize.small),
-                if (r.totalEnergyKcal > 0)
-                  StatTile(
-                      label: 'Energie',
-                      value: '${r.totalEnergyKcal.round()} kcal',
-                      size: StatSize.small),
-              ],
+            _TitleBlock(
+              kicker: 'Roeien · ${dateFmt.format(data.session.startedAt)}',
+              title: distanceLabel(r.totalDistanceM),
             ),
-            if (data.planSegments.isNotEmpty) ...[
-              const Divider(height: 32),
-              Text('Geplande sessie', style: theme.textTheme.titleSmall),
-              Gap.m,
-              IntervalProfile(
-                blocks: profileFromSegments(data.planSegments),
-                height: 72,
-              ),
-              const SizedBox(height: 10),
-              for (final s in data.planSegments)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 52,
-                        child: Text(
-                          hmsLabel(Duration(seconds: s.durationSeconds)),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          _segmentLabel(s),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+            _StatGrid([
+              ('Gem. tempo /500m', paceLabel(avgPace, withUnit: false), null),
+              ('Tijd', hmsLabel(Duration(seconds: r.durationSeconds)), null),
+              if (r.avgPower > 0)
+                ('Gem. vermogen', r.avgPower.round().toString(), 'W'),
+              if (r.avgStrokeRate > 0)
+                ('Gem. slag', r.avgStrokeRate.round().toString(), ' s/m'),
+              if (r.totalEnergyKcal > 0)
+                ('Energie', r.totalEnergyKcal.round().toString(), ' kcal'),
+            ]),
             if (data.samples.length >= 3) ...[
-              const Divider(height: 32),
-              Text('Tempo tijdens de sessie',
-                  style: theme.textTheme.titleSmall),
-              Gap.m,
-              SizedBox(height: 180, child: _PaceChart(samples: data.samples)),
+              _SectionLabel('Tempo tijdens de sessie'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SizedBox(
+                    height: 150, child: _PaceChart(samples: data.samples)),
+              ),
             ],
             if (_hasField(data.samples, (s) => s.strokeRate)) ...[
-              const SizedBox(height: 20),
-              Text('Slagtempo', style: theme.textTheme.titleSmall),
-              Gap.m,
-              SizedBox(
-                height: 140,
-                child: _SampleChart(
-                  samples: data.samples,
-                  value: (s) => s.strokeRate,
-                  color: zones.steady,
+              _SectionLabel('Slagtempo'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SizedBox(
+                  height: 120,
+                  child: _SampleChart(
+                    samples: data.samples,
+                    value: (s) => s.strokeRate,
+                    color: zones.steady,
+                  ),
                 ),
               ),
             ],
             if (_hasField(data.samples, (s) => s.heartRate?.toDouble())) ...[
-              const SizedBox(height: 20),
-              Text('Hartslag', style: theme.textTheme.titleSmall),
-              Gap.m,
-              SizedBox(
-                height: 140,
-                child: _SampleChart(
-                  samples: data.samples,
-                  value: (s) => s.heartRate?.toDouble(),
-                  color: zones.max,
+              _SectionLabel('Hartslag'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SizedBox(
+                  height: 120,
+                  child: _SampleChart(
+                    samples: data.samples,
+                    value: (s) => s.heartRate?.toDouble(),
+                    color: zones.max,
+                  ),
                 ),
               ),
             ],
+            if (data.planSegments.isNotEmpty) ...[
+              _SectionLabel('Geplande sessie'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: IntervalProfile(
+                  blocks: profileFromSegments(data.planSegments),
+                  height: 40,
+                ),
+              ),
+              for (var i = 0; i < data.planSegments.length; i++)
+                _SegmentRow(
+                  index: i,
+                  duration: hmsLabel(Duration(
+                      seconds: data.planSegments[i].durationSeconds)),
+                  label: _segmentLabel(data.planSegments[i]),
+                  last: i == data.planSegments.length - 1,
+                ),
+            ],
             if (data.session.notes != null &&
                 data.session.notes!.isNotEmpty) ...[
-              const Divider(height: 32),
-              Text('Notities', style: theme.textTheme.titleSmall),
-              Text(data.session.notes!),
+              _SectionLabel('Notities'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(data.session.notes!,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: p.ink)),
+              ),
             ],
+            const SizedBox(height: 8),
           ],
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e) => Center(child: Text('Fout: $e')),
+      loading: () => const LoadingBox(height: 240),
+      error: (e) => const Center(child: ErrorBox(message: 'Fout')),
+    );
+  }
+}
+
+class _SegmentRow extends StatelessWidget {
+  const _SegmentRow({
+    required this.index,
+    required this.duration,
+    required this.label,
+    required this.last,
+  });
+  final int index;
+  final String duration;
+  final String label;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: p.line),
+          bottom: last ? BorderSide(color: p.line) : BorderSide.none,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Text((index + 1).toString().padLeft(2, '0'),
+                style: AppTheme.numeric(size: 14, color: p.ink)
+                    .copyWith(letterSpacing: 0)),
+          ),
+          Expanded(
+            child: Text(label,
+                style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          Text(duration,
+              style: AppTheme.numeric(size: 14, color: p.mute)
+                  .copyWith(letterSpacing: 0)),
+        ],
+      ),
     );
   }
 }
@@ -318,7 +505,6 @@ String _segmentLabel(ProgramRowSegment s) {
   if (s.isRest) return 'Rust';
   final spm = s.targetStrokeRate;
   if (spm == null) return s.intensityLabel;
-  // The label is often already just "r22"; don't repeat the rate.
   if (s.intensityLabel.toLowerCase().replaceAll(' ', '') == 'r$spm') {
     return s.intensityLabel;
   }
@@ -342,7 +528,7 @@ class _SampleChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = context.palette;
     final points = <FlSpot>[];
     for (final s in samples) {
       final v = value(s);
@@ -371,10 +557,8 @@ class _SampleChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => FlLine(
-            color: scheme.onSurface.withValues(alpha: 0.08),
-            strokeWidth: 1,
-          ),
+          getDrawingHorizontalLine: (_) =>
+              FlLine(color: p.line, strokeWidth: 1),
         ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(),
@@ -422,7 +606,7 @@ class _PaceChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = context.palette;
     final points = <FlSpot>[];
     for (final s in samples) {
       final pace = s.paceSec500m;
@@ -440,23 +624,19 @@ class _PaceChart extends StatelessWidget {
     final maxMin = points.last.x;
     final shortSession = maxMin < 3;
     final xInterval = (maxMin / 4).clamp(shortSession ? 0.25 : 1.0, 60.0);
-    String xLabel(double v) => shortSession
-        ? '${(v * 60).round()}s'
-        : "${v.round()}'";
+    String xLabel(double v) =>
+        shortSession ? '${(v * 60).round()}s' : "${v.round()}'";
 
     return LineChart(
       LineChartData(
-        // Lower seconds/500m = faster: flip so "up" reads as faster.
         minY: (minPace - 10).clamp(60, double.infinity),
         maxY: maxPace + 10,
         borderData: FlBorderData(show: false),
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => FlLine(
-            color: scheme.onSurface.withValues(alpha: 0.08),
-            strokeWidth: 1,
-          ),
+          getDrawingHorizontalLine: (_) =>
+              FlLine(color: p.line, strokeWidth: 1),
         ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(),
@@ -488,12 +668,31 @@ class _PaceChart extends StatelessWidget {
           LineChartBarData(
             spots: points,
             isCurved: false,
-            color: scheme.primary,
+            color: p.accent,
             barWidth: 2,
             dotData: const FlDotData(show: false),
           ),
         ],
       ),
+    );
+  }
+}
+
+// --- Strength detail ----------------------------------------------
+
+class _StrengthDetailBody extends ConsumerWidget {
+  const _StrengthDetailBody({required this.sessionId});
+  final int sessionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final view = ref.watch(_sessionViewProvider(sessionId));
+    return view.view(
+      (data) => data == null
+          ? const Center(child: Text('Sessie niet gevonden'))
+          : _Body(view: data),
+      loading: () => const LoadingBox(height: 240),
+      error: (e) => const Center(child: ErrorBox(message: 'Fout')),
     );
   }
 }
@@ -505,8 +704,9 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final p = context.palette;
     final session = view.detail.session;
-    final dateFmt = DateFormat('EEEE d MMMM y · HH:mm', 'nl');
+    final dateFmt = DateFormat('EEE d MMM · HH:mm', 'nl');
 
     final byExercise = <int, List<StrengthSet>>{};
     for (final s in view.detail.sets) {
@@ -517,81 +717,78 @@ class _Body extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return ListView(
-      padding: Insets.screen,
+      padding: EdgeInsets.zero,
       children: [
-        Text(dateFmt.format(session.startedAt),
-            style: theme.textTheme.titleMedium),
-        Gap.m,
-        Wrap(
-          spacing: 20,
-          runSpacing: 8,
-          children: [
-            if (session.duration != null)
-              StatTile(
-                  label: 'Duur',
-                  value: _fmtDuration(session.duration!),
-                  size: StatSize.small),
-            StatTile(
-                label: 'Sets',
-                value: '${view.detail.workingSetCount}',
-                size: StatSize.small),
-            StatTile(
-                label: 'Oefeningen',
-                value: '${view.detail.exerciseCount}',
-                size: StatSize.small),
-            StatTile(
-                label: 'Reps',
-                value: '${view.detail.totalReps}',
-                size: StatSize.small),
-          ],
+        _TitleBlock(
+          kicker: 'Krachttraining · ${dateFmt.format(session.startedAt)}',
+          title: session.duration != null
+              ? _fmtDuration(session.duration!)
+              : 'Sessie',
         ),
+        _StatGrid([
+          ('Sets', '${view.detail.workingSetCount}', null),
+          ('Oefeningen', '${view.detail.exerciseCount}', null),
+          ('Reps', '${view.detail.totalReps}', null),
+          if (session.duration != null)
+            ('Duur', _fmtDuration(session.duration!), null),
+        ]),
         if (muscles.isNotEmpty) ...[
-          Gap.l,
-          Text('Getrainde spieren', style: theme.textTheme.titleSmall),
-          Gap.s,
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final m in muscles)
-                Chip(
-                  label: Text(
-                      '${view.muscleNames[m.key] ?? '?'} · ${m.value}'),
-                ),
-            ],
+          _SectionLabel('Getrainde spieren'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final m in muscles)
+                  _DetailChip('${view.muscleNames[m.key] ?? '?'} · ${m.value}'),
+              ],
+            ),
           ),
         ],
-        const Divider(height: 32),
         for (final entry in byExercise.entries) ...[
-          Text(
-            view.exerciseNames[entry.key]?.name ?? 'Oefening ${entry.key}',
-            style: theme.textTheme.titleMedium,
-          ),
-          Gap.xs,
-          ...entry.value.map(
-            (s) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
+          _SectionLabel(
+              view.exerciseNames[entry.key]?.name ?? 'Oefening ${entry.key}'),
+          for (final s in entry.value)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: p.line)),
+              ),
               child: Row(
                 children: [
-                  SizedBox(width: 28, child: Text('${s.setIndex}')),
-                  Text((view.exerciseNames[entry.key]?.isTimeBased ?? false)
-                      ? '${s.reps}s'
-                      : '${s.reps} reps'),
-                  if (s.isWarmup) ...[
-                    Gap.s,
-                    Text('opwarming', style: theme.textTheme.labelSmall),
-                  ],
+                  SizedBox(
+                    width: 44,
+                    child: Text(s.setIndex.toString().padLeft(2, '0'),
+                        style: AppTheme.numeric(size: 14, color: p.ink)
+                            .copyWith(letterSpacing: 0)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      (view.exerciseNames[entry.key]?.isTimeBased ?? false)
+                          ? '${s.reps}s'
+                          : '${s.reps} reps',
+                      style: AppTheme.numeric(size: 18, color: p.ink)
+                          .copyWith(letterSpacing: 0, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (s.isWarmup)
+                    Text('W',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: p.mute, letterSpacing: 1)),
                 ],
               ),
             ),
-          ),
-          Gap.l,
         ],
         if (session.notes != null && session.notes!.isNotEmpty) ...[
-          const Divider(),
-          Text('Notities', style: theme.textTheme.titleSmall),
-          Text(session.notes!),
+          _SectionLabel('Notities'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Text(session.notes!,
+                style: theme.textTheme.bodyMedium?.copyWith(color: p.ink)),
+          ),
         ],
+        const SizedBox(height: 8),
       ],
     );
   }
