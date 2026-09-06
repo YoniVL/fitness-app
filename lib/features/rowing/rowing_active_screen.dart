@@ -396,8 +396,13 @@ class _PacePanel extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(paceLabel(pace, withUnit: false),
-                      style: AppTheme.numeric(size: 104, color: p.ink)),
+                  child: Text(
+                      pace == null || pace! <= 0
+                          ? '–:––'
+                          : paceLabel(pace, withUnit: false),
+                      style: AppTheme.numeric(
+                          size: 104,
+                          color: pace == null || pace! <= 0 ? p.mute : p.ink)),
                 ),
               ),
               if (delta != null && delta.abs() >= 1) ...[
