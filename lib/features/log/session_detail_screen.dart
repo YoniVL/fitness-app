@@ -382,7 +382,7 @@ class _RowingDetailBody extends ConsumerWidget {
               if (r.avgPower > 0)
                 ('Gem. vermogen', r.avgPower.round().toString(), 'W'),
               if (r.avgStrokeRate > 0)
-                ('Gem. slag', r.avgStrokeRate.round().toString(), ' s/m'),
+                ('Gem. slag', r.avgStrokeRate.round().toString(), 'SPM'),
               if (r.totalEnergyKcal > 0)
                 ('Energie', r.totalEnergyKcal.round().toString(), ' kcal'),
             ]),
@@ -510,7 +510,7 @@ String _segmentLabel(ProgramRowSegment s) {
   if (s.intensityLabel.toLowerCase().replaceAll(' ', '') == 'r$spm') {
     return s.intensityLabel;
   }
-  return '${s.intensityLabel} · $spm spm';
+  return '${s.intensityLabel} · $spm SPM';
 }
 
 bool _hasField(List<RowingSample> samples, double? Function(RowingSample) f) =>

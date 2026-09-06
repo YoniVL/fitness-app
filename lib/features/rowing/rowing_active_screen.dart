@@ -108,7 +108,6 @@ class _Body extends ConsumerWidget {
           segmentCount: state.segments.length,
           segmentLabel: seg?.intensityLabel ?? 'Vrije sessie',
           zone: segZone,
-          strokeTarget: seg?.targetStrokeRate,
           status: status,
           onStatusTap: () => showConnectRowerSheet(context, ref),
         ),
@@ -134,6 +133,7 @@ class _Body extends ConsumerWidget {
               Expanded(
                 child: _MetricGrid(
                   strokeRate: live?.strokeRate,
+                  strokeTarget: seg?.targetStrokeRate,
                   power: live?.powerW,
                   distanceM: live?.distanceM ?? 0,
                   elapsed: state.elapsed,
@@ -216,7 +216,6 @@ class _TopBar extends StatelessWidget {
     required this.segmentCount,
     required this.segmentLabel,
     required this.zone,
-    required this.strokeTarget,
     required this.status,
     required this.onStatusTap,
   });
@@ -226,7 +225,6 @@ class _TopBar extends StatelessWidget {
   final int segmentCount;
   final String segmentLabel;
   final RowIntensity zone;
-  final int? strokeTarget;
   final RowerConnectionStatus status;
   final VoidCallback onStatusTap;
 
@@ -263,12 +261,6 @@ class _TopBar extends StatelessWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                       color: p.accentInk, fontSize: 10, letterSpacing: 0.6)),
             ),
-            const SizedBox(width: 10),
-          ],
-          if (strokeTarget != null) ...[
-            Text('SPM-DOEL $strokeTarget',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(fontSize: 10, letterSpacing: 0.6)),
             const SizedBox(width: 10),
           ],
           InkWell(
@@ -504,9 +496,13 @@ class _PacePanel extends StatelessWidget {
   }
 }
 
+/// One metric: label, big value, optional trailing unit, optional target line.
+typedef _Cell = ({String label, String value, String? unit, String? target});
+
 class _MetricGrid extends StatelessWidget {
   const _MetricGrid({
     required this.strokeRate,
+    required this.strokeTarget,
     required this.power,
     required this.distanceM,
     required this.elapsed,
@@ -514,6 +510,7 @@ class _MetricGrid extends StatelessWidget {
   });
 
   final double? strokeRate;
+  final int? strokeTarget;
   final double? power;
   final double distanceM;
   final Duration elapsed;
@@ -522,13 +519,33 @@ class _MetricGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final showHr = heartRate > 0;
-    final cells = <(String, String, String?)>[
-      ('Slagfrequentie', (strokeRate ?? 0).round().toString(), ' s/m'),
+    final cells = <_Cell>[
+      (
+        label: 'Slagfrequentie',
+        value: (strokeRate ?? 0).round().toString(),
+        unit: ' SPM',
+        target: strokeTarget == null ? null : 'DOEL $strokeTarget SPM',
+      ),
       showHr
-          ? ('Hartslag', '$heartRate', ' bpm')
-          : ('Vermogen', (power ?? 0).round().toString(), ' W'),
-      ('Afstand', distanceLabel(distanceM), null),
-      ('Verstreken', hmsLabel(elapsed), null),
+          ? (label: 'Hartslag', value: '$heartRate', unit: ' BPM', target: null)
+          : (
+              label: 'Vermogen',
+              value: (power ?? 0).round().toString(),
+              unit: ' W',
+              target: null,
+            ),
+      (
+        label: 'Afstand',
+        value: distanceLabel(distanceM),
+        unit: null,
+        target: null,
+      ),
+      (
+        label: 'Verstreken',
+        value: hmsLabel(elapsed),
+        unit: null,
+        target: null,
+      ),
     ];
     final p = context.palette;
     return Column(
@@ -564,18 +581,18 @@ class _MetricGrid extends StatelessWidget {
 
 class _MetricCell extends StatelessWidget {
   const _MetricCell(this.data);
-  final (String, String, String?) data;
+  final _Cell data;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(data.$1.toUpperCase(),
+          Text(data.label.toUpperCase(),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontSize: 10, letterSpacing: 1.1, color: p.mute)),
           const SizedBox(height: 4),
@@ -584,19 +601,28 @@ class _MetricCell extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: RichText(
               text: TextSpan(
-                text: data.$2,
-                style: AppTheme.numeric(size: 52, color: p.ink),
+                text: data.value,
+                style: AppTheme.numeric(size: 48, color: p.ink),
                 children: [
-                  if (data.$3 != null)
+                  if (data.unit != null)
                     TextSpan(
-                      text: data.$3,
-                      style: AppTheme.numeric(size: 17, color: p.mute)
+                      text: data.unit,
+                      style: AppTheme.numeric(size: 16, color: p.mute)
                           .copyWith(letterSpacing: 0),
                     ),
                 ],
               ),
             ),
           ),
+          if (data.target != null) ...[
+            const SizedBox(height: 3),
+            Text(data.target!,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 11,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w800,
+                    color: p.accent)),
+          ],
         ],
       ),
     );

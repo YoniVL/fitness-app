@@ -265,7 +265,7 @@ class _DayCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text('${s.intensityLabel}'
-                            '${s.targetStrokeRate != null ? ' · ${s.targetStrokeRate} spm' : ''}'),
+                            '${s.targetStrokeRate != null ? ' · ${s.targetStrokeRate} SPM' : ''}'),
                       ),
                       Text(_fmtDuration(s.durationSeconds),
                           style: theme.textTheme.bodyMedium),
@@ -480,7 +480,7 @@ class _RowSessionCard extends StatelessWidget {
                     [
                       _segDuration(seg.durationSeconds),
                       if (seg.targetStrokeRate != null)
-                        '${seg.targetStrokeRate} spm',
+                        '${seg.targetStrokeRate} SPM',
                     ].join(' · '),
                     style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant),

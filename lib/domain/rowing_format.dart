@@ -37,10 +37,10 @@ String distanceLabel(double metres) {
   return '${text.replaceAll('.', ',')} km';
 }
 
-/// Stroke rate → `24 spm`. Null / zero → `–`.
+/// Stroke rate → `24 SPM`. Null / zero → `–`.
 String spmLabel(double? spm) {
   if (spm == null || spm <= 0) return '–';
-  return '${spm.round()} spm';
+  return '${spm.round()} SPM';
 }
 
 /// Power in watts → `142 W`. Null / zero → `–`.

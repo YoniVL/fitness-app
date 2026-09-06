@@ -164,7 +164,7 @@ class _LogRowingFormState extends ConsumerState<_LogRowingForm> {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: const InputDecoration(
             labelText: 'Gemiddelde slag (optioneel)',
-            suffixText: 'spm',
+            suffixText: 'SPM',
           ),
         ),
         Gap.m,

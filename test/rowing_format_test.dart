@@ -30,7 +30,7 @@ void main() {
   });
 
   test('spm / power labels', () {
-    expect(spmLabel(23.6), '24 spm');
+    expect(spmLabel(23.6), '24 SPM');
     expect(spmLabel(null), '–');
     expect(powerLabel(141.2), '141 W');
     expect(powerLabel(0), '–');

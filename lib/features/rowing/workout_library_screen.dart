@@ -251,7 +251,7 @@ class _WorkoutSheet extends StatelessWidget {
                   Text(
                     [
                       _fmt(s.durationSeconds),
-                      if (s.targetStrokeRate != null) '${s.targetStrokeRate} spm',
+                      if (s.targetStrokeRate != null) '${s.targetStrokeRate} SPM',
                       if (segmentTargetSplitLabel(s, ftp, dragK) case final t?)
                         '@$t',
                     ].join(' · '),
