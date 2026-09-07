@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/theme.dart';
 import '../../data/repositories/settings_repository.dart';
@@ -40,11 +41,15 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Keep the screen on for the whole workout — you shouldn't have to wake the
+    // phone between every set. Matches the live rowing screen.
+    WakelockPlus.enable();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    WakelockPlus.disable();
     _pc.dispose();
     super.dispose();
   }
@@ -52,6 +57,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      WakelockPlus.enable();
       ref.read(restTimerProvider.notifier).reconcile();
     }
   }
