@@ -14,7 +14,9 @@ ProgramRowSegment _seg(int order, int seconds, {bool rest = false}) =>
     );
 
 ActiveRowingState _state(List<ProgramRowSegment> segs,
-        {int index = 0, Duration segElapsed = Duration.zero}) =>
+        {int index = 0,
+        Duration segElapsed = Duration.zero,
+        PauseReason pausedReason = PauseReason.none}) =>
     ActiveRowingState(
       session: WorkoutSession(
         id: 1,
@@ -25,6 +27,7 @@ ActiveRowingState _state(List<ProgramRowSegment> segs,
       segments: segs,
       segmentIndex: index,
       segmentElapsed: segElapsed,
+      pausedReason: pausedReason,
     );
 
 void main() {
@@ -52,6 +55,41 @@ void main() {
   test('plannedTotalSeconds sums every segment', () {
     final segs = [_seg(0, 60), _seg(1, 30, rest: true), _seg(2, 60)];
     expect(_state(segs).plannedTotalSeconds, 150);
+  });
+
+  group('plannedSessionComplete', () {
+    final segs = [_seg(0, 60), _seg(1, 30), _seg(2, 60)];
+
+    test('true once the last segment has run its full duration', () {
+      expect(
+        _state(segs, index: 2, segElapsed: const Duration(seconds: 60))
+            .plannedSessionComplete,
+        isTrue,
+      );
+    });
+
+    test('false while an earlier segment is still running', () {
+      expect(
+        _state(segs, index: 1, segElapsed: const Duration(seconds: 60))
+            .plannedSessionComplete,
+        isFalse,
+      );
+    });
+
+    test('false before the session has started', () {
+      expect(
+        _state(segs,
+                index: 2,
+                segElapsed: const Duration(seconds: 90),
+                pausedReason: PauseReason.notStarted)
+            .plannedSessionComplete,
+        isFalse,
+      );
+    });
+
+    test('a free row never completes on its own', () {
+      expect(_state(const []).plannedSessionComplete, isFalse);
+    });
   });
 
   test('copyWith keeps identity fields', () {

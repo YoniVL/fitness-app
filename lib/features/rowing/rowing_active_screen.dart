@@ -34,6 +34,8 @@ class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen>
     DeviceOrientation.landscapeRight,
   ];
 
+  bool _completing = false;
+
   @override
   void initState() {
     super.initState();
@@ -61,23 +63,110 @@ class _RowingActiveScreenState extends ConsumerState<RowingActiveScreen>
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(activeRowingProvider);
+
+    // When a planned session (interval workout, FTP test) runs out its last
+    // segment, wrap it up automatically instead of leaving the clock running.
+    ref.listen(activeRowingProvider, (_, next) {
+      final s = next.valueOrNull;
+      if (s != null &&
+          s.plannedSessionComplete &&
+          !s.paused &&
+          !_completing) {
+        _completing = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _complete(auto: true);
+        });
+      }
+    });
+
     return Scaffold(
       body: SafeArea(
         child: async.view(
           (state) => state == null
               ? const Center(child: Text('Geen actieve roeisessie'))
-              : _Body(state: state),
+              : _Body(
+                  state: state,
+                  onFinish: () => _complete(),
+                  onDiscard: _discard,
+                ),
           loading: () => const Center(child: LoadingBox(height: 120)),
           error: (e) => const Center(child: ErrorBox(message: 'Fout')),
         ),
       ),
     );
   }
+
+  Future<void> _discard() async {
+    final ok = await confirmDialog(context,
+        title: 'Sessie weggooien?',
+        message: 'Niets wordt opgeslagen.',
+        confirmLabel: 'Weggooien',
+        destructive: true);
+    if (!ok) return;
+    await ref.read(activeRowingProvider.notifier).discard();
+    if (mounted) context.go('/rowing/today');
+  }
+
+  /// Finish the session and route on. [auto] skips the "afronden?" prompt —
+  /// used when the planned session has simply run out.
+  Future<void> _complete({bool auto = false}) async {
+    final kind = ref.read(activeRowingProvider).valueOrNull?.kind;
+    String? note;
+    if (!auto) {
+      final controller = TextEditingController();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Sessie afronden?'),
+          content: TextField(
+            controller: controller,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(hintText: 'Notitie (optioneel)'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('ANNULEREN'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('AFRONDEN'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      note = controller.text.trim();
+    }
+    final id = await ref
+        .read(activeRowingProvider.notifier)
+        .finish(notes: (note == null || note.isEmpty) ? null : note);
+    if (!mounted) return;
+    if (id != null) {
+      final newBadges = await ref
+          .read(rowingAchievementsProvider.notifier)
+          .evaluateAndDiff();
+      if (!mounted) return;
+      await showAchievementsUnlockedSheet(context, newBadges);
+      if (!mounted) return;
+    }
+    if (id != null && (kind?.startsWith('ftp_') ?? false)) {
+      context.go('/rowing/ftp/result/$id');
+    } else {
+      context.go(id != null ? '/rowing/log/session/$id' : '/rowing/today');
+    }
+  }
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.state});
+  const _Body({
+    required this.state,
+    required this.onFinish,
+    required this.onDiscard,
+  });
   final ActiveRowingState state;
+  final VoidCallback onFinish;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,66 +235,11 @@ class _Body extends ConsumerWidget {
         _BottomBar(
           state: state,
           onPause: notifier.togglePause,
-          onFinish: () => _finish(context, ref),
-          onDiscard: () => _discard(context, ref),
+          onFinish: onFinish,
+          onDiscard: onDiscard,
         ),
       ],
     );
-  }
-
-  Future<void> _discard(BuildContext context, WidgetRef ref) async {
-    final ok = await confirmDialog(context,
-        title: 'Sessie weggooien?',
-        message: 'Niets wordt opgeslagen.',
-        confirmLabel: 'Weggooien',
-        destructive: true);
-    if (!ok) return;
-    await ref.read(activeRowingProvider.notifier).discard();
-    if (context.mounted) context.go('/rowing/today');
-  }
-
-  Future<void> _finish(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sessie afronden?'),
-        content: TextField(
-          controller: controller,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'Notitie (optioneel)'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ANNULEREN'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('AFRONDEN'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    final note = controller.text.trim();
-    final id = await ref
-        .read(activeRowingProvider.notifier)
-        .finish(notes: note.isEmpty ? null : note);
-    if (!context.mounted) return;
-    if (id != null) {
-      final newBadges = await ref
-          .read(rowingAchievementsProvider.notifier)
-          .evaluateAndDiff();
-      if (!context.mounted) return;
-      await showAchievementsUnlockedSheet(context, newBadges);
-      if (!context.mounted) return;
-    }
-    if (id != null && (state.kind?.startsWith('ftp_') ?? false)) {
-      context.go('/rowing/ftp/result/$id');
-    } else {
-      context.go(id != null ? '/rowing/log/session/$id' : '/rowing/today');
-    }
   }
 }
 

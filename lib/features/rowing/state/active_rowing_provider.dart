@@ -127,6 +127,15 @@ class ActiveRowingState {
   double get plannedTotalSeconds =>
       segments.fold(0, (sum, s) => sum + s.durationSeconds).toDouble();
 
+  /// A planned session whose last segment has run its full duration — time to
+  /// wrap up and (for an FTP test) show the result. Free rows never complete on
+  /// their own.
+  bool get plannedSessionComplete =>
+      segments.isNotEmpty &&
+      pausedReason != PauseReason.notStarted &&
+      segmentIndex >= segments.length - 1 &&
+      segmentElapsed.inSeconds >= (currentSegment?.durationSeconds ?? 0);
+
   ActiveRowingState copyWith({
     int? segmentIndex,
     Duration? elapsed,
