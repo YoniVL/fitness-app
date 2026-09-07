@@ -199,7 +199,8 @@ enum FtpProtocol {
         FtpProtocol.testShort =>
           'Ongeveer 2 km alles eruit. Korter af te zien, iets minder precies.',
         FtpProtocol.ramp =>
-          'Het wattdoel loopt elke minuut op tot je niet meer volgt.',
+          'Het doel (tempo, of watt met een vermogensmeter) loopt elke minuut '
+          'op tot je niet meer volgt.',
       };
 
   static FtpProtocol? fromKind(String? kind) {

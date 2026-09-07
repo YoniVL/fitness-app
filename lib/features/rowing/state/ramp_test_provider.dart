@@ -31,6 +31,7 @@ class RampTestState {
     this.elapsed = Duration.zero,
     this.targetWatts = 0,
     this.recentAvgWatts = 0,
+    this.paceMode = true,
     this.live,
     this.sessionId,
   });
@@ -41,8 +42,14 @@ class RampTestState {
   final Duration elapsed;
   final double targetWatts;
 
-  /// Rolling ~10 s average power, for the "holding / dropping" indicator.
+  /// Rolling ~10 s average power, for the "holding / dropping" indicator. In
+  /// pace mode this is derived from the split (the trainer reports no watts).
   final double recentAvgWatts;
+
+  /// The trainer has never reported real power, so the test is run and shown
+  /// in terms of pace (/500 m) instead of watts.
+  final bool paceMode;
+
   final RowerSnapshot? live;
 
   /// Set once the finished test is persisted.
@@ -51,6 +58,9 @@ class RampTestState {
   Duration get stepRemaining =>
       Duration(seconds: RampProtocol.stepSeconds) - stepElapsed;
 
+  /// The current step's target as a split (seconds per 500 m).
+  double get targetSplit => splitForWatts(targetWatts, dragK: kGeneric);
+
   RampTestState copyWith({
     RampPhase? phase,
     int? step,
@@ -58,6 +68,7 @@ class RampTestState {
     Duration? elapsed,
     double? targetWatts,
     double? recentAvgWatts,
+    bool? paceMode,
     RowerSnapshot? live,
     int? sessionId,
   }) =>
@@ -68,6 +79,7 @@ class RampTestState {
         elapsed: elapsed ?? this.elapsed,
         targetWatts: targetWatts ?? this.targetWatts,
         recentAvgWatts: recentAvgWatts ?? this.recentAvgWatts,
+        paceMode: paceMode ?? this.paceMode,
         live: live ?? this.live,
         sessionId: sessionId ?? this.sessionId,
       );
@@ -87,6 +99,20 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   final _recentPower = <({DateTime at, double w})>[];
   DateTime? _belowSince;
   int _lastSampleSecond = -3;
+  bool _sawRealPower = false;
+
+  /// The watts to work with: the trainer's own reading, or — when it has none —
+  /// an estimate from the split via the generic drag relation.
+  double? _effectivePower(RowerSnapshot? snap) {
+    if (snap == null) return null;
+    final w = snap.powerW;
+    if (w != null && w > 0) return w;
+    final p = snap.paceSec500m;
+    if (p != null && p > 60 && p < 400) {
+      return wattsForSplit(p, dragK: kGeneric);
+    }
+    return null;
+  }
 
   RowingRepository get _rowing => ref.read(rowingRepositoryProvider);
 
@@ -112,6 +138,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     _lastDataAt = null;
     _belowSince = null;
     _lastSampleSecond = -3;
+    _sawRealPower = false;
     state = RampTestState(targetWatts: _proto.targetForStep(0));
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub = ref.read(rowerServiceProvider).snapshots.listen(_onSnapshot);
@@ -125,7 +152,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       strokeCount: r?.strokeCount,
       distanceM: _meter.distanceM,
       paceSec500m: r?.paceSec500m,
-      powerW: r?.powerW,
+      powerW: _effectivePower(r),
       energyKcal: _meter.energyKcal,
       heartRate: r?.heartRate,
       elapsedSeconds: r?.elapsedSeconds,
@@ -138,18 +165,22 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     final now = DateTime.now();
     _lastDataAt = now;
 
-    final p = snap.powerW;
-    if (p != null && p > 0) {
-      _recentPower.add((at: now, w: p));
-      _recentPower.removeWhere((e) => now.difference(e.at) > const Duration(seconds: 15));
+    if ((snap.powerW ?? 0) > 0) _sawRealPower = true;
+    final w = _effectivePower(snap);
+    if (w != null) {
+      _recentPower.add((at: now, w: w));
+      _recentPower.removeWhere(
+          (e) => now.difference(e.at) > const Duration(seconds: 15));
     }
     final pace = snap.paceSec500m;
     final rowing = (snap.strokeRate ?? 0) >= 1 ||
         (pace != null && pace > 60 && pace < 900);
+    final paceMode = !_sawRealPower;
     if (state.phase == RampPhase.waiting && rowing) {
-      state = state.copyWith(phase: RampPhase.running, live: _merged());
+      state = state.copyWith(
+          phase: RampPhase.running, live: _merged(), paceMode: paceMode);
     } else {
-      state = state.copyWith(live: _merged());
+      state = state.copyWith(live: _merged(), paceMode: paceMode);
     }
   }
 
@@ -207,6 +238,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       step: step,
       targetWatts: _proto.targetForStep(step),
       recentAvgWatts: avg,
+      paceMode: !_sawRealPower,
       live: _merged(),
     );
     _maybeSample(elapsed);
@@ -225,7 +257,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       strokeCount: r.strokeCount,
       distanceM: _meter.distanceM,
       paceSec500m: r.paceSec500m,
-      powerW: r.powerW,
+      powerW: _effectivePower(r),
       energyKcal: _meter.energyKcal,
       heartRate: r.heartRate,
     ));

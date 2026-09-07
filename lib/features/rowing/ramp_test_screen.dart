@@ -110,7 +110,8 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
               ? Center(
                   child: Text(
                     'Begin rustig te roeien — de test start bij je eerste halen. '
-                    'Volg het wattdoel; het loopt elke minuut op.',
+                    'Volg het ${s.paceMode ? 'doeltempo' : 'wattdoel'}; het '
+                    'loopt elke minuut op.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium
                         ?.copyWith(color: scheme.onSurfaceVariant),
@@ -141,10 +142,14 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                           Expanded(
                             child: StatTile(
                               label: 'DOEL',
-                              value: '${s.targetWatts.round()} W',
+                              value: s.paceMode
+                                  ? '${paceLabel(s.targetSplit, withUnit: false)} /500m'
+                                  : '${s.targetWatts.round()} W',
                               size: StatSize.hero,
                               labelPosition: StatLabelPosition.above,
-                              sub: '${paceLabel(splitForWatts(s.targetWatts, dragK: dragK), withUnit: false)} /500m',
+                              sub: s.paceMode
+                                  ? '≈ ${s.targetWatts.round()} W'
+                                  : '${paceLabel(splitForWatts(s.targetWatts, dragK: dragK), withUnit: false)} /500m',
                               color: scheme.onSurface,
                             ),
                           ),
@@ -152,10 +157,14 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                           Expanded(
                             child: StatTile(
                               label: 'JIJ',
-                              value: '${liveW.round()} W',
+                              value: s.paceMode
+                                  ? '${paceLabel(live?.paceSec500m, withUnit: false)} /500m'
+                                  : '${liveW.round()} W',
                               size: StatSize.hero,
                               labelPosition: StatLabelPosition.above,
-                              sub: '${paceLabel(live?.paceSec500m, withUnit: false)} /500m',
+                              sub: s.paceMode
+                                  ? (liveW > 0 ? '≈ ${liveW.round()} W' : '')
+                                  : '${paceLabel(live?.paceSec500m, withUnit: false)} /500m',
                               color: holdColor,
                               badge: holdLabel,
                             ),

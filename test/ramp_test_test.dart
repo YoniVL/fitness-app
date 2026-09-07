@@ -28,6 +28,14 @@ void main() {
       const s = RampTestState();
       expect(s.copyWith(sessionId: 12).sessionId, 12);
     });
+    test('targetSplit is the target watts expressed as a /500m split', () {
+      const s = RampTestState(targetWatts: 200);
+      expect(s.targetSplit, closeTo(splitForWatts(200), 0.001));
+    });
+    test('defaults to pace mode until real power shows up', () {
+      expect(const RampTestState().paceMode, isTrue);
+      expect(const RampTestState().copyWith(paceMode: false).paceMode, isFalse);
+    });
   });
 
   group('ramp FTP computation', () {
