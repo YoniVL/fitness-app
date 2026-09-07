@@ -141,6 +141,35 @@ void main() {
       expect(r.watts, closeTo(180 * 0.75, 0.01));
     });
 
+    test('no power: averages the effort-window pace, not the whole session', () {
+      final segs = ftpTestSegments(FtpProtocol.test20, ProgramLevel.medium);
+      final total = segs.fold(0, (a, s) => a + s.durationSeconds);
+      final window = FtpProtocol.test20.effortWindow(segs)!;
+      const effortPace = 110.0; // fast all-out split
+      const restPace = 155.0; // slow warm-up / cool-down
+      final r = computeFtp(
+        (
+          planSegments: segs,
+          totalDistanceM: 4000,
+          durationSeconds: total,
+          samples: [
+            for (var t = 0; t < total * 1000; t += 3000)
+              _s(t,
+                  pace: t >= window.startSec * 1000 &&
+                          t <= window.endSec * 1000
+                      ? effortPace
+                      : restPace),
+          ],
+        ),
+        FtpProtocol.test20,
+      );
+      // Should reflect the all-out split alone.
+      expect(r.effortPaceSeconds, closeTo(effortPace, 0.5));
+      expect(r.watts, closeTo(wattsForSplit(effortPace) * 0.95, 1));
+      // ...and be well above what the whole-session average would give.
+      expect(r.watts, greaterThan(wattsForSplit(restPace) * 0.95 * 1.3));
+    });
+
     test('falls back to distance/time when there are no samples', () {
       final r = computeFtp(
         (

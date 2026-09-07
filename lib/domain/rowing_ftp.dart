@@ -412,7 +412,23 @@ FtpResult computeFtp(FtpSessionData detail, FtpProtocol protocol) {
     );
   }
 
-  // No usable samples — fall back to the session's own distance / time.
+  // No power (a trainer without a meter): average the *effort-window* pace and
+  // convert to watts. This stays inside the all-out block — warm-up and
+  // cool-down are already filtered out by [inWindow].
+  if (paces.length >= 5) {
+    final avgPace = _mean(paces);
+    final avgW = wattsForSplit(avgPace);
+    return FtpResult(
+      watts: avgW * protocol.multiplier,
+      protocol: protocol,
+      effortWatts: avgW,
+      effortPaceSeconds: avgPace,
+      lowConfidence: paces.length < 20,
+    );
+  }
+
+  // Nothing sampled at all — last resort: the session's own distance / time.
+  // This does include warm-up and cool-down, so flag it as rough.
   final d = detail.totalDistanceM;
   final t = detail.durationSeconds;
   if (d > 0 && t > 0) {
