@@ -17,6 +17,9 @@ void main() {
     test('no target → on pace (nothing to fail against)', () {
       expect(rampHold(0, 0), RampHold.onPace);
     });
+    test('no reading yet → on pace, not a collapse', () {
+      expect(rampHold(0, 200), RampHold.onPace);
+    });
   });
 
   group('RampTestState', () {

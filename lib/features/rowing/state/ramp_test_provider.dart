@@ -15,9 +15,11 @@ enum RampPhase { waiting, running, done }
 
 enum RampHold { onPace, close, dropping }
 
-/// How the rower is tracking the current step's target.
+/// How the rower is tracking the current step's target. No reading yet (0) is
+/// treated as on-pace, not as a collapse — otherwise a momentary data gap
+/// reads as "je valt terug".
 RampHold rampHold(double recentAvgWatts, double targetWatts) {
-  if (targetWatts <= 0) return RampHold.onPace;
+  if (targetWatts <= 0 || recentAvgWatts <= 0) return RampHold.onPace;
   if (recentAvgWatts >= 0.97 * targetWatts) return RampHold.onPace;
   if (recentAvgWatts >= 0.90 * targetWatts) return RampHold.close;
   return RampHold.dropping;
@@ -101,12 +103,16 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   DateTime? _belowSince;
   int _lastSampleSecond = -3;
 
-  /// The watts to work with: the trainer's own reading, or — when it has none —
-  /// an estimate from the split via the generic drag relation.
+  /// The watts to work with. In watt mode: the trainer's own reading, falling
+  /// back to a split estimate. In pace mode: always the split estimate — the
+  /// trainer's power field is ignored entirely (it's often missing, zero, or
+  /// something other than real power on machines without a meter).
   double? _effectivePower(RowerSnapshot? snap) {
     if (snap == null) return null;
-    final w = snap.powerW;
-    if (w != null && w > 0) return w;
+    if (!state.paceMode) {
+      final w = snap.powerW;
+      if (w != null && w > 0) return w;
+    }
     final p = snap.paceSec500m;
     if (p != null && p > 60 && p < 400) {
       return wattsForSplit(p, dragK: kGeneric);
