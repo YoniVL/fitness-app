@@ -32,7 +32,7 @@ void main() {
       const s = RampTestState(targetWatts: 200);
       expect(s.targetSplit, closeTo(splitForWatts(200), 0.001));
     });
-    test('defaults to pace mode until real power shows up', () {
+    test('defaults to pace mode; watt mode is opt-in', () {
       expect(const RampTestState().paceMode, isTrue);
       expect(const RampTestState().copyWith(paceMode: false).paceMode, isFalse);
     });

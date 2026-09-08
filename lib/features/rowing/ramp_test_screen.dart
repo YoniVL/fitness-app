@@ -108,13 +108,40 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
           padding: const EdgeInsets.fromLTRB(24, 10, 24, 14),
           child: s.phase == RampPhase.waiting
               ? Center(
-                  child: Text(
-                    'Begin rustig te roeien — de test start bij je eerste halen. '
-                    'Volg het ${s.paceMode ? 'doeltempo' : 'wattdoel'}; het '
-                    'loopt elke minuut op.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(
+                              value: true, label: Text('TEMPO /500M')),
+                          ButtonSegment(
+                              value: false, label: Text('WATT')),
+                        ],
+                        selected: {s.paceMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (sel) => ref
+                            .read(rampTestProvider.notifier)
+                            .setPaceMode(sel.first),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        s.paceMode
+                            ? 'Op tempo — voor een trainer zonder vermogensmeter.'
+                            : 'Op watt — kies dit alleen met een vermogensmeter.',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      Gap.l,
+                      Text(
+                        'Begin rustig te roeien — de test start bij je eerste '
+                        'halen. Volg het ${s.paceMode ? 'doeltempo' : 'wattdoel'}; '
+                        'het loopt elke minuut op.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
                   ),
                 )
               : Column(

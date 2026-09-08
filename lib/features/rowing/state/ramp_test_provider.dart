@@ -46,8 +46,9 @@ class RampTestState {
   /// pace mode this is derived from the split (the trainer reports no watts).
   final double recentAvgWatts;
 
-  /// The trainer has never reported real power, so the test is run and shown
-  /// in terms of pace (/500 m) instead of watts.
+  /// Run and show the test in terms of pace (/500 m) instead of watts. The
+  /// default — most rowing trainers have no power meter. Chosen on the start
+  /// screen before the test begins.
   final bool paceMode;
 
   final RowerSnapshot? live;
@@ -99,7 +100,6 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   final _recentPower = <({DateTime at, double w})>[];
   DateTime? _belowSince;
   int _lastSampleSecond = -3;
-  bool _sawRealPower = false;
 
   /// The watts to work with: the trainer's own reading, or — when it has none —
   /// an estimate from the split via the generic drag relation.
@@ -138,7 +138,6 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     _lastDataAt = null;
     _belowSince = null;
     _lastSampleSecond = -3;
-    _sawRealPower = false;
     state = RampTestState(targetWatts: _proto.targetForStep(0));
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub = ref.read(rowerServiceProvider).snapshots.listen(_onSnapshot);
@@ -165,7 +164,6 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     final now = DateTime.now();
     _lastDataAt = now;
 
-    if ((snap.powerW ?? 0) > 0) _sawRealPower = true;
     final w = _effectivePower(snap);
     if (w != null) {
       _recentPower.add((at: now, w: w));
@@ -175,13 +173,17 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     final pace = snap.paceSec500m;
     final rowing = (snap.strokeRate ?? 0) >= 1 ||
         (pace != null && pace > 60 && pace < 900);
-    final paceMode = !_sawRealPower;
     if (state.phase == RampPhase.waiting && rowing) {
-      state = state.copyWith(
-          phase: RampPhase.running, live: _merged(), paceMode: paceMode);
+      state = state.copyWith(phase: RampPhase.running, live: _merged());
     } else {
-      state = state.copyWith(live: _merged(), paceMode: paceMode);
+      state = state.copyWith(live: _merged());
     }
+  }
+
+  /// Switch between pace and watt targeting — only before the test has started.
+  void setPaceMode(bool paceMode) {
+    if (state.phase != RampPhase.waiting) return;
+    state = state.copyWith(paceMode: paceMode);
   }
 
   /// Rolling average power over the last [seconds]s (0 when no data).
@@ -238,7 +240,6 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       step: step,
       targetWatts: _proto.targetForStep(step),
       recentAvgWatts: avg,
-      paceMode: !_sawRealPower,
       live: _merged(),
     );
     _maybeSample(elapsed);
