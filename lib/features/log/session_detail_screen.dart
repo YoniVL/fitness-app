@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../app/theme.dart';
 import '../../data/repositories/exercise_repository.dart';
 import '../../data/repositories/rowing_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
@@ -355,6 +356,8 @@ class _RowingDetailBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(rowingSessionDetailProvider(sessionId));
+    final hasPowerMeter =
+        ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
     final theme = Theme.of(context);
     final p = context.palette;
     final zones = context.zones;
@@ -379,7 +382,9 @@ class _RowingDetailBody extends ConsumerWidget {
             _StatGrid([
               ('Gem. tempo /500m', paceLabel(avgPace, withUnit: false), null),
               ('Tijd', hmsLabel(Duration(seconds: r.durationSeconds)), null),
-              if (r.avgPower > 0)
+              // Without a confirmed power meter, the trainer's "power" field
+              // is unreliable (see rowingHasPowerMeter) — not worth showing.
+              if (hasPowerMeter && r.avgPower > 0)
                 ('Gem. vermogen', r.avgPower.round().toString(), 'W'),
               if (r.avgStrokeRate > 0)
                 ('Gem. slag', r.avgStrokeRate.round().toString(), 'SPM'),
