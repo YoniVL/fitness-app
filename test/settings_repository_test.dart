@@ -80,4 +80,22 @@ void main() {
     await repo.setRowingDragK(999); // out of range → ignored on read
     expect(await repo.rowingDragK(), kGeneric);
   });
+
+  test('rowingHasPowerMeter defaults to false and round-trips', () async {
+    expect(await repo.rowingHasPowerMeter(), isFalse);
+    await repo.setRowingHasPowerMeter(true);
+    expect(await repo.rowingHasPowerMeter(), isTrue);
+  });
+
+  test('turning rowingHasPowerMeter off drops any calibrated drag factor', () async {
+    await repo.setRowingHasPowerMeter(true);
+    await repo.setRowingDragK(3.4);
+    expect(await repo.rowingDragK(), closeTo(3.4, 0.001));
+
+    await repo.setRowingHasPowerMeter(false);
+
+    expect(await repo.rowingHasPowerMeter(), isFalse);
+    // The stale calibration is gone — reads fall back to the generic factor.
+    expect(await repo.rowingDragK(), kGeneric);
+  });
 }

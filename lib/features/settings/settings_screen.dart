@@ -29,6 +29,7 @@ class SettingsScreen extends ConsumerWidget {
     final sound = ref.watch(restTimerSoundProvider);
     final cueSound = ref.watch(rowingCueSoundProvider);
     final demoMode = ref.watch(rowingDemoModeProvider);
+    final hasPowerMeter = ref.watch(rowingHasPowerMeterProvider);
     final autoProgression = ref.watch(autoProgressionProvider);
     final warmup = ref.watch(warmupSuggestionsProvider);
 
@@ -127,6 +128,23 @@ class SettingsScreen extends ConsumerWidget {
                     'Geen trainer gekoppeld'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showConnectRowerSheet(context, ref),
+          ),
+          hasPowerMeter.viewOrNothing(
+            (on) => SwitchListTile(
+              title: const Text('Vermogensmeter aanwezig'),
+              subtitle: const Text(
+                  'Alleen aanzetten als je roeitrainer echt vermogen meet. '
+                  'Anders reken alles vanaf je tempo — de meeste trainers '
+                  'hebben geen vermogensmeter.'),
+              value: on,
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setRowingHasPowerMeter(v);
+                ref.invalidate(rowingHasPowerMeterProvider);
+                ref.invalidate(rowingDragKProvider);
+              },
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.speed),

@@ -170,6 +170,22 @@ class SettingsRepository {
   Future<void> setRowingDragK(double k) =>
       set(SettingsKeys.rowingDragK, k.toStringAsFixed(4));
 
+  /// Whether the connected trainer has a real power meter. Off by default —
+  /// most FTMS rowers don't have one, and a "power" field on those still
+  /// streams a small/garbage reading. When off, a finished session's data is
+  /// never used to (re)calibrate [rowingDragK]: fitting `k = W·v³` from bogus
+  /// watts against a real split silently drags every future target pace off
+  /// (a too-low `k` reads as "row faster").
+  Future<bool> rowingHasPowerMeter() =>
+      getBool(SettingsKeys.rowingHasPowerMeter, false);
+
+  /// Turning this off also drops any drag factor calibrated while it was on —
+  /// that calibration is only trustworthy with a real meter behind it.
+  Future<void> setRowingHasPowerMeter(bool value) async {
+    await setBool(SettingsKeys.rowingHasPowerMeter, value);
+    if (!value) await remove(SettingsKeys.rowingDragK);
+  }
+
   // --- Rowing achievements -----------------------------------------------
 
   /// `{achievementId: unlockedAt}` for the unlocked rowing achievements.
@@ -230,6 +246,7 @@ class SettingsKeys {
   static const rowingFtpSource = 'rowing_ftp_source';
   static const rowingFtpHistory = 'rowing_ftp_history';
   static const rowingDragK = 'rowing_drag_k';
+  static const rowingHasPowerMeter = 'rowing_has_power_meter';
   static const rowingAchievements = 'rowing_achievements';
   static const rowingAchievementsSeeded = 'rowing_achievements_seeded';
 }
@@ -281,4 +298,10 @@ final rowingFtpHistoryProvider = FutureProvider<List<RowingFtp>>(
 /// The trainer's fitted drag factor (watt↔split conversion).
 final rowingDragKProvider = FutureProvider<double>(
   (ref) => ref.watch(settingsRepositoryProvider).rowingDragK(),
+);
+
+/// Whether the connected trainer has a real power meter — gates whether a
+/// finished session's power data is trusted to (re)calibrate [rowingDragK].
+final rowingHasPowerMeterProvider = FutureProvider<bool>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingHasPowerMeter(),
 );

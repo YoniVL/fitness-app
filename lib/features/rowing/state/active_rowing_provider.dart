@@ -529,11 +529,16 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     );
     await _rower.disconnect();
 
-    // Calibrate the trainer's watt↔split drag factor from this session.
-    final k = calibrateDragK(sampleList);
-    if (k != null) {
-      await _settings.setRowingDragK(k);
-      ref.invalidate(rowingDragKProvider);
+    // Calibrate the trainer's watt↔split drag factor from this session — only
+    // with a confirmed real power meter. Otherwise the "power" field is often
+    // a small/garbage reading, and fitting k = W·v³ from it silently drags
+    // every future target pace off.
+    if (await _settings.rowingHasPowerMeter()) {
+      final k = calibrateDragK(sampleList);
+      if (k != null) {
+        await _settings.setRowingDragK(k);
+        ref.invalidate(rowingDragKProvider);
+      }
     }
 
     final dayId = s.session.programDayId;
