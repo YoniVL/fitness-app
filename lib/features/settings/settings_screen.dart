@@ -30,6 +30,7 @@ class SettingsScreen extends ConsumerWidget {
     final cueSound = ref.watch(rowingCueSoundProvider);
     final demoMode = ref.watch(rowingDemoModeProvider);
     final hasPowerMeter = ref.watch(rowingHasPowerMeterProvider);
+    final paceCorrection = ref.watch(rowingPaceCorrectionProvider);
     final autoProgression = ref.watch(autoProgressionProvider);
     final warmup = ref.watch(warmupSuggestionsProvider);
 
@@ -143,6 +144,28 @@ class SettingsScreen extends ConsumerWidget {
                     .setRowingHasPowerMeter(v);
                 ref.invalidate(rowingHasPowerMeterProvider);
                 ref.invalidate(rowingDragKProvider);
+              },
+            ),
+          ),
+          paceCorrection.viewOrNothing(
+            (pct) => _PercentRow(
+              label: 'Tempo-correctie',
+              subtitle: pct == 0
+                  ? 'Vergelijk een korte, bekende afstand tussen deze app en '
+                      'een andere bron; vul hier het verschil in. Positief = '
+                      'je bent sneller dan de trainer denkt.'
+                  : (pct > 0
+                      ? '+${pct.round()}% — het weergegeven tempo/afstand is '
+                          '${pct.round()}% sneller dan wat de trainer meldt.'
+                      : '${pct.round()}% — het weergegeven tempo/afstand is '
+                          '${pct.abs().round()}% trager dan wat de trainer '
+                          'meldt.'),
+              percent: pct.round(),
+              onChanged: (v) async {
+                await ref
+                    .read(settingsRepositoryProvider)
+                    .setRowingPaceCorrectionPercent(v.toDouble());
+                ref.invalidate(rowingPaceCorrectionProvider);
               },
             ),
           ),
@@ -340,6 +363,45 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+}
+
+class _PercentRow extends StatelessWidget {
+  const _PercentRow({
+    required this.label,
+    required this.subtitle,
+    required this.percent,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String subtitle;
+  final int percent;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(label),
+      subtitle: Text(subtitle),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton.filledTonal(
+            onPressed: percent > -50 ? () => onChanged(percent - 1) : null,
+            icon: const Icon(Icons.remove),
+          ),
+          SizedBox(
+            width: 52,
+            child: Text('$percent%', textAlign: TextAlign.center),
+          ),
+          IconButton.filledTonal(
+            onPressed: percent < 50 ? () => onChanged(percent + 1) : null,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _RestRow extends StatelessWidget {

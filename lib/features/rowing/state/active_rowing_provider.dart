@@ -9,6 +9,7 @@ import '../../../data/repositories/workout_session_repository.dart';
 import '../../../domain/models/program.dart';
 import '../../../domain/models/rowing.dart';
 import '../../../domain/models/workout_session.dart';
+import '../../../domain/rowing_format.dart';
 import '../../../domain/rowing_ftp.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
@@ -187,6 +188,11 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   double? _lastPace;
   DateTime? _lastPaceAt;
 
+  /// A personal correction on top of the trainer's own reported split — see
+  /// [SettingsRepository.rowingPaceCorrectionPercent]. Fetched once per
+  /// session in [_startEngine] since [_onSnapshot] is a synchronous callback.
+  double _paceCorrectionPct = 0;
+
   /// The segment index we've already played the pre-switch beep for.
   int _preBeepedFor = -1;
 
@@ -239,7 +245,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       segmentElapsed: elapsed - acc,
       pausedReason: PauseReason.notStarted,
     );
-    _startEngine();
+    await _startEngine();
     // Carry the pre-restart distance/energy forward.
     final samples = db?.samples ?? const <RowingSample>[];
     if (samples.isNotEmpty) {
@@ -265,7 +271,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         programDayId: day.id,
         startedAt: DateTime.now(),
       );
-      _startEngine();
+      await _startEngine();
       return ActiveRowingState(
         session: session,
         rowingSessionId: ids.rowingSessionId,
@@ -285,7 +291,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         discipline: Discipline.rowing,
         startedAt: DateTime.now(),
       );
-      _startEngine();
+      await _startEngine();
       return ActiveRowingState(
         session: session,
         rowingSessionId: ids.rowingSessionId,
@@ -318,7 +324,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         discipline: Discipline.rowing,
         startedAt: DateTime.now(),
       );
-      _startEngine();
+      await _startEngine();
       return ActiveRowingState(
         session: session,
         rowingSessionId: ids.rowingSessionId,
@@ -329,7 +335,8 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     });
   }
 
-  void _startEngine() {
+  Future<void> _startEngine() async {
+    _paceCorrectionPct = await _settings.rowingPaceCorrectionPercent();
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub?.cancel();
@@ -363,9 +370,12 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
 
   // --- Live loop -------------------------------------------------
 
-  void _onSnapshot(RowerSnapshot raw) {
+  void _onSnapshot(RowerSnapshot rawIn) {
     final s = state.valueOrNull;
     if (s == null) return;
+    final raw = _paceCorrectionPct == 0
+        ? rawIn
+        : rawIn.withPace(correctedPace(rawIn.paceSec500m, _paceCorrectionPct));
     _lastRaw = raw;
     final now = DateTime.now();
     _lastDataAt = now;

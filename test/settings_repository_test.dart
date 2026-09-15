@@ -98,4 +98,14 @@ void main() {
     // The stale calibration is gone — reads fall back to the generic factor.
     expect(await repo.rowingDragK(), kGeneric);
   });
+
+  test('rowingPaceCorrectionPercent defaults to 0 and round-trips', () async {
+    expect(await repo.rowingPaceCorrectionPercent(), 0);
+    await repo.setRowingPaceCorrectionPercent(8.5);
+    expect(await repo.rowingPaceCorrectionPercent(), closeTo(8.5, 0.001));
+    await repo.setRowingPaceCorrectionPercent(-12);
+    expect(await repo.rowingPaceCorrectionPercent(), closeTo(-12, 0.001));
+    await repo.setRowingPaceCorrectionPercent(500); // out of range → ignored
+    expect(await repo.rowingPaceCorrectionPercent(), 0);
+  });
 }

@@ -31,6 +31,21 @@ class RowerSnapshot {
   final double? energyKcal;
   final int? heartRate;
   final int? elapsedSeconds;
+
+  /// A copy with [paceSec500m] replaced — used to apply a personal pace
+  /// correction (see `rowing_format.dart`'s `correctedPace`) right where a raw
+  /// trainer frame first enters the app, so every consumer sees the same,
+  /// already-corrected value.
+  RowerSnapshot withPace(double? paceSec500m) => RowerSnapshot(
+        strokeRate: strokeRate,
+        strokeCount: strokeCount,
+        distanceM: distanceM,
+        paceSec500m: paceSec500m,
+        powerW: powerW,
+        energyKcal: energyKcal,
+        heartRate: heartRate,
+        elapsedSeconds: elapsedSeconds,
+      );
 }
 
 enum RowerConnectionStatus { disconnected, connecting, connected, demo }

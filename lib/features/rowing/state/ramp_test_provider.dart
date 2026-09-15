@@ -6,6 +6,7 @@ import '../../../data/repositories/rowing_repository.dart';
 import '../../../data/repositories/settings_repository.dart';
 import '../../../data/repositories/workout_session_repository.dart';
 import '../../../domain/models/rowing.dart';
+import '../../../domain/rowing_format.dart';
 import '../../../domain/rowing_ftp.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
@@ -103,6 +104,11 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   DateTime? _belowSince;
   int _lastSampleSecond = -3;
 
+  /// A personal correction on top of the trainer's own reported split — see
+  /// [SettingsRepository.rowingPaceCorrectionPercent]. Fetched once in [begin]
+  /// since [_onSnapshot] is a synchronous callback.
+  double _paceCorrectionPct = 0;
+
   /// The watts to work with. In watt mode: the trainer's own reading, falling
   /// back to a split estimate. In pace mode: always the split estimate — the
   /// trainer's power field is ignored entirely (it's often missing, zero, or
@@ -135,7 +141,9 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
 
   Future<void> begin() async {
     if (state.phase != RampPhase.waiting || _ticker != null) return;
-    final ftp = await ref.read(settingsRepositoryProvider).rowingFtp();
+    final settings = ref.read(settingsRepositoryProvider);
+    final ftp = await settings.rowingFtp();
+    _paceCorrectionPct = await settings.rowingPaceCorrectionPercent();
     _proto = RampProtocol.seeded(ftp?.watts);
     _meter = RowingMeter();
     _samples.clear();
@@ -164,8 +172,11 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     );
   }
 
-  void _onSnapshot(RowerSnapshot snap) {
+  void _onSnapshot(RowerSnapshot snapIn) {
     if (state.phase == RampPhase.done) return;
+    final snap = _paceCorrectionPct == 0
+        ? snapIn
+        : snapIn.withPace(correctedPace(snapIn.paceSec500m, _paceCorrectionPct));
     _lastRaw = snap;
     final now = DateTime.now();
     _lastDataAt = now;

@@ -186,6 +186,19 @@ class SettingsRepository {
     if (!value) await remove(SettingsKeys.rowingDragK);
   }
 
+  /// A personal correction (%) for a trainer whose reported pace/distance
+  /// doesn't match reality (see [correctedPace]). 0 — the default — leaves
+  /// every reading untouched; only the user can supply this number, from
+  /// comparing against a source they trust for the same row.
+  Future<double> rowingPaceCorrectionPercent() async {
+    final raw = await getString(SettingsKeys.rowingPaceCorrectionPercent);
+    final v = double.tryParse(raw ?? '');
+    return (v != null && v > -50 && v < 50) ? v : 0;
+  }
+
+  Future<void> setRowingPaceCorrectionPercent(double percent) =>
+      set(SettingsKeys.rowingPaceCorrectionPercent, percent.toStringAsFixed(1));
+
   // --- Rowing achievements -----------------------------------------------
 
   /// `{achievementId: unlockedAt}` for the unlocked rowing achievements.
@@ -247,6 +260,7 @@ class SettingsKeys {
   static const rowingFtpHistory = 'rowing_ftp_history';
   static const rowingDragK = 'rowing_drag_k';
   static const rowingHasPowerMeter = 'rowing_has_power_meter';
+  static const rowingPaceCorrectionPercent = 'rowing_pace_correction_percent';
   static const rowingAchievements = 'rowing_achievements';
   static const rowingAchievementsSeeded = 'rowing_achievements_seeded';
 }
@@ -304,4 +318,9 @@ final rowingDragKProvider = FutureProvider<double>(
 /// finished session's power data is trusted to (re)calibrate [rowingDragK].
 final rowingHasPowerMeterProvider = FutureProvider<bool>(
   (ref) => ref.watch(settingsRepositoryProvider).rowingHasPowerMeter(),
+);
+
+/// The personal pace correction (%) — see [SettingsRepository.rowingPaceCorrectionPercent].
+final rowingPaceCorrectionProvider = FutureProvider<double>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingPaceCorrectionPercent(),
 );

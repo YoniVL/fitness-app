@@ -48,3 +48,23 @@ String powerLabel(double? watts) {
   if (watts == null || watts <= 0) return '–';
   return '${watts.round()} W';
 }
+
+/// A user-supplied correction (%) for a trainer whose reported speed doesn't
+/// match reality — discovered, say, by comparing distance against another
+/// source for the same row. Positive means "I'm actually this much faster
+/// than the trainer thinks"; negative the opposite. 0 (the default) leaves
+/// every pace reading untouched.
+double paceCorrectionFactor(double correctionPercent) =>
+    1 + correctionPercent / 100;
+
+/// Applies [paceCorrectionFactor] to a raw trainer split (seconds per 500 m).
+/// A faster true pace means *fewer* seconds, so a positive correction divides
+/// the split rather than multiplying it. Null/non-positive input, or a
+/// correction at or below -100% (which would flip or zero the pace), passes
+/// through unchanged.
+double? correctedPace(double? rawSecPer500, double correctionPercent) {
+  if (rawSecPer500 == null || rawSecPer500 <= 0) return rawSecPer500;
+  final factor = paceCorrectionFactor(correctionPercent);
+  if (factor <= 0) return rawSecPer500;
+  return rawSecPer500 / factor;
+}
