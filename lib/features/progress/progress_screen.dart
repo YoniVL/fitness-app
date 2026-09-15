@@ -65,8 +65,8 @@ class ProgressScreen extends ConsumerWidget {
                   final total = points.fold(0, (s, p) => s + p.value);
                   return Text(
                     '$total sets over $withData '
-                    'week${withData == 1 ? '' : 'en'} — de grafiek komt na een '
-                    'paar weken data.',
+                    '${withData == 1 ? 'week' : 'weken'} — de grafiek komt na '
+                    'een paar weken data.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   );
                 }
