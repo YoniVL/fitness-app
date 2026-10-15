@@ -342,3 +342,20 @@ C:\src\flutter\bin\flutter.exe run          # of: flutter test / flutter analyze
 C:\src\flutter\bin\flutter.exe build apk --debug
 adb -s RZCY30HVGJF install -r build\app\outputs\flutter-apk\app-debug.apk
 ```
+
+## Horlogekoppeling (Wear OS) — fase 3, in uitvoering (branch `watch-bridge`)
+- Doel: een Wear OS-app (aparte repo `YoniVL/smartwatch`, map `wear/`) die trainingsdata verzamelt en
+  haptiek geeft. Cadans blijft de "hersenen"; het horloge is een dunne client.
+- Protocol (versie 1, paden `/cadans/v1/...`, JSON met `"v":1`): zie `docs/cadans-wear-design.md` in de
+  smartwatch-repo. MessageClient voor commando's, DataClient voor bewaarde data.
+- Native: `android/app/src/main/kotlin/.../wear/` — `WearBridge` (send/emit), `WearBridgePlugin`
+  (MethodChannel `cadans/wear`, EventChannel `cadans/wear/events`), `WearListenerService` (ontvangt ook
+  zonder UI; beantwoordt `ping` zelf met `pong`). Afhankelijkheid: `play-services-wearable`.
+- Dart: `lib/services/wear_bridge.dart` (`WearBridge`, `wearBridgeProvider`), UI-test:
+  Instellingen › Horloge › "Verbinding testen" (`features/watch/watch_ping.dart`).
+- **Horloge- en telefoon-app moeten dezelfde `applicationId` én dezelfde ondertekeningssleutel hebben**
+  (`com.yoni.fitnesstracker.fitnesstracker`), anders ziet de Data Layer ze niet als bij elkaar horend.
+- Een training starten vanaf het horloge werkt alleen als Cadans open is (de roeisessie pauzeert op de
+  achtergrond, Android staat geen scherm-start vanuit de achtergrond toe).
+- Nog niet gedraaid: `flutter analyze` / `flutter test` / bouwen zijn niet uitgevoerd (geen SDK in de
+  omgeving waar dit geschreven is).

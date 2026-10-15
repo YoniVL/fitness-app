@@ -16,6 +16,7 @@ import '../exercises/exercise_media.dart';
 import '../rowing/ble/connect_sheet.dart';
 import '../rowing/rower_service.dart';
 import '../rowing/rowing_cues.dart';
+import '../watch/watch_ping.dart';
 import 'backup.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -224,6 +225,14 @@ class SettingsScreen extends ConsumerWidget {
                 ref.invalidate(warmupSuggestionsProvider);
               },
             ),
+          ),
+          const Divider(),
+          const AppSectionHeader('Horloge'),
+          ListTile(
+            leading: const Icon(Icons.watch_outlined),
+            title: const Text('Verbinding testen'),
+            subtitle: const Text('Stuur een ping naar je gekoppelde horloge'),
+            onTap: () => pingWatch(context, ref),
           ),
           const Divider(),
           const AppSectionHeader('Back-up'),

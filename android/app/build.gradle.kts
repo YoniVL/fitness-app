@@ -51,3 +51,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Wear OS Data Layer (MessageClient/DataClient) voor de horlogekoppeling.
+    implementation("com.google.android.gms:play-services-wearable:18.2.0")
+}
