@@ -47,6 +47,19 @@ class GeneratedProgram {
   final List<String> warnings;
 }
 
+/// How a 4-day week is split. Other day counts have one fixed structure.
+enum FourDaySplit {
+  /// Duwen / Trekken / Benen / Full-body — one dedicated leg day, so a rowing
+  /// habit on top doesn't pile fatigue onto the same muscles.
+  pushPullLegsFull('Duwen / Trekken / Benen / Full-body'),
+
+  /// Bovenlichaam / Onderlichaam, twice — every muscle group twice a week.
+  upperLower('Bovenlichaam / Onderlichaam ×2');
+
+  const FourDaySplit(this.label);
+  final String label;
+}
+
 class GeneratorInput {
   const GeneratorInput({
     required this.daysPerWeek,
@@ -57,7 +70,11 @@ class GeneratorInput {
     this.minutesPerSession,
     this.restBetweenSets = 30,
     this.restAfterExercise = 60,
+    this.fourDaySplit = FourDaySplit.pushPullLegsFull,
   });
+
+  /// Only used when [daysPerWeek] is 4.
+  final FourDaySplit fourDaySplit;
 
   final int daysPerWeek;
   final ProgramLevel level;
@@ -72,9 +89,156 @@ class GeneratorInput {
   final int restAfterExercise;
 }
 
-/// Builds a weekly strength program from movement-pattern slots, using only
-/// equipment-compatible exercises and only the patterns relevant to the chosen
-/// muscle groups.
+/// A kind of training day. [patterns] is in *priority* order: a short day keeps
+/// the front of the list, a long one cycles through it again for variety. The
+/// day is displayed compounds → core → isolation regardless.
+enum _DayKind {
+  push('Duwen', [
+    MovementPattern.horizontalPush,
+    MovementPattern.verticalPush,
+    MovementPattern.horizontalPush,
+    MovementPattern.tricepsIso,
+    MovementPattern.sideDeltIso,
+    MovementPattern.core,
+    MovementPattern.verticalPush,
+    MovementPattern.tricepsIso,
+  ]),
+  pull('Trekken', [
+    MovementPattern.horizontalPull,
+    MovementPattern.verticalPull,
+    MovementPattern.horizontalPull,
+    MovementPattern.bicepsIso,
+    MovementPattern.core,
+    MovementPattern.verticalPull,
+    MovementPattern.bicepsIso,
+    MovementPattern.horizontalPull,
+  ]),
+  legs('Benen', [
+    MovementPattern.squat,
+    MovementPattern.hinge,
+    MovementPattern.lunge,
+    MovementPattern.calfIso,
+    MovementPattern.core,
+    MovementPattern.squat,
+    MovementPattern.hinge,
+    MovementPattern.lunge,
+  ]),
+  // Hinge-led lower day, so two lower days in a week differ.
+  legsHinge('Benen', [
+    MovementPattern.hinge,
+    MovementPattern.squat,
+    MovementPattern.lunge,
+    MovementPattern.calfIso,
+    MovementPattern.core,
+    MovementPattern.hinge,
+    MovementPattern.squat,
+    MovementPattern.lunge,
+  ]),
+  upperA('Bovenlichaam', [
+    MovementPattern.horizontalPush,
+    MovementPattern.horizontalPull,
+    MovementPattern.verticalPush,
+    MovementPattern.verticalPull,
+    MovementPattern.tricepsIso,
+    MovementPattern.sideDeltIso,
+    MovementPattern.bicepsIso,
+    MovementPattern.core,
+  ]),
+  upperB('Bovenlichaam', [
+    MovementPattern.horizontalPull,
+    MovementPattern.horizontalPush,
+    MovementPattern.verticalPull,
+    MovementPattern.verticalPush,
+    MovementPattern.bicepsIso,
+    MovementPattern.sideDeltIso,
+    MovementPattern.tricepsIso,
+    MovementPattern.core,
+  ]),
+  fullA('Full-body', [
+    MovementPattern.squat,
+    MovementPattern.horizontalPush,
+    MovementPattern.horizontalPull,
+    MovementPattern.core,
+    MovementPattern.verticalPush,
+    MovementPattern.hinge,
+    MovementPattern.bicepsIso,
+    MovementPattern.tricepsIso,
+  ]),
+  fullB('Full-body', [
+    MovementPattern.hinge,
+    MovementPattern.verticalPush,
+    MovementPattern.verticalPull,
+    MovementPattern.core,
+    MovementPattern.horizontalPush,
+    MovementPattern.lunge,
+    MovementPattern.sideDeltIso,
+    MovementPattern.bicepsIso,
+  ]),
+  fullC('Full-body', [
+    MovementPattern.lunge,
+    MovementPattern.horizontalPush,
+    MovementPattern.horizontalPull,
+    MovementPattern.core,
+    MovementPattern.verticalPull,
+    MovementPattern.squat,
+    MovementPattern.calfIso,
+    MovementPattern.tricepsIso,
+  ]),
+  // Full-body with light legs (single-leg only) — follows a heavy leg day.
+  fullLight('Full-body', [
+    MovementPattern.horizontalPush,
+    MovementPattern.horizontalPull,
+    MovementPattern.lunge,
+    MovementPattern.verticalPush,
+    MovementPattern.core,
+    MovementPattern.verticalPull,
+    MovementPattern.bicepsIso,
+    MovementPattern.tricepsIso,
+  ]);
+
+  const _DayKind(this.label, this.patterns);
+  final String label;
+  final List<MovementPattern> patterns;
+}
+
+/// What a day without any usable pattern (e.g. a leg day when no leg muscle
+/// group is selected) is swapped for, in rotation.
+const _substitutes = [
+  _DayKind.upperA,
+  _DayKind.upperB,
+  _DayKind.push,
+  _DayKind.pull,
+];
+
+List<_DayKind> _weekStructure(int days, FourDaySplit split) => switch (days) {
+      2 => [_DayKind.fullA, _DayKind.fullB],
+      3 => [_DayKind.fullA, _DayKind.fullB, _DayKind.fullC],
+      4 => switch (split) {
+          FourDaySplit.pushPullLegsFull => [
+              _DayKind.push,
+              _DayKind.pull,
+              _DayKind.legs,
+              _DayKind.fullLight,
+            ],
+          FourDaySplit.upperLower => [
+              _DayKind.upperA,
+              _DayKind.legs,
+              _DayKind.upperB,
+              _DayKind.legsHinge,
+            ],
+        },
+      _ => [
+          _DayKind.push,
+          _DayKind.pull,
+          _DayKind.legs,
+          _DayKind.upperA,
+          _DayKind.legsHinge,
+        ],
+    };
+
+/// Builds a weekly strength program from a fixed split (see [_weekStructure]),
+/// filling each day's movement-pattern slots with equipment-compatible
+/// exercises and keeping only the patterns relevant to the chosen muscle groups.
 class ProgramGenerator {
   ProgramGenerator(this.catalogue, {Random? rng}) : _rng = rng ?? Random();
 
@@ -122,13 +286,6 @@ class ProgramGenerator {
           'Geen oefeningen gevonden voor deze combinatie van materiaal en spiergroepen.');
     }
 
-    final compounds = options.keys.where((p) => p.isCompound).toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
-    final cores =
-        options.keys.where((p) => p == MovementPattern.core).toList();
-    final isos = options.keys.where((p) => p.isIsolation).toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
-
     final sets = input.level.setsPerExercise;
     // Time budget (if given) drives the exercise count: roughly
     // 3 min setup + sets * (~40s work + rest) per exercise.
@@ -139,22 +296,7 @@ class ProgramGenerator {
             .round()
             .clamp(3, 9);
 
-    // Day composition: mostly compounds, then core, then isolation.
-    final coreSlots = cores.isEmpty ? 0 : (exPerDay >= 4 ? 1 : 0);
-    var isoSlots = isos.isEmpty
-        ? 0
-        : (input.level == ProgramLevel.advanced ? 2 : (exPerDay >= 5 ? 1 : 0));
-    var compoundSlots = exPerDay - coreSlots - isoSlots;
-    if (compounds.isEmpty) {
-      // No compounds available — everything becomes core/iso.
-      compoundSlots = 0;
-      isoSlots = exPerDay - coreSlots;
-    }
-
-    // Round-robin cursors so consecutive days pick different patterns/exercises.
-    var compoundCursor = 0;
-    var coreCursor = 0;
-    var isoCursor = 0;
+    // Per-pattern cursor so consecutive days pick different exercises.
     final exerciseCursor = <MovementPattern, int>{};
 
     Exercise pick(MovementPattern p, Set<int> usedToday) {
@@ -183,46 +325,53 @@ class ProgramGenerator {
       );
     }
 
+    // Core alone doesn't make a training day, so it doesn't count as usable.
+    List<MovementPattern> usable(_DayKind k) {
+      final ps = k.patterns.where(options.containsKey).toList();
+      return ps.any((p) => p != MovementPattern.core) ? ps : const [];
+    }
+
+    final structure = _weekStructure(days, input.fourDaySplit);
+    var substituteCursor = 0;
     final generatedDays = <GeneratedDay>[];
     for (var d = 0; d < days; d++) {
-      final usedToday = <int>{};
-      final slots = <GeneratedExercise>[];
-
-      void addFrom(List<MovementPattern> patterns, int count, int Function() cursor,
-          void Function(int) bump) {
-        if (patterns.isEmpty) return;
-        var c = cursor();
-        for (var i = 0; i < count; i++) {
-          final pattern = patterns[c % patterns.length];
-          c++;
-          final ex = pick(pattern, usedToday);
-          usedToday.add(ex.id);
-          slots.add(slot(pattern, ex));
+      var kind = structure[d];
+      var patterns = usable(kind);
+      if (patterns.isEmpty) {
+        // Nothing of this day type is trainable with the chosen muscle groups /
+        // equipment (e.g. a leg day without legs) — swap in an upper-body day.
+        for (var i = 0; i < _substitutes.length && patterns.isEmpty; i++) {
+          kind = _substitutes[(substituteCursor + i) % _substitutes.length];
+          patterns = usable(kind);
         }
-        bump(c);
+        substituteCursor++;
+        // Last resort: whatever is left (e.g. only core or only isolation).
+        if (patterns.isEmpty) patterns = options.keys.toList();
       }
 
-      addFrom(compounds, compoundSlots, () => compoundCursor,
-          (v) => compoundCursor = v);
-      addFrom(cores, coreSlots, () => coreCursor, (v) => coreCursor = v);
-      addFrom(isos, isoSlots, () => isoCursor, (v) => isoCursor = v);
-
-      // Top up if a category was empty and we came up short.
-      while (slots.length < exPerDay) {
-        final pool = [
-          ...compounds,
-          ...isos,
-          ...cores,
-        ];
-        if (pool.isEmpty) break;
-        final pattern = pool[slots.length % pool.length];
+      // Walk the priority list (repeating it when the day is longer), skipping
+      // exercises already used today, until the day is full.
+      final usedToday = <int>{};
+      final picked = <(MovementPattern, Exercise)>[];
+      for (final pattern in [...patterns, ...patterns, ...patterns]) {
+        if (picked.length >= exPerDay) break;
         final ex = pick(pattern, usedToday);
-        if (usedToday.contains(ex.id)) break; // nothing new to add
+        if (usedToday.contains(ex.id)) continue; // pattern is used up
         usedToday.add(ex.id);
-        slots.add(slot(pattern, ex));
+        picked.add((pattern, ex));
       }
 
-      generatedDays.add(GeneratedDay(label: 'Dag ${d + 1}', exercises: slots));
+      // Display order: compounds, then core, then isolation.
+      int rank(MovementPattern p) =>
+          p.isCompound ? 0 : (p == MovementPattern.core ? 1 : 2);
+      final slots = [
+        for (var r = 0; r < 3; r++)
+          for (final (pattern, ex) in picked)
+            if (rank(pattern) == r) slot(pattern, ex),
+      ];
+
+      generatedDays.add(GeneratedDay(
+          label: 'Dag ${d + 1} · ${kind.label}', exercises: slots));
     }
 
     final warnings = <String>[];

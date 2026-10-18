@@ -24,6 +24,7 @@ class BuilderScreen extends ConsumerStatefulWidget {
 class _BuilderScreenState extends ConsumerState<BuilderScreen> {
   final _nameController = TextEditingController();
   int _days = 4;
+  FourDaySplit _split = FourDaySplit.pushPullLegsFull;
   ProgramLevel _level = ProgramLevel.medium;
   int? _minutes; // null = op basis van niveau
   final Set<String> _muscleGroups = {...MuscleGroups.all};
@@ -67,6 +68,30 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
             selected: {_days},
             onSelectionChanged: (s) => setState(() => _days = s.first),
           ),
+          if (_days == 4) ...[
+            Gap.m,
+            _label('Indeling'),
+            SegmentedButton<FourDaySplit>(
+              segments: const [
+                ButtonSegment(
+                    value: FourDaySplit.pushPullLegsFull,
+                    label: Text('Duwen/Trekken/Benen')),
+                ButtonSegment(
+                    value: FourDaySplit.upperLower,
+                    label: Text('Boven/Onder ×2')),
+              ],
+              selected: {_split},
+              onSelectionChanged: (s) => setState(() => _split = s.first),
+            ),
+            Gap.xs,
+            Text(
+              _split == FourDaySplit.pushPullLegsFull
+                  ? 'Duwen, trekken, benen en een full-body dag. Eén zware '
+                      'beendag — handig als je er ook bij roeit.'
+                  : 'Elke spiergroep twee keer per week, met twee beendagen.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           Gap.l,
           _label('Niveau (bepaalt sets & reps)'),
           SegmentedButton<ProgramLevel>(
@@ -187,6 +212,7 @@ class _BuilderScreenState extends ConsumerState<BuilderScreen> {
         minutesPerSession: _minutes,
         restBetweenSets: await settings.restBetweenSets(),
         restAfterExercise: await settings.restAfterExercise(),
+        fourDaySplit: _split,
       ));
       setState(() {
         _warnings = result.warnings;
