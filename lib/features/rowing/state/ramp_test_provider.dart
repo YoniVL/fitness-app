@@ -26,6 +26,16 @@ RampHold rampHold(double recentAvgWatts, double targetWatts) {
   return RampHold.dropping;
 }
 
+/// The same for a stroke-rate ramp: the 10 s average stroke rate against the
+/// step's target. A stroke rate is read in whole spm and wobbles by one, so the
+/// bands are in spm rather than a percentage.
+RampHold rampHoldSpm(double recentAvgSpm, double targetSpm) {
+  if (targetSpm <= 0 || recentAvgSpm <= 0) return RampHold.onPace;
+  if (recentAvgSpm >= targetSpm - 0.5) return RampHold.onPace;
+  if (recentAvgSpm >= targetSpm - 1.5) return RampHold.close;
+  return RampHold.dropping;
+}
+
 class RampTestState {
   const RampTestState({
     this.phase = RampPhase.waiting,
@@ -34,7 +44,9 @@ class RampTestState {
     this.elapsed = Duration.zero,
     this.targetWatts = 0,
     this.recentAvgWatts = 0,
-    this.paceMode = true,
+    this.targetSpm = 0,
+    this.recentAvgSpm = 0,
+    this.spmMode = true,
     this.live,
     this.sessionId,
   });
@@ -46,13 +58,18 @@ class RampTestState {
   final double targetWatts;
 
   /// Rolling ~10 s average power, for the "holding / dropping" indicator. In
-  /// pace mode this is derived from the split (the trainer reports no watts).
+  /// stroke-rate mode this is the stroke-rate equivalent (the trainer reports
+  /// no real watts).
   final double recentAvgWatts;
 
-  /// Run and show the test in terms of pace (/500 m) instead of watts. The
-  /// default — most rowing trainers have no power meter. Chosen on the start
-  /// screen before the test begins.
-  final bool paceMode;
+  /// The current step's target stroke rate, and the rolling ~10 s average.
+  final double targetSpm;
+  final double recentAvgSpm;
+
+  /// Run the test on stroke rate (spm) instead of watts. The default — most
+  /// rowing trainers have no power meter and only really report stroke rate.
+  /// Chosen on the start screen before the test begins.
+  final bool spmMode;
 
   final RowerSnapshot? live;
 
@@ -62,9 +79,6 @@ class RampTestState {
   Duration get stepRemaining =>
       Duration(seconds: RampProtocol.stepSeconds) - stepElapsed;
 
-  /// The current step's target as a split (seconds per 500 m).
-  double get targetSplit => splitForWatts(targetWatts, dragK: kGeneric);
-
   RampTestState copyWith({
     RampPhase? phase,
     int? step,
@@ -72,7 +86,9 @@ class RampTestState {
     Duration? elapsed,
     double? targetWatts,
     double? recentAvgWatts,
-    bool? paceMode,
+    double? targetSpm,
+    double? recentAvgSpm,
+    bool? spmMode,
     RowerSnapshot? live,
     int? sessionId,
   }) =>
@@ -83,14 +99,18 @@ class RampTestState {
         elapsed: elapsed ?? this.elapsed,
         targetWatts: targetWatts ?? this.targetWatts,
         recentAvgWatts: recentAvgWatts ?? this.recentAvgWatts,
-        paceMode: paceMode ?? this.paceMode,
+        targetSpm: targetSpm ?? this.targetSpm,
+        recentAvgSpm: recentAvgSpm ?? this.recentAvgSpm,
+        spmMode: spmMode ?? this.spmMode,
         live: live ?? this.live,
         sessionId: sessionId ?? this.sessionId,
       );
 }
 
-/// Drives a ramp test: a watt target that rises every minute, ending when the
-/// rower can no longer hold it (or taps Stop). FTP ≈ 0.75 × best 60-second power.
+/// Drives a ramp test: a target (stroke rate, or watts with a power meter) that
+/// rises every minute, ending when the rower can no longer hold it (or taps
+/// Stop). FTP ≈ 0.75 × best 60-second power (for stroke rate: its notional
+/// power, see `wattsForSpm`).
 class RampTestController extends AutoDisposeNotifier<RampTestState> {
   RampProtocol _proto = const RampProtocol();
   final _samples = <RowingSample>[];
@@ -101,6 +121,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   RowerSnapshot? _lastRaw;
   DateTime? _lastDataAt;
   final _recentPower = <({DateTime at, double w})>[];
+  final _recentSpm = <({DateTime at, double spm})>[];
   DateTime? _belowSince;
   int _lastSampleSecond = -3;
 
@@ -109,21 +130,27 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   /// [_onSnapshot] is a synchronous callback.
   double _metersPerStroke = kDefaultMetersPerStroke;
 
-  /// The watts to work with. In watt mode: the trainer's own reading, falling
-  /// back to a split estimate. In pace mode: always the split estimate — the
-  /// trainer's power field is ignored entirely (it's often missing, zero, or
-  /// something other than real power on machines without a meter).
+  /// The watts to work with. With a power meter (watt mode): the trainer's own
+  /// reading, falling back to the stroke-rate equivalent. In stroke-rate mode:
+  /// always the stroke-rate equivalent — the trainer's power field is ignored
+  /// (without a meter it is a tiny fixed function of the stroke rate).
   double? _effectivePower(RowerSnapshot? snap) {
     if (snap == null) return null;
-    if (!state.paceMode) {
+    if (!state.spmMode) {
       final w = snap.powerW;
       if (w != null && w > 0) return w;
     }
-    final p = snap.paceSec500m;
-    if (p != null && p > 60 && p < 400) {
-      return wattsForSplit(p, dragK: kGeneric);
-    }
-    return null;
+    final spm = snap.strokeRate;
+    return spm != null && spm >= 1 ? wattsForSpm(spm) : null;
+  }
+
+  /// The (target watts, target spm) for ramp step [n] in the given mode.
+  ({double watts, double spm}) _targetsFor(int n, bool spmMode) {
+    final spm = _proto.targetSpmForStep(n);
+    return (
+      watts: spmMode ? wattsForSpm(spm) : _proto.targetForStep(n),
+      spm: spm,
+    );
   }
 
   RowingRepository get _rowing => ref.read(rowingRepositoryProvider);
@@ -148,11 +175,13 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     _meter = RowingMeter();
     _samples.clear();
     _recentPower.clear();
+    _recentSpm.clear();
     _lastRaw = null;
     _lastDataAt = null;
     _belowSince = null;
     _lastSampleSecond = -3;
-    state = RampTestState(targetWatts: _proto.targetForStep(0));
+    final t = _targetsFor(0, true);
+    state = RampTestState(targetWatts: t.watts, targetSpm: t.spm);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub = ref.read(rowerServiceProvider).snapshots.listen(_onSnapshot);
     ref.read(rowerServiceProvider).connect();
@@ -187,9 +216,13 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       _recentPower.removeWhere(
           (e) => now.difference(e.at) > const Duration(seconds: 15));
     }
-    final pace = snap.paceSec500m;
-    final rowing = (snap.strokeRate ?? 0) >= 1 ||
-        (pace != null && pace > 60 && pace < 900);
+    final spm = snap.strokeRate;
+    if (spm != null && spm >= 1) {
+      _recentSpm.add((at: now, spm: spm));
+      _recentSpm.removeWhere(
+          (e) => now.difference(e.at) > const Duration(seconds: 15));
+    }
+    final rowing = (spm ?? 0) >= 1;
     if (state.phase == RampPhase.waiting && rowing) {
       state = state.copyWith(phase: RampPhase.running, live: _merged());
     } else {
@@ -200,10 +233,20 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     }
   }
 
-  /// Switch between pace and watt targeting — only before the test has started.
-  void setPaceMode(bool paceMode) {
+  /// Switch between stroke-rate and watt targeting — only before the test has
+  /// started.
+  void setSpmMode(bool spmMode) {
     if (state.phase != RampPhase.waiting) return;
-    state = state.copyWith(paceMode: paceMode);
+    final t = _targetsFor(state.step, spmMode);
+    state = state.copyWith(
+        spmMode: spmMode, targetWatts: t.watts, targetSpm: t.spm);
+  }
+
+  /// Rolling average stroke rate over the last [seconds]s (0 when no data).
+  double recentAvgSpm([int seconds = 10]) {
+    final cutoff = DateTime.now().subtract(Duration(seconds: seconds));
+    final xs = _recentSpm.where((e) => e.at.isAfter(cutoff)).map((e) => e.spm);
+    return xs.isEmpty ? 0 : xs.reduce((a, b) => a + b) / xs.length;
   }
 
   /// Rolling average power over the last [seconds]s (0 when no data).
@@ -234,11 +277,15 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       ref.read(rowingCuesProvider).onSwitch();
     }
 
-    // Fail: after the first 10 s of a step, if the 10 s average power stays
-    // below 92 % of the step target for 6 s straight, the rower is done.
-    final stepTarget = _proto.targetForStep(s.step);
+    // Fail: after the first 10 s of a step, if the 10 s average stays clearly
+    // below the step target (92 % of the watts, or 1.5 spm) for 6 s straight,
+    // the rower is done.
     final avg = recentAvgPower();
-    if (s.stepElapsed.inSeconds >= 10 && avg > 0 && avg < 0.92 * stepTarget) {
+    final avgSpm = recentAvgSpm();
+    final below = s.spmMode
+        ? avgSpm > 0 && avgSpm < _proto.targetSpmForStep(s.step) - 1.5
+        : avg > 0 && avg < 0.92 * _proto.targetForStep(s.step);
+    if (s.stepElapsed.inSeconds >= 10 && below) {
       _belowSince ??= now;
       if (now.difference(_belowSince!) >= const Duration(seconds: 6)) {
         finish();
@@ -248,12 +295,15 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       _belowSince = null;
     }
 
+    final t = _targetsFor(step, s.spmMode);
     state = s.copyWith(
       elapsed: elapsed,
       stepElapsed: stepElapsed,
       step: step,
-      targetWatts: _proto.targetForStep(step),
+      targetWatts: t.watts,
+      targetSpm: t.spm,
       recentAvgWatts: avg,
+      recentAvgSpm: avgSpm,
       live: _merged(),
     );
     _maybeSample(elapsed);

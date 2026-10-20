@@ -44,6 +44,33 @@ String? segmentTargetSplitLabel(
   return s == null ? null : paceLabel(s, withUnit: false);
 }
 
+/// The target stroke rate for one plan/workout segment, for trainers without a
+/// power meter (where stroke rate is the one thing actually measured): its
+/// baked-in [ProgramRowSegment.targetWatts] when present, else the live
+/// FTP-derived rate for its zone, else the plan's own stroke-rate target. Null
+/// for rest.
+int? segmentTargetSpm(ProgramRowSegment seg, RowingFtp? ftp) {
+  if (seg.isRest) return null;
+  if (seg.targetWatts != null) return spmForWatts(seg.targetWatts!).round();
+  final zone =
+      segmentZone(zone: seg.zone, spm: seg.targetStrokeRate, isRest: seg.isRest);
+  final z = ftp == null ? null : RowingZones.fromFtp(ftp.watts)[zone];
+  if (z != null) return spmForWatts(z.targetWatts).round();
+  return seg.targetStrokeRate;
+}
+
+/// A one-line target stroke-rate summary for a session: the lowest ("duur") and
+/// highest ("piek") target present, e.g. `21 SPM duur · 26 SPM piek`. Null when
+/// no segment has a target.
+String? daySpmSummary(List<ProgramRowSegment> segs, RowingFtp? ftp) {
+  final spms = <int>[
+    for (final s in segs) ?segmentTargetSpm(s, ftp),
+  ]..sort();
+  if (spms.isEmpty) return null;
+  if (spms.first == spms.last) return '${spms.first} SPM';
+  return '${spms.first} SPM duur · ${spms.last} SPM piek';
+}
+
 /// A one-line target-pace summary for a session, from its non-rest segments:
 /// the slowest ("duur") and fastest ("piek") targets present. Null when no
 /// segment has a target.

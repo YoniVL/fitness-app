@@ -26,6 +26,7 @@ class FtpScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final ftp = ref.watch(rowingFtpProvider).valueOrNull;
     final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
+    final hasMeter = ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
     final history = ref.watch(rowingFtpHistoryProvider).valueOrNull ?? const [];
 
     return Scaffold(
@@ -33,7 +34,7 @@ class FtpScreen extends ConsumerWidget {
       body: ListView(
         padding: Insets.screenList,
         children: [
-          _CurrentCard(ftp: ftp, dragK: dragK),
+          _CurrentCard(ftp: ftp, dragK: dragK, hasPowerMeter: hasMeter),
           if (ftp != null)
             Align(
               alignment: Alignment.centerRight,
@@ -47,9 +48,13 @@ class FtpScreen extends ConsumerWidget {
             ),
           Gap.s,
           Text(
-            'Je FTP is het vermogen dat je ongeveer een uur volhoudt — de basis '
-            'voor de richttempo\'s per zone. Zet ’m met een test, handmatig, '
-            'of vanuit een eerdere sessie.',
+            hasMeter
+                ? 'Je FTP is het vermogen dat je ongeveer een uur volhoudt — de '
+                    'basis voor de richttempo\'s per zone. Zet ’m met een test, '
+                    'handmatig, of vanuit een eerdere sessie.'
+                : 'Je drempel is het slagtempo dat je ongeveer een uur volhoudt — '
+                    'de basis voor het doel-slagtempo per zone. Zet ’m met een '
+                    'test, handmatig, of vanuit een eerdere sessie.',
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -67,8 +72,10 @@ class FtpScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.edit),
                   title: const Text('Handmatig invoeren'),
-                  subtitle: const Text('Vermogen in watt, of je 2k-tijd'),
-                  onTap: () => _manualEntry(context, ref, dragK),
+                  subtitle: Text(hasMeter
+                      ? 'Vermogen in watt, of je 2k-tijd'
+                      : 'Het slagtempo dat je een uur volhoudt'),
+                  onTap: () => _manualEntry(context, ref, dragK, hasMeter),
                 ),
                 const Divider(height: 0),
                 ListTile(
@@ -84,7 +91,9 @@ class FtpScreen extends ConsumerWidget {
             const SizedBox(height: 20),
             Text('Verloop', style: theme.textTheme.titleSmall),
             Gap.s,
-            SizedBox(height: 120, child: _HistoryChart(history: history)),
+            SizedBox(
+                height: 120,
+                child: _HistoryChart(history: history, asSpm: !hasMeter)),
           ],
           if (history.isNotEmpty) ...[
             Gap.m,
@@ -92,8 +101,8 @@ class FtpScreen extends ConsumerWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                title: Text('${h.watts.round()} W · '
-                    '${paceLabel(h.splitSeconds(dragK: dragK))}'),
+                title: Text(
+                    ftpLabel(h, hasPowerMeter: hasMeter, dragK: dragK)),
                 subtitle: Text(
                     '${DateFormat('d MMM y', 'nl').format(h.setAt)} · ${h.source.label}'),
               ),
@@ -143,14 +152,14 @@ class FtpScreen extends ConsumerWidget {
 
   // --- Manual -----------------------------------------------------
 
-  Future<void> _manualEntry(
-      BuildContext context, WidgetRef ref, double dragK) async {
+  Future<void> _manualEntry(BuildContext context, WidgetRef ref, double dragK,
+      bool hasMeter) async {
     final wattsCtrl = TextEditingController();
     final splitCtrl = TextEditingController();
     final result = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('FTP handmatig'),
+        title: Text(hasMeter ? 'FTP handmatig' : 'Drempel handmatig'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -158,18 +167,21 @@ class FtpScreen extends ConsumerWidget {
               controller: wattsCtrl,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration:
-                  const InputDecoration(labelText: 'Vermogen', suffixText: 'W'),
+              decoration: InputDecoration(
+                  labelText: hasMeter ? 'Vermogen' : 'Slagtempo',
+                  suffixText: hasMeter ? 'W' : 'SPM'),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('of'),
-            ),
-            TextField(
-              controller: splitCtrl,
-              decoration: const InputDecoration(
-                  labelText: '2k-tijd', hintText: 'bv. 7:45'),
-            ),
+            if (hasMeter) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('of'),
+              ),
+              TextField(
+                controller: splitCtrl,
+                decoration: const InputDecoration(
+                    labelText: '2k-tijd', hintText: 'bv. 7:45'),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -180,7 +192,12 @@ class FtpScreen extends ConsumerWidget {
             onPressed: () {
               final w = double.tryParse(wattsCtrl.text.trim());
               if (w != null && w > 0) {
-                Navigator.pop(context, w);
+                // Without a meter the number is a stroke rate (10–60 spm).
+                if (hasMeter) {
+                  Navigator.pop(context, w);
+                } else if (w >= 10 && w <= 60) {
+                  Navigator.pop(context, wattsForSpm(w));
+                }
                 return;
               }
               final t = _parseMinSec(splitCtrl.text.trim());
@@ -203,7 +220,10 @@ class FtpScreen extends ConsumerWidget {
     ));
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('FTP opgeslagen: ${result.round()} W')));
+          SnackBar(
+              content: Text(hasMeter
+                  ? 'FTP opgeslagen: ${result.round()} W'
+                  : 'Drempel opgeslagen: ${spmForWatts(result).round()} SPM')));
     }
   }
 
@@ -262,12 +282,13 @@ class FtpScreen extends ConsumerWidget {
         .read(rowingRepositoryProvider)
         .rowingDetail(picked.session.id);
     if (detail == null || !context.mounted) return;
+    final hasMeter = ref.read(rowingHasPowerMeterProvider).valueOrNull ?? false;
     final res = computeFtp((
       samples: detail.samples,
       planSegments: detail.planSegments,
       totalDistanceM: detail.rowing.totalDistanceM,
       durationSeconds: detail.rowing.durationSeconds,
-    ), proto);
+    ), proto, hasPowerMeter: hasMeter);
     if (res.watts <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Kon geen vermogen uit die sessie halen.')));
@@ -277,8 +298,8 @@ class FtpScreen extends ConsumerWidget {
     final ok = await confirmDialog(
       context,
       title: 'FTP overnemen?',
-      message: '${res.watts.round()} W · '
-          '${paceLabel(splitForWatts(res.watts, dragK: dragK))}'
+      message: '${hasMeter ? '${res.watts.round()} W · '
+              '${paceLabel(splitForWatts(res.watts, dragK: dragK))}' : '${spmForWatts(res.watts).round()} SPM'}'
           '${res.lowConfidence ? '\n\nRuwe schatting — weinig meetdata.' : ''}',
       confirmLabel: 'Opslaan',
     );
@@ -306,9 +327,11 @@ int? _parseMinSec(String s) {
 }
 
 class _CurrentCard extends StatelessWidget {
-  const _CurrentCard({required this.ftp, required this.dragK});
+  const _CurrentCard(
+      {required this.ftp, required this.dragK, required this.hasPowerMeter});
   final RowingFtp? ftp;
   final double dragK;
+  final bool hasPowerMeter;
 
   @override
   Widget build(BuildContext context) {
@@ -323,20 +346,24 @@ class _CurrentCard extends StatelessWidget {
                 children: [
                   Icon(Icons.speed, color: theme.colorScheme.onSurfaceVariant),
                   Gap.m,
-                  Text('Nog geen FTP ingesteld',
+                  Text(
+                      hasPowerMeter
+                          ? 'Nog geen FTP ingesteld'
+                          : 'Nog geen drempel ingesteld',
                       style: theme.textTheme.titleMedium),
                 ],
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Huidige FTP', style: theme.textTheme.labelMedium),
+                  Text(hasPowerMeter ? 'Huidige FTP' : 'Huidige drempel',
+                      style: theme.textTheme.labelMedium),
                   Gap.xs,
-                  Text('${f.watts.round()} W',
+                  Text(hasPowerMeter ? '${f.watts.round()} W' : '${f.spm.round()} SPM',
                       style: theme.textTheme.displaySmall
                           ?.copyWith(fontWeight: FontWeight.w700)),
                   Text(
-                    '${paceLabel(f.splitSeconds(dragK: dragK))}  ·  '
+                    '${hasPowerMeter ? '${paceLabel(f.splitSeconds(dragK: dragK))}  ·  ' : ''}'
                     '${DateFormat('d MMM y', 'nl').format(f.setAt)}  ·  ${f.source.label}',
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -349,23 +376,28 @@ class _CurrentCard extends StatelessWidget {
 }
 
 class _HistoryChart extends StatelessWidget {
-  const _HistoryChart({required this.history});
+  const _HistoryChart({required this.history, this.asSpm = false});
   final List<RowingFtp> history;
+
+  /// Plot the stroke rate each FTP stands for instead of watts.
+  final bool asSpm;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    double value(RowingFtp h) => asSpm ? h.spm : h.watts;
     final spots = [
       for (var i = 0; i < history.length; i++)
-        FlSpot(i.toDouble(), history[i].watts),
+        FlSpot(i.toDouble(), value(history[i])),
     ];
-    final ws = history.map((h) => h.watts);
+    final ws = history.map(value);
     final mn = ws.reduce((a, b) => a < b ? a : b);
     final mx = ws.reduce((a, b) => a > b ? a : b);
+    final pad = asSpm ? 1.0 : 10.0;
     return LineChart(
       LineChartData(
-        minY: mn - 10,
-        maxY: mx + 10,
+        minY: mn - pad,
+        maxY: mx + pad,
         borderData: FlBorderData(show: false),
         gridData: FlGridData(
           show: true,

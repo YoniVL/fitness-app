@@ -39,6 +39,52 @@ void main() {
     });
   });
 
+  group('segmentTargetSpm', () {
+    test('null for a rest block', () {
+      expect(segmentTargetSpm(_seg('easy', rest: true), ftp), isNull);
+    });
+
+    test('a baked-in target power wins and maps to its stroke rate', () {
+      final seg = _seg('steady', watts: 120);
+      expect(segmentTargetSpm(seg, ftp), spmForWatts(120).round());
+    });
+
+    test('otherwise the live FTP zone sets it — harder zones row faster', () {
+      final easy = segmentTargetSpm(_seg('easy'), ftp)!;
+      final threshold = segmentTargetSpm(_seg('threshold'), ftp)!;
+      final hard = segmentTargetSpm(_seg('hard'), ftp)!;
+      expect(easy, lessThan(threshold));
+      expect(threshold, lessThanOrEqualTo(hard));
+      expect(easy, inInclusiveRange(15, 40));
+    });
+
+    test('without an FTP it falls back to the plan\'s own stroke rate', () {
+      expect(segmentTargetSpm(_seg('steady', spm: 22), null), 22);
+      expect(segmentTargetSpm(_seg('steady'), null), isNull);
+    });
+  });
+
+  group('daySpmSummary', () {
+    test('null when nothing has a target', () {
+      expect(daySpmSummary([_seg('steady')], null), isNull);
+    });
+
+    test('one stroke rate when the whole day shares it', () {
+      expect(daySpmSummary([_seg('steady', spm: 22), _seg('steady', spm: 22)], null),
+          '22 SPM');
+    });
+
+    test('lowest is "duur", highest is "piek"; rest is ignored', () {
+      final segs = [
+        _seg('easy', spm: 18),
+        _seg('hard', spm: 26),
+        _seg('easy', rest: true),
+        _seg('steady', spm: 22),
+      ];
+      expect(daySpmSummary(segs, null), '18 SPM duur · 26 SPM piek');
+    });
+  });
+
   group('paceCue', () {
     double target(RowIntensity z) =>
         targetSplitSeconds(z, ftp, kGeneric)!;

@@ -14,9 +14,9 @@ import 'state/ramp_test_provider.dart';
 import 'state/rowing_achievements_provider.dart';
 import 'widgets/achievement_sheet.dart';
 
-/// Live ramp test: the watt target rises each minute; the rower chases it until
-/// they can't. Landscape — like the live rowing screen — with one big target
-/// and one big live readout side by side.
+/// Live ramp test: the target (stroke rate, or watts with a power meter) rises
+/// each minute; the rower chases it until they can't. Landscape — like the live
+/// rowing screen — with one big target and one big live readout side by side.
 class RampTestScreen extends ConsumerStatefulWidget {
   const RampTestScreen({super.key});
 
@@ -82,7 +82,9 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
     final zones = theme.extension<RowZonePalette>()!;
     final (holdLabel, holdColor) = s.phase == RampPhase.waiting
         ? ('', scheme.onSurfaceVariant)
-        : switch (rampHold(s.recentAvgWatts, s.targetWatts)) {
+        : switch (s.spmMode
+            ? rampHoldSpm(s.recentAvgSpm, s.targetSpm)
+            : rampHold(s.recentAvgWatts, s.targetWatts)) {
             RampHold.onPace => ('op tempo', scheme.primary),
             RampHold.close => ('bijna', zones.threshold),
             RampHold.dropping => ('je valt terug', zones.hard),
@@ -114,20 +116,20 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                       SegmentedButton<bool>(
                         segments: const [
                           ButtonSegment(
-                              value: true, label: Text('TEMPO /500M')),
+                              value: true, label: Text('SLAGTEMPO (SPM)')),
                           ButtonSegment(
                               value: false, label: Text('WATT')),
                         ],
-                        selected: {s.paceMode},
+                        selected: {s.spmMode},
                         showSelectedIcon: false,
                         onSelectionChanged: (sel) => ref
                             .read(rampTestProvider.notifier)
-                            .setPaceMode(sel.first),
+                            .setSpmMode(sel.first),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        s.paceMode
-                            ? 'Op tempo — voor een trainer zonder vermogensmeter.'
+                        s.spmMode
+                            ? 'Op slagtempo — voor een trainer zonder vermogensmeter.'
                             : 'Op watt — kies dit alleen met een vermogensmeter.',
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
@@ -135,8 +137,8 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                       Gap.l,
                       Text(
                         'Begin rustig te roeien — de test start bij je eerste '
-                        'halen. Volg het ${s.paceMode ? 'doeltempo' : 'wattdoel'}; '
-                        'het loopt elke minuut op.',
+                        'halen. Volg het ${s.spmMode ? 'doel-slagtempo' : 'wattdoel'}; '
+                        'het loopt elke minuut op${s.spmMode ? ' (+1 spm)' : ''}.',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.titleMedium
                             ?.copyWith(color: scheme.onSurfaceVariant),
@@ -169,13 +171,13 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                           Expanded(
                             child: StatTile(
                               label: 'DOEL',
-                              value: s.paceMode
-                                  ? '${paceLabel(s.targetSplit, withUnit: false)} /500m'
+                              value: s.spmMode
+                                  ? '${s.targetSpm.round()} SPM'
                                   : '${s.targetWatts.round()} W',
                               size: StatSize.hero,
                               labelPosition: StatLabelPosition.above,
-                              sub: s.paceMode
-                                  ? '≈ ${s.targetWatts.round()} W'
+                              sub: s.spmMode
+                                  ? 'elke minuut +1'
                                   : '${paceLabel(splitForWatts(s.targetWatts, dragK: dragK), withUnit: false)} /500m',
                               color: scheme.onSurface,
                             ),
@@ -184,13 +186,13 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                           Expanded(
                             child: StatTile(
                               label: 'JIJ',
-                              value: s.paceMode
-                                  ? '${paceLabel(live?.paceSec500m, withUnit: false)} /500m'
+                              value: s.spmMode
+                                  ? spmLabel(live?.strokeRate)
                                   : '${liveW.round()} W',
                               size: StatSize.hero,
                               labelPosition: StatLabelPosition.above,
-                              sub: s.paceMode
-                                  ? (liveW > 0 ? '≈ ${liveW.round()} W' : '')
+                              sub: s.spmMode
+                                  ? ''
                                   : '${paceLabel(live?.paceSec500m, withUnit: false)} /500m',
                               color: holdColor,
                               badge: holdLabel,
@@ -207,8 +209,11 @@ class _RampTestScreenState extends ConsumerState<RampTestScreen>
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               StatTile(
-                                  label: 'Slag',
-                                  value: spmLabel(live?.strokeRate),
+                                  label: s.spmMode ? 'Tempo' : 'Slag',
+                                  value: s.spmMode
+                                      ? paceLabel(live?.paceSec500m,
+                                          withUnit: false)
+                                      : spmLabel(live?.strokeRate),
                                   size: StatSize.small),
                               StatTile(
                                   label: 'Tijd',

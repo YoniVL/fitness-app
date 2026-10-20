@@ -21,6 +21,7 @@ class FtpResultScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final detailAsync = ref.watch(rowingSessionDetailProvider(sessionId));
     final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
+    final hasMeter = ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -41,7 +42,7 @@ class FtpResultScreen extends ConsumerWidget {
             planSegments: detail.planSegments,
             totalDistanceM: detail.rowing.totalDistanceM,
             durationSeconds: detail.rowing.durationSeconds,
-          ), proto);
+          ), proto, hasPowerMeter: hasMeter);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
@@ -50,19 +51,27 @@ class FtpResultScreen extends ConsumerWidget {
               Gap.l,
               if (res.watts <= 0)
                 Text(
-                  'Kon geen bruikbaar vermogen uit deze sessie halen. '
+                  'Kon geen bruikbare meting uit deze sessie halen. '
                   'Probeer opnieuw met de trainer verbonden.',
                   style: theme.textTheme.bodyLarge,
                 )
               else ...[
-                Text('Je FTP', style: theme.textTheme.titleMedium),
+                Text(hasMeter ? 'Je FTP' : 'Je drempel-slagtempo',
+                    style: theme.textTheme.titleMedium),
                 Gap.xs,
-                Text('${res.watts.round()} W',
+                Text(
+                    hasMeter
+                        ? '${res.watts.round()} W'
+                        : '${spmForWatts(res.watts).round()} SPM',
                     style: theme.textTheme.displayMedium
                         ?.copyWith(fontWeight: FontWeight.w800)),
                 Text(
-                  '${paceLabel(splitForWatts(res.watts, dragK: dragK))}'
-                  '${res.effortWatts != null ? '  ·  inspanning ${res.effortWatts!.round()} W' : ''}',
+                  hasMeter
+                      ? '${paceLabel(splitForWatts(res.watts, dragK: dragK))}'
+                          '${res.effortWatts != null ? '  ·  inspanning ${res.effortWatts!.round()} W' : ''}'
+                      : (res.effortSpm != null
+                          ? 'inspanning ${res.effortSpm!.round()} SPM'
+                          : ''),
                   style: theme.textTheme.bodyLarge
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
@@ -86,7 +95,9 @@ class FtpResultScreen extends ConsumerWidget {
                 const SizedBox(height: 28),
                 FilledButton(
                   onPressed: () => _save(context, ref, res, proto),
-                  child: const Text('OPSLAAN ALS MIJN FTP'),
+                  child: Text(hasMeter
+                      ? 'OPSLAAN ALS MIJN FTP'
+                      : 'OPSLAAN ALS MIJN DREMPEL'),
                 ),
                 Gap.s,
               ],

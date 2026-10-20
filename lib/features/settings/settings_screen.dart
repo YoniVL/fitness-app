@@ -162,8 +162,10 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.speed),
             title: const Text('FTP (roeitest)'),
             subtitle: Text(switch (ref.watch(rowingFtpProvider).valueOrNull) {
-              final f? => '${f.watts.round()} W · '
-                  '${paceLabel(f.splitSeconds(dragK: ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric))}',
+              final f? => ftpLabel(f,
+                  hasPowerMeter: hasPowerMeter.valueOrNull ?? false,
+                  dragK: ref.watch(rowingDragKProvider).valueOrNull ??
+                      kGeneric),
               _ => 'Nog niet ingesteld',
             }),
             trailing: const Icon(Icons.chevron_right),

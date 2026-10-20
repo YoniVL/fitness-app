@@ -262,7 +262,11 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
       WeekLoadChart(minutesPerWeek: weekMinutes),
       if (ftp != null) ...[
         const SizedBox(height: 10),
-        _RichttempoLegend(ftp: ftp, dragK: dragK),
+        _RichttempoLegend(
+            ftp: ftp,
+            dragK: dragK,
+            hasPowerMeter:
+                ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false),
       ],
       Gap.m,
       for (final week in byWeek.keys)
@@ -309,9 +313,11 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
 /// set. The plan's segments keep their stroke-rate targets; this just adds the
 /// pace each zone maps to.
 class _RichttempoLegend extends StatelessWidget {
-  const _RichttempoLegend({required this.ftp, required this.dragK});
+  const _RichttempoLegend(
+      {required this.ftp, required this.dragK, required this.hasPowerMeter});
   final RowingFtp ftp;
   final double dragK;
+  final bool hasPowerMeter;
 
   static const _zones = [
     (RowIntensity.easy, 'rustig'),
@@ -327,7 +333,10 @@ class _RichttempoLegend extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Richttempo /500m  ·  FTP ${ftp.watts.round()} W',
+        Text(
+            hasPowerMeter
+                ? 'Richttempo /500m  ·  FTP ${ftp.watts.round()} W'
+                : 'Doel-slagtempo  ·  drempel ${ftp.spm.round()} SPM',
             style: theme.textTheme.labelMedium
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         Gap.xs,
@@ -336,7 +345,8 @@ class _RichttempoLegend extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final (zone, label) in _zones)
-              Text('$label ${paceLabel(zones[zone]!.targetSplitSeconds, withUnit: false)}',
+              Text(
+                  '$label ${hasPowerMeter ? paceLabel(zones[zone]!.targetSplitSeconds, withUnit: false) : '${spmForWatts(zones[zone]!.targetWatts).round()} SPM'}',
                   style: theme.textTheme.bodySmall),
           ],
         ),

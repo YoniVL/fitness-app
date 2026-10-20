@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'models/program.dart';
 import 'models/rowing.dart';
+import 'rowing_format.dart' show kDefaultMetersPerStroke, paceLabel;
 import 'rowing_workouts.dart' show RowIntensity;
 
 /// The inputs [computeFtp] needs from a finished test session (a subset of the
@@ -36,6 +37,27 @@ double wattsForSplit(double sec500, {double dragK = kGeneric}) {
   if (sec500 <= 0) return 0;
   final vPerMetre = sec500 / 500;
   return dragK / (vPerMetre * vPerMetre * vPerMetre);
+}
+
+/// Metres per stroke the stroke rate ↔ watts conversion is pinned to. Fixed on
+/// purpose: a stored FTP then means the same stroke rate whatever the user later
+/// sets for their distance/tempo display.
+const double kSpmWattMetersPerStroke = kDefaultMetersPerStroke;
+
+/// The (notional) power at [spm] strokes per minute. A trainer without a power
+/// meter only really reports stroke rate, so this is how the watt-based FTP and
+/// zones are tied to something that is measured: `v = spm × m / 60`, `W = k·v³`.
+double wattsForSpm(double spm) {
+  if (spm <= 0) return 0;
+  final v = spm * kSpmWattMetersPerStroke / 60;
+  return kGeneric * v * v * v;
+}
+
+/// The stroke rate that corresponds to [watts] — the inverse of [wattsForSpm].
+double spmForWatts(double watts) {
+  if (watts <= 0) return 0;
+  return 60 * math.pow(watts / kGeneric, 1 / 3).toDouble() /
+      kSpmWattMetersPerStroke;
 }
 
 /// Fit the trainer's drag factor `k` from paired (power, pace) samples:
@@ -95,6 +117,9 @@ class RowingFtp {
   double splitSeconds({double dragK = kGeneric}) =>
       splitForWatts(watts, dragK: dragK);
 
+  /// The stroke rate this FTP stands for (for trainers without a power meter).
+  double get spm => spmForWatts(watts);
+
   Map<String, Object?> toJson() => {
         'w': watts,
         'at': setAt.millisecondsSinceEpoch,
@@ -107,6 +132,14 @@ class RowingFtp {
         source: FtpSource.fromName(j['src'] as String?),
       );
 }
+
+/// How an FTP reads on screen: with a power meter `146 W · 2:14 /500m`, without
+/// one `25 SPM` — the stroke rate it stands for.
+String ftpLabel(RowingFtp f,
+        {required bool hasPowerMeter, double dragK = kGeneric}) =>
+    hasPowerMeter
+        ? '${f.watts.round()} W · ${paceLabel(f.splitSeconds(dragK: dragK))}'
+        : '${f.spm.round()} SPM';
 
 /// One training zone derived from an FTP: its share of FTP power, the target
 /// power, and the split band (fast..slow seconds per 500 m) it maps to.
@@ -199,8 +232,8 @@ enum FtpProtocol {
         FtpProtocol.testShort =>
           'Ongeveer 2 km alles eruit. Korter af te zien, iets minder precies.',
         FtpProtocol.ramp =>
-          'Het doel (tempo, of watt met een vermogensmeter) loopt elke minuut '
-          'op tot je niet meer volgt.',
+          'Het doel-slagtempo (of watt met een vermogensmeter) loopt elke '
+          'minuut op tot je niet meer volgt.',
       };
 
   static FtpProtocol? fromKind(String? kind) {
@@ -255,6 +288,9 @@ class FtpResult {
   final FtpMethod method;
   final double? effortWatts;
   final double? effortPaceSeconds;
+
+  /// The effort level as a stroke rate, for trainers without a power meter.
+  double? get effortSpm => effortWatts == null ? null : spmForWatts(effortWatts!);
 
   /// The anaerobic work capacity `W'` (joules) when [method] is criticalPower.
   final double? cpWPrime;
@@ -348,9 +384,32 @@ FtpResult? _tryCriticalPower(List<RowingSample> samples, FtpProtocol protocol) {
   );
 }
 
-/// Compute FTP from a finished test session.
-FtpResult computeFtp(FtpSessionData detail, FtpProtocol protocol) {
-  final samples = detail.samples;
+/// Samples whose power is replaced by the stroke-rate equivalent
+/// ([wattsForSpm]) — for a trainer without a power meter, whose own power field
+/// is a fixed function of the stroke rate (and tiny).
+List<RowingSample> _withSpmPower(List<RowingSample> samples) => [
+      for (final s in samples)
+        RowingSample(
+          id: s.id,
+          rowingSessionId: s.rowingSessionId,
+          tOffsetMs: s.tOffsetMs,
+          strokeRate: s.strokeRate,
+          strokeCount: s.strokeCount,
+          distanceM: s.distanceM,
+          paceSec500m: s.paceSec500m,
+          powerW: (s.strokeRate ?? 0) >= 1 ? wattsForSpm(s.strokeRate!) : null,
+          energyKcal: s.energyKcal,
+          heartRate: s.heartRate,
+        ),
+    ];
+
+/// Compute FTP from a finished test session. Without a power meter
+/// ([hasPowerMeter] false) the trainer's power field is ignored and the stroke
+/// rate stands in for effort (see [wattsForSpm]).
+FtpResult computeFtp(FtpSessionData detail, FtpProtocol protocol,
+    {bool hasPowerMeter = true}) {
+  final samples =
+      hasPowerMeter ? detail.samples : _withSpmPower(detail.samples);
 
   if (protocol == FtpProtocol.ramp) {
     return _tryCriticalPower(samples, protocol) ??
@@ -494,23 +553,39 @@ ProgramLevel suggestedLevelFromFtp(double ftpWatts) {
   return ProgramLevel.advanced; // faster than 2:00
 }
 
-/// The rising watt target of a ramp test.
+/// The rising target of a ramp test: watts (with a power meter) or stroke rate
+/// (without — the trainer only really measures stroke rate).
 class RampProtocol {
-  const RampProtocol({this.startWatts = 100, this.incrementWatts = 25});
+  const RampProtocol({
+    this.startWatts = 100,
+    this.incrementWatts = 25,
+    this.startSpm = 18,
+    this.incrementSpm = 1,
+  });
 
   final double startWatts;
   final double incrementWatts;
+  final double startSpm;
+  final double incrementSpm;
   static const int stepSeconds = 60;
 
-  /// Seeds the start at ~55 % of a known FTP (rounded to 10 W), else 100 W.
+  /// Seeds the start at ~55 % of a known FTP (watts rounded to 10 W, stroke
+  /// rate to a whole spm, never below 80 W / 16 spm), else 100 W / 18 spm.
   factory RampProtocol.seeded(double? priorFtp) {
     if (priorFtp == null || priorFtp <= 0) return const RampProtocol();
     final start = ((priorFtp * 0.55) / 10).round() * 10.0;
-    return RampProtocol(startWatts: math.max(80, start));
+    final startSpm = spmForWatts(priorFtp * 0.55).roundToDouble();
+    return RampProtocol(
+      startWatts: math.max(80, start),
+      startSpm: math.max(16, startSpm),
+    );
   }
 
   /// Target watts for step [n] (0-based).
   double targetForStep(int n) => startWatts + n * incrementWatts;
+
+  /// Target stroke rate for step [n] (0-based).
+  double targetSpmForStep(int n) => startSpm + n * incrementSpm;
 }
 
 // --- Guided-test segments ------------------------------------------------

@@ -751,7 +751,11 @@ class _RowingDayCard extends ConsumerWidget {
               final ftp = ref.watch(rowingFtpProvider).valueOrNull;
               final dragK =
                   ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
-              final pace = dayPaceSummary(i.$3, ftp, dragK);
+              final hasMeter =
+                  ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
+              final pace = hasMeter
+                  ? dayPaceSummary(i.$3, ftp, dragK)
+                  : daySpmSummary(i.$3, ftp);
               final stale =
                   rowTargetsStale(active.program.ftpWattsAtGen, ftp?.watts);
               return Column(
@@ -776,16 +780,18 @@ class _RowingDayCard extends ConsumerWidget {
                         ),
                         if (pace != null) ...[
                           const SizedBox(height: 6),
-                          Text('DOELTEMPO',
+                          Text(hasMeter ? 'DOELTEMPO' : 'DOEL-SLAGTEMPO',
                               style: theme.textTheme.labelSmall?.copyWith(
                                   fontSize: 9,
                                   letterSpacing: 1.1,
                                   color: p.accent)),
                           const SizedBox(height: 2),
                           Text(
-                            pace
-                                .replaceFirst('richttempo ', '')
-                                .replaceAll(' /500m', '')
+                            (hasMeter
+                                    ? pace
+                                        .replaceFirst('richttempo ', '')
+                                        .replaceAll(' /500m', '')
+                                    : pace)
                                 .toUpperCase(),
                             style: AppTheme.numeric(size: 18, color: p.ink)
                                 .copyWith(letterSpacing: 0),

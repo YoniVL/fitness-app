@@ -208,6 +208,7 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
     final ftpHistory =
         ref.watch(rowingFtpHistoryProvider).valueOrNull ?? const <RowingFtp>[];
     final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
+    final hasMeter = ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
 
     return ListView(
       padding: Insets.screenList,
@@ -303,19 +304,21 @@ class _RowingProgressState extends ConsumerState<_RowingProgress> {
         if (ftpHistory.isNotEmpty) ...[
           Gap.s,
           AppSection(
-            title: 'FTP',
+            title: hasMeter ? 'FTP' : 'Drempel-slagtempo',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${ftpHistory.last.watts.round()} W  ·  '
-                  '${paceLabel(ftpHistory.last.splitSeconds(dragK: dragK))}',
+                  ftpLabel(ftpHistory.last,
+                      hasPowerMeter: hasMeter, dragK: dragK),
                   style: theme.textTheme.titleMedium,
                 ),
                 if (ftpHistory.length >= 2) ...[
                   Gap.s,
                   SizedBox(
-                      height: 120, child: _FtpTrendChart(history: ftpHistory)),
+                      height: 120,
+                      child: _FtpTrendChart(
+                          history: ftpHistory, asSpm: !hasMeter)),
                 ],
               ],
             ),
@@ -482,23 +485,28 @@ class _BenchmarkChart extends StatelessWidget {
 }
 
 class _FtpTrendChart extends StatelessWidget {
-  const _FtpTrendChart({required this.history});
+  const _FtpTrendChart({required this.history, this.asSpm = false});
   final List<RowingFtp> history;
+
+  /// Plot the stroke rate each FTP stands for instead of watts.
+  final bool asSpm;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    double value(RowingFtp h) => asSpm ? h.spm : h.watts;
     final spots = [
       for (var i = 0; i < history.length; i++)
-        FlSpot(i.toDouble(), history[i].watts),
+        FlSpot(i.toDouble(), value(history[i])),
     ];
-    final ws = history.map((h) => h.watts);
+    final ws = history.map(value);
     final mn = ws.reduce((a, b) => a < b ? a : b);
     final mx = ws.reduce((a, b) => a > b ? a : b);
+    final pad = asSpm ? 1.0 : 10.0;
     return LineChart(
       LineChartData(
-        minY: mn - 10,
-        maxY: mx + 10,
+        minY: mn - pad,
+        maxY: mx + pad,
         borderData: FlBorderData(show: false),
         gridData: FlGridData(
           show: true,

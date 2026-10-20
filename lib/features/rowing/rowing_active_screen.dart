@@ -188,6 +188,10 @@ class _Body extends ConsumerWidget {
             isRest: seg.isRest);
     final targetSplit =
         seg == null ? null : segmentTargetSplitSeconds(seg, ftp, dragK);
+    // Without a power meter the stroke rate is the one real signal, so it leads
+    // and the (derived) tempo goes into the grid.
+    final hasMeter = ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
+    final targetSpm = seg == null ? null : segmentTargetSpm(seg, ftp);
 
     return Column(
       children: [
@@ -211,12 +215,19 @@ class _Body extends ConsumerWidget {
                     border: Border(
                         right: BorderSide(color: p.rule, width: 2)),
                   ),
-                  child: _PacePanel(
-                    pace: live?.paceSec500m,
-                    targetSplit: targetSplit,
-                    zone: segZone,
-                    hasSegments: hasSegments,
-                  ),
+                  child: hasMeter
+                      ? _PacePanel(
+                          pace: live?.paceSec500m,
+                          targetSplit: targetSplit,
+                          zone: segZone,
+                          hasSegments: hasSegments,
+                        )
+                      : _SpmPanel(
+                          spm: live?.strokeRate,
+                          targetSpm: targetSpm,
+                          zone: segZone,
+                          hasSegments: hasSegments,
+                        ),
                 ),
               ),
               Expanded(
@@ -227,6 +238,8 @@ class _Body extends ConsumerWidget {
                   distanceM: live?.distanceM ?? 0,
                   elapsed: state.elapsed,
                   heartRate: live?.heartRate ?? 0,
+                  pace: hasMeter ? null : live?.paceSec500m,
+                  spmFirst: !hasMeter,
                 ),
               ),
             ],
@@ -489,7 +502,26 @@ class _PacePanel extends StatelessWidget {
               ),
             ),
           ],
-          if (hasSegments) ...[
+          if (hasSegments) _ZoneBar(zone: zone),
+        ],
+      ),
+    );
+  }
+}
+
+/// The five-zone intensity strip with the current zone outlined.
+class _ZoneBar extends StatelessWidget {
+  const _ZoneBar({required this.zone});
+  final RowIntensity zone;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = context.palette;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             const SizedBox(height: 14),
             Row(
               children: [
@@ -525,7 +557,109 @@ class _PacePanel extends StatelessWidget {
                       )),
               ],
             ),
+      ],
+    );
+  }
+}
+
+class _SpmPanel extends StatelessWidget {
+  const _SpmPanel({
+    required this.spm,
+    required this.targetSpm,
+    required this.zone,
+    required this.hasSegments,
+  });
+
+  final double? spm;
+  final int? targetSpm;
+  final RowIntensity zone;
+  final bool hasSegments;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = context.palette;
+    final live = (spm ?? 0) >= 1 ? spm!.round() : null;
+    final delta = (live != null && targetSpm != null) ? live - targetSpm! : null;
+    final (cue, cueColor) = switch (delta) {
+      null => ('', p.mute),
+      <= -2 => ('AANDRUKKEN', p.accent),
+      >= 2 => ('RUSTIGER', p.mute),
+      _ => ('OP DOEL', p.ink),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('SLAGFREQUENTIE',
+              style: theme.textTheme.labelSmall?.copyWith(
+                  color: p.accent, letterSpacing: 1.4, fontSize: 11)),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: live == null
+                      ? Padding(
+                          padding: const EdgeInsets.only(bottom: 18, top: 18),
+                          child: Text('WACHT OP DATA',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                  color: p.mute, letterSpacing: 1.5)),
+                        )
+                      : Text('$live',
+                          style: AppTheme.numeric(size: 104, color: p.ink)),
+                ),
+              ),
+              if (live != null) ...[
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Text('SPM',
+                      style: theme.textTheme.labelMedium
+                          ?.copyWith(color: p.mute, letterSpacing: 1.2)),
+                ),
+              ],
+            ],
+          ),
+          if (targetSpm != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(border: Border.all(color: p.line)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('DOEL',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 11, letterSpacing: 1.2, color: p.mute)),
+                  const SizedBox(width: 8),
+                  Text('$targetSpm',
+                      style: AppTheme.numeric(size: 22, color: p.ink)),
+                  const SizedBox(width: 4),
+                  Text('SPM',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 11, letterSpacing: 0.6, color: p.mute)),
+                  if (cue.isNotEmpty) ...[
+                    const SizedBox(width: 14),
+                    Text(cue,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                            color: cueColor,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8)),
+                  ],
+                ],
+              ),
+            ),
           ],
+          if (hasSegments) _ZoneBar(zone: zone),
         ],
       ),
     );
@@ -544,7 +678,16 @@ class _MetricGrid extends StatelessWidget {
     required this.distanceM,
     required this.elapsed,
     required this.heartRate,
+    this.pace,
+    this.spmFirst = false,
   });
+
+  /// The (derived) split, shown in the grid when the stroke rate leads.
+  final double? pace;
+
+  /// The stroke rate is the hero elsewhere, so the grid holds tempo, distance
+  /// and time (plus heart rate when there is one).
+  final bool spmFirst;
 
   final double? strokeRate;
   final int? strokeTarget;
@@ -578,7 +721,35 @@ class _MetricGrid extends StatelessWidget {
                 unit: ' W',
                 accent: false,
               );
-    final cells = <_Cell>[
+    final cells = spmFirst
+        ? <_Cell>[
+            (
+              label: 'Tempo /500m',
+              value: paceLabel(pace, withUnit: false),
+              unit: null,
+              accent: false,
+            ),
+            (
+              label: 'Afstand',
+              value: distanceLabel(distanceM),
+              unit: null,
+              accent: false,
+            ),
+            (
+              label: 'Verstreken',
+              value: hmsLabel(elapsed),
+              unit: null,
+              accent: false,
+            ),
+            if (heartRate > 0)
+              (
+                label: 'Hartslag',
+                value: '$heartRate',
+                unit: ' BPM',
+                accent: false,
+              ),
+          ]
+        : <_Cell>[
       (
         label: 'Slagfrequentie',
         value: (strokeRate ?? 0).round().toString(),
@@ -600,22 +771,23 @@ class _MetricGrid extends StatelessWidget {
       ),
     ];
     final p = context.palette;
+    final rows = (cells.length / 2).ceil();
     return Column(
       children: [
-        for (var r = 0; r < 2; r++)
+        for (var r = 0; r < rows; r++)
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var c = 0; c < 2; c++)
+                for (var c = 0; c < 2 && r * 2 + c < cells.length; c++)
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
                         border: Border(
-                          right: c == 0
+                          right: c == 0 && r * 2 + 1 < cells.length
                               ? BorderSide(color: p.line)
                               : BorderSide.none,
-                          bottom: r == 0
+                          bottom: r < rows - 1
                               ? BorderSide(color: p.line)
                               : BorderSide.none,
                         ),
