@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/program.dart';
+import '../../domain/rowing_format.dart';
 import '../../domain/rowing_ftp.dart';
 import '../../domain/taxonomy.dart';
 import '../database/app_database.dart';
@@ -186,18 +187,24 @@ class SettingsRepository {
     if (!value) await remove(SettingsKeys.rowingDragK);
   }
 
-  /// A personal correction (%) for a trainer whose reported pace/distance
-  /// doesn't match reality (see [correctedPace]). 0 — the default — leaves
-  /// every reading untouched; only the user can supply this number, from
-  /// comparing against a source they trust for the same row.
-  Future<double> rowingPaceCorrectionPercent() async {
-    final raw = await getString(SettingsKeys.rowingPaceCorrectionPercent);
-    final v = double.tryParse(raw ?? '');
-    return (v != null && v > -50 && v < 50) ? v : 0;
+  /// Metres of distance per stroke: what the app assumes for distance and tempo,
+  /// since the trainer only really reports stroke rate and count (see
+  /// [kDefaultMetersPerStroke]). A user who had the old tempo-correction (%)
+  /// set gets the equivalent value, so their numbers stay the same.
+  Future<double> rowingMetersPerStroke() async {
+    final v = double.tryParse(
+        await getString(SettingsKeys.rowingMetersPerStroke) ?? '');
+    if (v != null && v >= 3 && v <= 20) return v;
+    final legacyPct = double.tryParse(
+        await getString(SettingsKeys.legacyRowingPaceCorrectionPercent) ?? '');
+    if (legacyPct != null && legacyPct > -50 && legacyPct < 50) {
+      return kTrainerPaceMetersPerStroke * (1 + legacyPct / 100);
+    }
+    return kDefaultMetersPerStroke;
   }
 
-  Future<void> setRowingPaceCorrectionPercent(double percent) =>
-      set(SettingsKeys.rowingPaceCorrectionPercent, percent.toStringAsFixed(1));
+  Future<void> setRowingMetersPerStroke(double metres) =>
+      set(SettingsKeys.rowingMetersPerStroke, metres.toStringAsFixed(2));
 
   // --- Rowing achievements -----------------------------------------------
 
@@ -260,7 +267,10 @@ class SettingsKeys {
   static const rowingFtpHistory = 'rowing_ftp_history';
   static const rowingDragK = 'rowing_drag_k';
   static const rowingHasPowerMeter = 'rowing_has_power_meter';
-  static const rowingPaceCorrectionPercent = 'rowing_pace_correction_percent';
+  static const rowingMetersPerStroke = 'rowing_meters_per_stroke';
+  // Read only, to carry the old setting over to [rowingMetersPerStroke].
+  static const legacyRowingPaceCorrectionPercent =
+      'rowing_pace_correction_percent';
   static const rowingAchievements = 'rowing_achievements';
   static const rowingAchievementsSeeded = 'rowing_achievements_seeded';
 }
@@ -320,7 +330,8 @@ final rowingHasPowerMeterProvider = FutureProvider<bool>(
   (ref) => ref.watch(settingsRepositoryProvider).rowingHasPowerMeter(),
 );
 
-/// The personal pace correction (%) — see [SettingsRepository.rowingPaceCorrectionPercent].
-final rowingPaceCorrectionProvider = FutureProvider<double>(
-  (ref) => ref.watch(settingsRepositoryProvider).rowingPaceCorrectionPercent(),
+/// Metres per stroke used for distance and tempo — see
+/// [SettingsRepository.rowingMetersPerStroke].
+final rowingMetersPerStrokeProvider = FutureProvider<double>(
+  (ref) => ref.watch(settingsRepositoryProvider).rowingMetersPerStroke(),
 );

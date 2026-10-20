@@ -383,12 +383,13 @@ class _RowingDetailBody extends ConsumerWidget {
               ('Gem. tempo /500m', paceLabel(avgPace, withUnit: false), null),
               ('Tijd', hmsLabel(Duration(seconds: r.durationSeconds)), null),
               // Without a confirmed power meter, the trainer's "power" field
-              // is unreliable (see rowingHasPowerMeter) — not worth showing.
+              // (and the energy derived from it) is unreliable — see
+              // rowingHasPowerMeter — so neither is shown.
               if (hasPowerMeter && r.avgPower > 0)
                 ('Gem. vermogen', r.avgPower.round().toString(), 'W'),
               if (r.avgStrokeRate > 0)
                 ('Gem. slag', r.avgStrokeRate.round().toString(), 'SPM'),
-              if (r.totalEnergyKcal > 0)
+              if (hasPowerMeter && r.totalEnergyKcal > 0)
                 ('Energie', r.totalEnergyKcal.round().toString(), ' kcal'),
             ]),
             if (data.samples.length >= 3) ...[

@@ -30,7 +30,7 @@ class SettingsScreen extends ConsumerWidget {
     final cueSound = ref.watch(rowingCueSoundProvider);
     final demoMode = ref.watch(rowingDemoModeProvider);
     final hasPowerMeter = ref.watch(rowingHasPowerMeterProvider);
-    final paceCorrection = ref.watch(rowingPaceCorrectionProvider);
+    final metersPerStroke = ref.watch(rowingMetersPerStrokeProvider);
     final autoProgression = ref.watch(autoProgressionProvider);
     final warmup = ref.watch(warmupSuggestionsProvider);
 
@@ -147,25 +147,14 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
-          paceCorrection.viewOrNothing(
-            (pct) => _PercentRow(
-              label: 'Tempo-correctie',
-              subtitle: pct == 0
-                  ? 'Vergelijk een korte, bekende afstand tussen deze app en '
-                      'een andere bron; vul hier het verschil in. Positief = '
-                      'je bent sneller dan de trainer denkt.'
-                  : (pct > 0
-                      ? '+${pct.round()}% — het weergegeven tempo/afstand is '
-                          '${pct.round()}% sneller dan wat de trainer meldt.'
-                      : '${pct.round()}% — het weergegeven tempo/afstand is '
-                          '${pct.abs().round()}% trager dan wat de trainer '
-                          'meldt.'),
-              percent: pct.round(),
+          metersPerStroke.viewOrNothing(
+            (m) => _MetersPerStrokeRow(
+              metres: m,
               onChanged: (v) async {
                 await ref
                     .read(settingsRepositoryProvider)
-                    .setRowingPaceCorrectionPercent(v.toDouble());
-                ref.invalidate(rowingPaceCorrectionProvider);
+                    .setRowingMetersPerStroke(v);
+                ref.invalidate(rowingMetersPerStrokeProvider);
               },
             ),
           ),
@@ -365,37 +354,36 @@ class SettingsScreen extends ConsumerWidget {
 
 }
 
-class _PercentRow extends StatelessWidget {
-  const _PercentRow({
-    required this.label,
-    required this.subtitle,
-    required this.percent,
-    required this.onChanged,
-  });
+class _MetersPerStrokeRow extends StatelessWidget {
+  const _MetersPerStrokeRow({required this.metres, required this.onChanged});
 
-  final String label;
-  final String subtitle;
-  final int percent;
-  final ValueChanged<int> onChanged;
+  final double metres;
+  final ValueChanged<double> onChanged;
+
+  static String _fmt(double v) => v.toStringAsFixed(2).replaceAll('.', ',');
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(label),
-      subtitle: Text(subtitle),
+      title: const Text('Meter per slag'),
+      subtitle: Text(
+          'Waarmee de app afstand en tempo uit je slagen rekent. Je trainer '
+          'telt een vaste afstand per slag: ${_fmt(kTrainerDisplayMetersPerStroke)} m '
+          'op het display, ${_fmt(kTrainerPaceMetersPerStroke)} m in zijn tempo. '
+          'Standaard ${_fmt(kDefaultMetersPerStroke)} m.'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton.filledTonal(
-            onPressed: percent > -50 ? () => onChanged(percent - 1) : null,
+            onPressed: metres > 3.05 ? () => onChanged(metres - 0.1) : null,
             icon: const Icon(Icons.remove),
           ),
           SizedBox(
             width: 52,
-            child: Text('$percent%', textAlign: TextAlign.center),
+            child: Text(_fmt(metres), textAlign: TextAlign.center),
           ),
           IconButton.filledTonal(
-            onPressed: percent < 50 ? () => onChanged(percent + 1) : null,
+            onPressed: metres < 19.95 ? () => onChanged(metres + 0.1) : null,
             icon: const Icon(Icons.add),
           ),
         ],

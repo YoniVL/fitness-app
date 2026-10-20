@@ -14,15 +14,17 @@ import '../../../domain/rowing_ftp.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
 
-/// Derives session distance and energy from the split and power.
+/// Derives session distance and energy.
 ///
-/// This trainer's FTMS `Total Distance` field is unreliable — it reports roughly
-/// a tenth of the real distance — so distance is integrated from the pace
-/// instead, the metric the machine itself is built around. Energy comes from
-/// power. Both only advance while [tick] is fed a fresh, plausible split.
+/// This trainer only really reports stroke rate and stroke count — its pace,
+/// power and distance are all fixed functions of the stroke rate — so distance
+/// is strokes × the user's metres-per-stroke setting. Energy comes from power
+/// (meaningful only with a real power meter). Both only advance while the
+/// session runs; the caller decides when via [addStrokes] and [tick].
 class RowingMeter {
   double _distanceM = 0;
   double _energyKcal = 0;
+  int? _lastStrokeCount;
 
   double get distanceM => _distanceM;
   double get energyKcal => _energyKcal;
@@ -33,17 +35,26 @@ class RowingMeter {
     _energyKcal = energyKcal;
   }
 
-  /// Advance by [seconds]. [paceSec500m] is the current split (null / outside
-  /// 1:00–15:00 per 500 m → no distance this step); [powerW] the current power
-  /// (null / ≤ 0 → no energy this step).
-  void tick({
-    required double seconds,
-    double? paceSec500m,
-    double? powerW,
-  }) {
-    if (paceSec500m != null && paceSec500m > 60 && paceSec500m < 900) {
-      _distanceM += 500.0 / paceSec500m * seconds;
+  /// Registers the trainer's running stroke count and returns the strokes since
+  /// the previous call. The counter restarts at 0 on a reconnect — then the new
+  /// value is the strokes since that reset. The first call only sets the
+  /// baseline.
+  int observeStrokes(int? count) {
+    if (count == null) return 0;
+    final last = _lastStrokeCount;
+    _lastStrokeCount = count;
+    if (last == null) return 0;
+    return count >= last ? count - last : count;
+  }
+
+  void addStrokes(int strokes, double metersPerStroke) {
+    if (strokes > 0 && metersPerStroke > 0) {
+      _distanceM += strokes * metersPerStroke;
     }
+  }
+
+  /// Advance energy by [seconds]; [powerW] null / ≤ 0 → no energy this step.
+  void tick({required double seconds, double? powerW}) {
     if (powerW != null && powerW > 0) {
       // Mechanical watts → metabolic kcal (~4× gross efficiency).
       _energyKcal += powerW * 4.0 / 4184.0 * seconds;
@@ -185,13 +196,11 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   /// last plausible split (held briefly between frames). Reset per session.
   RowerSnapshot? _lastRaw;
   RowingMeter _meter = RowingMeter();
-  double? _lastPace;
-  DateTime? _lastPaceAt;
 
   /// A personal correction on top of the trainer's own reported split — see
   /// [SettingsRepository.rowingPaceCorrectionPercent]. Fetched once per
   /// session in [_startEngine] since [_onSnapshot] is a synchronous callback.
-  double _paceCorrectionPct = 0;
+  double _metersPerStroke = kDefaultMetersPerStroke;
 
   /// The segment index we've already played the pre-switch beep for.
   int _preBeepedFor = -1;
@@ -336,21 +345,18 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   }
 
   Future<void> _startEngine() async {
-    _paceCorrectionPct = await _settings.rowingPaceCorrectionPercent();
+    _metersPerStroke = await _settings.rowingMetersPerStroke();
+    _lastSampleSecond = -3;
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _sub?.cancel();
     _lastRaw = null;
-    _lastPace = null;
-    _lastPaceAt = null;
     _lastDataAt = null;
     _lastMoveAt = null;
     _meter = RowingMeter();
     _sub = _rower.snapshots.listen(_onSnapshot);
     _rower.connect();
   }
-
-  bool _plausiblePace(double? p) => p != null && p > 60 && p < 900;
 
   /// The live snapshot the UI sees: the trainer's raw stroke/pace/power/HR plus
   /// our own integrated distance and energy.
@@ -373,19 +379,17 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   void _onSnapshot(RowerSnapshot rawIn) {
     final s = state.valueOrNull;
     if (s == null) return;
-    final raw = _paceCorrectionPct == 0
-        ? rawIn
-        : rawIn.withPace(correctedPace(rawIn.paceSec500m, _paceCorrectionPct));
+    final raw =
+        rawIn.withPace(paceFromStrokes(rawIn.strokeRate, _metersPerStroke));
     _lastRaw = raw;
     final now = DateTime.now();
     _lastDataAt = now;
 
-    if (_plausiblePace(raw.paceSec500m)) {
-      _lastPace = raw.paceSec500m;
-      _lastPaceAt = now;
-    }
+    // Movement = the stroke count going up (a stroke rate that stays non-zero
+    // can outlive a stopped rower); fall back to the rate when no count comes.
+    final strokes = _meter.observeStrokes(raw.strokeCount);
     final rowing =
-        (raw.strokeRate ?? 0) >= 1 || _plausiblePace(raw.paceSec500m);
+        raw.strokeCount != null ? strokes > 0 : (raw.strokeRate ?? 0) >= 1;
     if (rowing) _lastMoveAt = now;
     _lastMoveAt ??= now;
 
@@ -395,6 +399,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         (reason == PauseReason.notStarted || reason == PauseReason.idle)) {
       reason = PauseReason.none;
     }
+    if (reason == PauseReason.none) _meter.addStrokes(strokes, _metersPerStroke);
     state = AsyncData(s.copyWith(live: _merged(), pausedReason: reason));
   }
 
@@ -419,15 +424,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     }
     if (s.paused) return;
 
-    // Integrate distance from the split and energy from power — only with a
-    // recent pace reading, so a stopped rower doesn't keep accruing distance.
-    final freshPace = _lastPaceAt != null &&
-        now.difference(_lastPaceAt!) < const Duration(seconds: 4);
-    _meter.tick(
-      seconds: 1,
-      paceSec500m: freshPace ? _lastPace : null,
-      powerW: _lastRaw?.powerW,
-    );
+    _meter.tick(seconds: 1, powerW: _lastRaw?.powerW);
 
     var elapsed = s.elapsed + const Duration(seconds: 1);
     var segElapsed = s.segmentElapsed + const Duration(seconds: 1);

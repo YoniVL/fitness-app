@@ -49,22 +49,19 @@ String powerLabel(double? watts) {
   return '${watts.round()} W';
 }
 
-/// A user-supplied correction (%) for a trainer whose reported speed doesn't
-/// match reality — discovered, say, by comparing distance against another
-/// source for the same row. Positive means "I'm actually this much faster
-/// than the trainer thinks"; negative the opposite. 0 (the default) leaves
-/// every pace reading untouched.
-double paceCorrectionFactor(double correctionPercent) =>
-    1 + correctionPercent / 100;
+/// What the app uses for distance and tempo when nothing else is set. The
+/// trainer reports pace and distance as a fixed number of metres per stroke
+/// (its own pace model uses [kTrainerPaceMetersPerStroke], its display
+/// [kTrainerDisplayMetersPerStroke]) — neither says anything about how hard you
+/// pull, so this is a convention, tuned so a steady 20–22 spm lands at a
+/// believable split.
+const double kDefaultMetersPerStroke = 9.06;
+const double kTrainerPaceMetersPerStroke = 6.25;
+const double kTrainerDisplayMetersPerStroke = 4.93;
 
-/// Applies [paceCorrectionFactor] to a raw trainer split (seconds per 500 m).
-/// A faster true pace means *fewer* seconds, so a positive correction divides
-/// the split rather than multiplying it. Null/non-positive input, or a
-/// correction at or below -100% (which would flip or zero the pace), passes
-/// through unchanged.
-double? correctedPace(double? rawSecPer500, double correctionPercent) {
-  if (rawSecPer500 == null || rawSecPer500 <= 0) return rawSecPer500;
-  final factor = paceCorrectionFactor(correctionPercent);
-  if (factor <= 0) return rawSecPer500;
-  return rawSecPer500 / factor;
+/// The split (seconds per 500 m) at [strokeRate] strokes per minute covering
+/// [metersPerStroke] metres each. Null below 1 spm (no rowing → no split).
+double? paceFromStrokes(double? strokeRate, double metersPerStroke) {
+  if (strokeRate == null || strokeRate < 1 || metersPerStroke <= 0) return null;
+  return 30000 / (strokeRate * metersPerStroke);
 }

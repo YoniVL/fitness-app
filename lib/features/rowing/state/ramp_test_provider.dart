@@ -104,10 +104,10 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
   DateTime? _belowSince;
   int _lastSampleSecond = -3;
 
-  /// A personal correction on top of the trainer's own reported split — see
-  /// [SettingsRepository.rowingPaceCorrectionPercent]. Fetched once in [begin]
-  /// since [_onSnapshot] is a synchronous callback.
-  double _paceCorrectionPct = 0;
+  /// Metres per stroke for distance and tempo — see
+  /// [SettingsRepository.rowingMetersPerStroke]. Fetched once in [begin] since
+  /// [_onSnapshot] is a synchronous callback.
+  double _metersPerStroke = kDefaultMetersPerStroke;
 
   /// The watts to work with. In watt mode: the trainer's own reading, falling
   /// back to a split estimate. In pace mode: always the split estimate — the
@@ -143,7 +143,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
     if (state.phase != RampPhase.waiting || _ticker != null) return;
     final settings = ref.read(settingsRepositoryProvider);
     final ftp = await settings.rowingFtp();
-    _paceCorrectionPct = await settings.rowingPaceCorrectionPercent();
+    _metersPerStroke = await settings.rowingMetersPerStroke();
     _proto = RampProtocol.seeded(ftp?.watts);
     _meter = RowingMeter();
     _samples.clear();
@@ -174,10 +174,10 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
 
   void _onSnapshot(RowerSnapshot snapIn) {
     if (state.phase == RampPhase.done) return;
-    final snap = _paceCorrectionPct == 0
-        ? snapIn
-        : snapIn.withPace(correctedPace(snapIn.paceSec500m, _paceCorrectionPct));
+    final snap =
+        snapIn.withPace(paceFromStrokes(snapIn.strokeRate, _metersPerStroke));
     _lastRaw = snap;
+    final strokes = _meter.observeStrokes(snap.strokeCount);
     final now = DateTime.now();
     _lastDataAt = now;
 
@@ -194,6 +194,9 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       state = state.copyWith(phase: RampPhase.running, live: _merged());
     } else {
       state = state.copyWith(live: _merged());
+    }
+    if (state.phase == RampPhase.running) {
+      _meter.addStrokes(strokes, _metersPerStroke);
     }
   }
 
@@ -220,13 +223,7 @@ class RampTestController extends AutoDisposeNotifier<RampTestState> {
       return;
     }
 
-    final pace = _lastRaw?.paceSec500m;
-    final freshPace = pace != null && pace > 60 && pace < 900;
-    _meter.tick(
-      seconds: 1,
-      paceSec500m: freshPace ? pace : null,
-      powerW: _lastRaw?.powerW,
-    );
+    _meter.tick(seconds: 1, powerW: _lastRaw?.powerW);
 
     var elapsed = s.elapsed + const Duration(seconds: 1);
     var stepElapsed = s.stepElapsed + const Duration(seconds: 1);

@@ -32,10 +32,9 @@ class RowerSnapshot {
   final int? heartRate;
   final int? elapsedSeconds;
 
-  /// A copy with [paceSec500m] replaced — used to apply a personal pace
-  /// correction (see `rowing_format.dart`'s `correctedPace`) right where a raw
-  /// trainer frame first enters the app, so every consumer sees the same,
-  /// already-corrected value.
+  /// A copy with [paceSec500m] replaced — used to swap the trainer's pace for
+  /// the one derived from stroke rate (see `paceFromStrokes`) right where a raw
+  /// frame first enters the app, so every consumer sees the same value.
   RowerSnapshot withPace(double? paceSec500m) => RowerSnapshot(
         strokeRate: strokeRate,
         strokeCount: strokeCount,

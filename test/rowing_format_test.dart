@@ -36,33 +36,22 @@ void main() {
     expect(powerLabel(0), '–');
   });
 
-  group('pace correction', () {
-    test('0% leaves the split unchanged', () {
-      expect(correctedPace(150, 0), 150);
+  group('paceFromStrokes', () {
+    test('is metres per stroke turned into a split', () {
+      // 21 spm x 9.06 m = 190.26 m/min -> 500 m in 157.7 s.
+      expect(paceFromStrokes(21, 9.06), closeTo(157.7, 0.1));
+      // The trainer's own model: 6.25 m/stroke -> pace = 4800 / spm.
+      expect(paceFromStrokes(24, kTrainerPaceMetersPerStroke), closeTo(200, 0.01));
     });
 
-    test('a positive correction makes the split faster (fewer seconds)', () {
-      // +10% real speed -> split divided by 1.10.
-      expect(correctedPace(220, 10), closeTo(200, 0.01));
+    test('more metres per stroke is a faster split', () {
+      expect(paceFromStrokes(22, 10)!, lessThan(paceFromStrokes(22, 8)!));
     });
 
-    test('a negative correction makes the split slower', () {
-      expect(correctedPace(200, -20), closeTo(250, 0.01));
-    });
-
-    test('round-trips through the same factor', () {
-      const pct = 12.5;
-      final corrected = correctedPace(180, pct)!;
-      // Undoing it with the opposite percent (of the corrected value) should
-      // land back close to the original — sanity check on the direction.
-      expect(corrected, lessThan(180));
-      expect(corrected * paceCorrectionFactor(pct), closeTo(180, 0.01));
-    });
-
-    test('null / non-positive / an absurd correction pass through', () {
-      expect(correctedPace(null, 10), isNull);
-      expect(correctedPace(0, 10), 0);
-      expect(correctedPace(150, -150), 150); // factor <= 0 -> unchanged
+    test('no stroke rate or metres -> no split', () {
+      expect(paceFromStrokes(null, 9), isNull);
+      expect(paceFromStrokes(0, 9), isNull);
+      expect(paceFromStrokes(20, 0), isNull);
     });
   });
 }

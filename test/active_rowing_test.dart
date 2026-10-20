@@ -119,19 +119,28 @@ void main() {
   });
 
   group('RowingMeter', () {
-    test('integrates distance from the split', () {
+    test('distance is strokes x metres per stroke', () {
       final m = RowingMeter();
-      // 2:00 /500m = 120 s → 4.166 m/s.
-      m.tick(seconds: 1, paceSec500m: 120);
-      m.tick(seconds: 1, paceSec500m: 120);
-      expect(m.distanceM, closeTo(8.33, 0.01));
+      expect(m.observeStrokes(10), 0); // first count is only the baseline
+      final s = m.observeStrokes(14);
+      expect(s, 4);
+      m.addStrokes(s, 9);
+      expect(m.distanceM, 36);
     });
 
-    test('adds nothing without a plausible split', () {
+    test('a counter reset (reconnect) counts the strokes since the reset', () {
       final m = RowingMeter();
-      m.tick(seconds: 1); // no pace → not rowing
-      m.tick(seconds: 1, paceSec500m: 0);
-      m.tick(seconds: 1, paceSec500m: 5000); // absurdly slow → ignored
+      m.observeStrokes(300);
+      expect(m.observeStrokes(302), 2);
+      expect(m.observeStrokes(3), 3); // trainer restarted its counter
+      expect(m.observeStrokes(5), 2);
+    });
+
+    test('no count -> no strokes, nothing added', () {
+      final m = RowingMeter();
+      expect(m.observeStrokes(null), 0);
+      m.addStrokes(0, 9);
+      m.addStrokes(3, 0);
       expect(m.distanceM, 0);
     });
 
@@ -141,13 +150,14 @@ void main() {
       expect(m.energyKcal, greaterThan(0));
       final after = m.energyKcal;
       m.tick(seconds: 5, powerW: 0);
-      expect(m.energyKcal, after); // no power → no energy
+      expect(m.energyKcal, after); // no power -> no energy
     });
 
     test('seed carries a rehydrated session forward', () {
       final m = RowingMeter()..seed(distanceM: 1500, energyKcal: 40);
-      m.tick(seconds: 1, paceSec500m: 120);
-      expect(m.distanceM, closeTo(1504.17, 0.01));
+      m.observeStrokes(50);
+      m.addStrokes(m.observeStrokes(52), 9);
+      expect(m.distanceM, 1518);
       expect(m.energyKcal, 40);
     });
   });

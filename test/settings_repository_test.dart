@@ -1,6 +1,7 @@
 import 'package:fitnesstracker/data/database/app_database.dart';
 import 'package:fitnesstracker/data/repositories/settings_repository.dart';
 import 'package:fitnesstracker/domain/models/program.dart';
+import 'package:fitnesstracker/domain/rowing_format.dart';
 import 'package:fitnesstracker/domain/rowing_ftp.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -99,13 +100,20 @@ void main() {
     expect(await repo.rowingDragK(), kGeneric);
   });
 
-  test('rowingPaceCorrectionPercent defaults to 0 and round-trips', () async {
-    expect(await repo.rowingPaceCorrectionPercent(), 0);
-    await repo.setRowingPaceCorrectionPercent(8.5);
-    expect(await repo.rowingPaceCorrectionPercent(), closeTo(8.5, 0.001));
-    await repo.setRowingPaceCorrectionPercent(-12);
-    expect(await repo.rowingPaceCorrectionPercent(), closeTo(-12, 0.001));
-    await repo.setRowingPaceCorrectionPercent(500); // out of range → ignored
-    expect(await repo.rowingPaceCorrectionPercent(), 0);
+  test('rowingMetersPerStroke defaults, round-trips and ignores nonsense', () async {
+    expect(await repo.rowingMetersPerStroke(), kDefaultMetersPerStroke);
+    await repo.setRowingMetersPerStroke(8.5);
+    expect(await repo.rowingMetersPerStroke(), closeTo(8.5, 0.001));
+    await repo.setRowingMetersPerStroke(99); // out of range -> default again
+    expect(await repo.rowingMetersPerStroke(), kDefaultMetersPerStroke);
+  });
+
+  test('the old tempo-correction % carries over as metres per stroke', () async {
+    await repo.set(SettingsKeys.legacyRowingPaceCorrectionPercent, '45.0');
+    expect(await repo.rowingMetersPerStroke(),
+        closeTo(kTrainerPaceMetersPerStroke * 1.45, 0.001));
+    // Once set explicitly, the new value wins over the old one.
+    await repo.setRowingMetersPerStroke(7);
+    expect(await repo.rowingMetersPerStroke(), closeTo(7, 0.001));
   });
 }
