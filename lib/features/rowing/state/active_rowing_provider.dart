@@ -287,6 +287,13 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       elapsed: elapsed,
       segmentElapsed: Duration(seconds: cursor.elapsedSeconds),
       segmentDistanceM: distanceNow - cursor.startDistanceM,
+      // Show the pre-restart distance straight away, before the trainer is back.
+      live: samples.isEmpty
+          ? null
+          : RowerSnapshot(
+              distanceM: distanceNow,
+              energyKcal: samples.last.energyKcal,
+            ),
       pausedReason: PauseReason.notStarted,
     );
     await _startEngine();

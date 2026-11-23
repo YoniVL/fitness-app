@@ -162,6 +162,7 @@ class _WorkoutRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final ftp = ref.watch(rowingFtpProvider).valueOrNull;
     final dragK = ref.watch(rowingDragKProvider).valueOrNull ?? kGeneric;
+    final hasMeter = ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
     return InkWell(
       onTap: () async {
         final start = await showModalBottomSheet<bool>(
@@ -169,7 +170,11 @@ class _WorkoutRow extends ConsumerWidget {
           showDragHandle: true,
           isScrollControlled: true,
           builder: (_) => _WorkoutSheet(
-              workout: workout, level: level, ftp: ftp, dragK: dragK),
+              workout: workout,
+              level: level,
+              ftp: ftp,
+              dragK: dragK,
+              showSplit: hasMeter),
         );
         if (start != true || !context.mounted) return;
         await ensureRowerConnected(context, ref);
@@ -214,11 +219,16 @@ class _WorkoutSheet extends StatelessWidget {
     required this.level,
     required this.ftp,
     required this.dragK,
+    required this.showSplit,
   });
   final RowWorkout workout;
   final ProgramLevel level;
   final RowingFtp? ftp;
   final double dragK;
+
+  /// A target split per block is only meaningful with a power meter; without
+  /// one the stroke rate is the target.
+  final bool showSplit;
 
   @override
   Widget build(BuildContext context) {
@@ -254,8 +264,9 @@ class _WorkoutSheet extends StatelessWidget {
                     [
                       segmentLengthLabel(s, _fmt),
                       if (s.targetStrokeRate != null) '${s.targetStrokeRate} SPM',
-                      if (segmentTargetSplitLabel(s, ftp, dragK) case final t?)
-                        '@$t',
+                      if (showSplit)
+                        if (segmentTargetSplitLabel(s, ftp, dragK) case final t?)
+                          '@$t',
                     ].join(' · '),
                     style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant),

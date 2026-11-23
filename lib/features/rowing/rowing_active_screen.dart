@@ -488,10 +488,17 @@ class _PacePanel extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      // Scales down instead of overflowing when a block bar takes height.
+      child: LayoutBuilder(
+        builder: (context, c) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: c.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Text('TEMPO /500M',
               style: theme.textTheme.labelSmall?.copyWith(
                   color: p.accent, letterSpacing: 1.4, fontSize: 11)),
@@ -573,6 +580,9 @@ class _PacePanel extends StatelessWidget {
           ],
           if (hasSegments) _ZoneBar(zone: zone),
         ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -659,10 +669,17 @@ class _SpmPanel extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      // Scales down instead of overflowing when a block bar takes height.
+      child: LayoutBuilder(
+        builder: (context, c) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: c.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Text('SLAGFREQUENTIE',
               style: theme.textTheme.labelSmall?.copyWith(
                   color: p.accent, letterSpacing: 1.4, fontSize: 11)),
@@ -730,6 +747,9 @@ class _SpmPanel extends StatelessWidget {
           ],
           if (hasSegments) _ZoneBar(zone: zone),
         ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -881,10 +901,17 @@ class _MetricCell extends StatelessWidget {
     final p = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      // Scales down instead of overflowing when a block bar takes height.
+      child: LayoutBuilder(
+        builder: (context, c) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: c.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Text(data.label.toUpperCase(),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontSize: 10, letterSpacing: 1.1, color: p.mute)),
@@ -909,6 +936,9 @@ class _MetricCell extends StatelessWidget {
             ),
           ),
         ],
+            ),
+          ),
+        ),
       ),
     );
   }
