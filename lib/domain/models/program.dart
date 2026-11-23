@@ -228,12 +228,23 @@ class ProgramRowSegment {
     this.drillKey,
     this.zone,
     this.targetWatts,
+    this.distanceM,
   });
 
   final int id;
   final int programDayId;
   final int orderIndex;
+
+  /// The block's length in time — for a distance block ([distanceM]) only an
+  /// estimate (it feeds the profile widths and the minutes shown for the plan).
   final int durationSeconds;
+
+  /// Set for a block that ends on the metres rowed instead of on the clock
+  /// ("4 × 2.000 m"). Rest blocks are always timed.
+  final int? distanceM;
+
+  /// Whether this block is rowed over a distance.
+  bool get isDistance => !isRest && distanceM != null && distanceM! > 0;
   final int? targetStrokeRate;
   final String intensityLabel;
   final bool isRest;
@@ -261,6 +272,7 @@ class ProgramRowSegment {
         drillKey: map['drill_key'] as String?,
         zone: map['zone'] as String?,
         targetWatts: (map['target_watts'] as num?)?.toDouble(),
+        distanceM: map['distance_m'] as int?,
       );
 
   Map<String, Object?> toMap() => {
@@ -274,6 +286,7 @@ class ProgramRowSegment {
         'drill_key': drillKey,
         'zone': zone,
         'target_watts': targetWatts,
+        'distance_m': distanceM,
       };
 
   ProgramRowSegment withTargetWatts(double? watts) => ProgramRowSegment(
@@ -287,6 +300,7 @@ class ProgramRowSegment {
         drillKey: drillKey,
         zone: zone,
         targetWatts: watts,
+        distanceM: distanceM,
       );
 }
 

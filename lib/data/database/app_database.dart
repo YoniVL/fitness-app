@@ -15,7 +15,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _fileName = 'fitnesstracker.db';
-  static const schemaVersion = 9;
+  static const schemaVersion = 10;
 
   Database? _db;
 
@@ -89,6 +89,8 @@ class AppDatabase {
           await migrateV7toV8(db);
         case 9:
           await migrateV8toV9(db);
+        case 10:
+          await migrateV9toV10(db);
       }
     }
   }
@@ -164,7 +166,8 @@ class AppDatabase {
       is_rest            INTEGER NOT NULL DEFAULT 0,
       drill_key          TEXT,
       zone               TEXT,
-      target_watts       REAL
+      target_watts       REAL,
+      distance_m         INTEGER
     )
     ''',
     '''

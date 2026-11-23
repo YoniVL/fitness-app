@@ -59,8 +59,13 @@ class NewRowSegmentDraft {
     this.drillKey,
     this.zone,
     this.targetWatts,
+    this.distanceM,
   });
   final int durationSeconds;
+
+  /// Set for a block rowed over a distance — [durationSeconds] is then only
+  /// the estimate.
+  final int? distanceM;
   final int? targetStrokeRate;
   final String intensityLabel;
   final bool isRest;
@@ -179,6 +184,7 @@ class ProgramRepository {
             'drill_key': s.drillKey,
             'zone': s.zone,
             'target_watts': s.targetWatts,
+            'distance_m': s.distanceM,
           });
         }
       }

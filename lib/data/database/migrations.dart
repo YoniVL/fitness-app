@@ -1,5 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../../domain/models/program.dart';
+import '../repositories/rowing_repository.dart' show encodeRowSegments;
+import '../repositories/settings_repository.dart' show SettingsKeys;
 import 'seed_data.dart';
 
 /// v1 -> v2
@@ -287,4 +290,111 @@ Future<void> migrateV6toV7(Database db) async {
   await db.delete('programs',
       where: "discipline = 'rowing' AND is_template = 1");
   await seedRowingTemplates(db);
+}
+
+/// v9 -> v10: distance blocks (`program_row_segments.distance_m`) and a reseed of
+/// the rowing templates, whose generator now mixes distance sessions in.
+///
+/// Logged sessions that came from a template day keep their plan overlay: the
+/// day's segments are copied into the session's own `segments_json` before the
+/// day goes away. An active template plan carries over to its reseeded twin (same
+/// name), cursor included.
+Future<void> migrateV9toV10(Database db) async {
+  final cols = await db.rawQuery('PRAGMA table_info(program_row_segments)');
+  if (!cols.any((c) => c['name'] == 'distance_m')) {
+    await db.execute(
+        'ALTER TABLE program_row_segments ADD COLUMN distance_m INTEGER');
+  }
+
+  final templates = await db.query('programs',
+      columns: ['id', 'name'],
+      where: "discipline = 'rowing' AND is_template = 1");
+  if (templates.isEmpty) {
+    await seedRowingTemplates(db);
+    return;
+  }
+  final templateIds = [for (final t in templates) t['id'] as int];
+  final idList = templateIds.join(',');
+
+  // The active plan, if it is one of the templates.
+  String? activeName;
+  Map<String, Object?>? progress;
+  final activeRows = await db.query('app_settings',
+      where: 'key = ?', whereArgs: [SettingsKeys.activeRowingProgramId]);
+  final activeId = activeRows.isEmpty
+      ? null
+      : int.tryParse(activeRows.first['value'] as String);
+  if (activeId != null && templateIds.contains(activeId)) {
+    activeName =
+        templates.firstWhere((t) => t['id'] == activeId)['name'] as String;
+    final p = await db.query('program_progress',
+        where: 'program_id = ?', whereArgs: [activeId]);
+    progress = p.isEmpty ? null : p.first;
+  }
+
+  // Keep the plan overlay of logged sessions, then cut their link to the days.
+  final linked = await db.rawQuery(
+    'SELECT rs.id AS id, rs.program_day_id AS day_id '
+    'FROM rowing_sessions rs '
+    'JOIN program_days d ON d.id = rs.program_day_id '
+    'WHERE d.program_id IN ($idList) '
+    "AND (rs.segments_json IS NULL OR rs.segments_json = '')",
+  );
+  for (final row in linked) {
+    final segRows = await db.query('program_row_segments',
+        where: 'program_day_id = ?',
+        whereArgs: [row['day_id']],
+        orderBy: 'order_index');
+    await db.update(
+      'rowing_sessions',
+      {
+        'segments_json':
+            encodeRowSegments(segRows.map(ProgramRowSegment.fromMap).toList()),
+      },
+      where: 'id = ?',
+      whereArgs: [row['id']],
+    );
+  }
+  final dayIds = 'SELECT id FROM program_days WHERE program_id IN ($idList)';
+  await db.rawUpdate(
+      'UPDATE rowing_sessions SET program_day_id = NULL '
+      'WHERE program_day_id IN ($dayIds)');
+  await db.rawUpdate(
+      'UPDATE workout_sessions SET program_day_id = NULL '
+      'WHERE program_day_id IN ($dayIds)');
+  await db.rawUpdate('UPDATE programs SET source_template_id = NULL '
+      'WHERE source_template_id IN ($idList)');
+
+  await db.delete('programs',
+      where: "discipline = 'rowing' AND is_template = 1");
+  await seedRowingTemplates(db);
+
+  if (activeName != null) {
+    final twin = await db.query('programs',
+        columns: ['id'],
+        where: "discipline = 'rowing' AND is_template = 1 AND name = ?",
+        whereArgs: [activeName],
+        limit: 1);
+    if (twin.isNotEmpty) {
+      final newId = twin.first['id'] as int;
+      await db.insert(
+        'app_settings',
+        {
+          'key': SettingsKeys.activeRowingProgramId,
+          'value': newId.toString()
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      await db.insert(
+        'program_progress',
+        {
+          'program_id': newId,
+          'current_day_index': progress?['current_day_index'] ?? 0,
+          'round': progress?['round'] ?? 1,
+          'last_completed_at': progress?['last_completed_at'],
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
 }

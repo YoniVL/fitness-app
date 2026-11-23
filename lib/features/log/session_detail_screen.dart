@@ -12,6 +12,7 @@ import '../../data/repositories/workout_session_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing.dart';
+import '../../domain/rowing_segments.dart';
 import '../../domain/models/strength_set.dart';
 import '../../domain/models/workout_session.dart';
 import '../../domain/rowing_format.dart';
@@ -440,8 +441,9 @@ class _RowingDetailBody extends ConsumerWidget {
               for (var i = 0; i < data.planSegments.length; i++)
                 _SegmentRow(
                   index: i,
-                  duration: hmsLabel(Duration(
-                      seconds: data.planSegments[i].durationSeconds)),
+                  duration: segmentLengthLabel(
+                      data.planSegments[i],
+                      (sec) => hmsLabel(Duration(seconds: sec))),
                   label: _segmentLabel(data.planSegments[i]),
                   last: i == data.planSegments.length - 1,
                 ),

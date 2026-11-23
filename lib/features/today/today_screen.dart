@@ -25,6 +25,13 @@ import '../rowing/widgets/interval_profile.dart';
 import '../rowing/widgets/target_pace.dart';
 import '../strength/state/active_workout_provider.dart';
 
+/// " · 8 KM" — the metres of the distance blocks in a session, or nothing when
+/// the session is all timed.
+String _distanceSummary(List<ProgramRowSegment> segs) {
+  final m = segs.where((s) => s.isDistance).fold(0, (a, s) => a + s.distanceM!);
+  return m == 0 ? '' : ' · ${blockDistanceLabel(m).toUpperCase()}';
+}
+
 /// "3 blokken" / "1 blok".
 String _blocks(int n) => n == 1 ? '1 blok' : '$n blokken';
 
@@ -774,7 +781,8 @@ class _RowingDayCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '~${i.$1} MIN · ${_blocks(i.$2).toUpperCase()}',
+                          '~${i.$1} MIN · ${_blocks(i.$2).toUpperCase()}'
+                          '${_distanceSummary(i.$3)}',
                           style: theme.textTheme.labelSmall
                               ?.copyWith(fontSize: 10, letterSpacing: 1.0),
                         ),

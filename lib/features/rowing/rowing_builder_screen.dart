@@ -112,6 +112,7 @@ class _RowingBuilderScreenState extends ConsumerState<RowingBuilderScreen> {
                     for (final seg in s.segments)
                       NewRowSegmentDraft(
                         durationSeconds: seg.durationSeconds,
+                        distanceM: seg.distanceM,
                         targetStrokeRate: seg.targetSpm,
                         intensityLabel: seg.intensityLabel,
                         isRest: seg.isRest,

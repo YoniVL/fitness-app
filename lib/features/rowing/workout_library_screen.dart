@@ -7,6 +7,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
 import '../../domain/rowing_ftp.dart';
+import '../../domain/rowing_segments.dart';
 import '../../domain/rowing_workouts.dart';
 import '../../ui/spacing.dart';
 import 'ble/connect_sheet.dart';
@@ -27,6 +28,7 @@ List<ProgramRowSegment> workoutSegments(RowWorkout w,
         programDayId: 0,
         orderIndex: i,
         durationSeconds: blocks[i].seconds,
+        distanceM: blocks[i].meters,
         targetStrokeRate: blocks[i].spm,
         intensityLabel: blocks[i].label,
         isRest: blocks[i].isRest,
@@ -250,7 +252,7 @@ class _WorkoutSheet extends StatelessWidget {
                   ),
                   Text(
                     [
-                      _fmt(s.durationSeconds),
+                      segmentLengthLabel(s, _fmt),
                       if (s.targetStrokeRate != null) '${s.targetStrokeRate} SPM',
                       if (segmentTargetSplitLabel(s, ftp, dragK) case final t?)
                         '@$t',

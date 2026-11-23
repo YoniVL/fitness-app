@@ -231,4 +231,65 @@ void main() {
     expect(gen(input(spw: 2)).sessionsPerWeek, 2);
     expect(gen(input(spw: 5, weeks: 8)).sessions, hasLength(40));
   });
+
+  group('distance sessions', () {
+    bool hasDistance(GeneratedRowSession s) =>
+        s.segments.any((g) => g.distanceM != null);
+
+    test('a plan mixes in distance sessions, but stays mostly timed', () {
+      final plan = gen(input(spw: 3, weeks: 12, bands: {(25, 40)}));
+      final n = plan.sessions.where(hasDistance).length;
+      expect(n, greaterThanOrEqualTo(3));
+      expect(n, lessThan(plan.sessions.length ~/ 2));
+    });
+
+    test('every goal with endurance work gets some', () {
+      for (final goal in [
+        RowingGoal.vetverlies,
+        RowingGoal.uithouding,
+        RowingGoal.algemeen,
+      ]) {
+        final plan = gen(input(goal: goal, spw: 4, weeks: 12));
+        expect(plan.sessions.where(hasDistance), isNotEmpty, reason: goal.name);
+      }
+    });
+
+    test('distance blocks are work blocks with a sane length and estimate', () {
+      final plan = gen(input(spw: 4, weeks: 12));
+      for (final s in plan.sessions) {
+        for (final g in s.segments) {
+          if (g.distanceM == null) continue;
+          expect(g.isRest, isFalse);
+          expect(g.distanceM, inInclusiveRange(100, 12000));
+          expect(g.durationSeconds, greaterThan(0));
+        }
+      }
+    });
+
+    test('a deload week is never a distance week', () {
+      final plan = gen(input(spw: 3, weeks: 8, bands: {(25, 40)}));
+      // Week index 3 is the deload of an 8-week plan.
+      expect(plan.sessions.where((s) => s.weekIndex == 3).any(hasDistance),
+          isFalse);
+    });
+
+    test('benchmark tests and recovery rows stay timed', () {
+      final plan = gen(input(spw: 4, weeks: 12));
+      for (final s in plan.sessions) {
+        if (s.type == RowSessionType.test || s.type == RowSessionType.herstel) {
+          expect(hasDistance(s), isFalse, reason: s.label);
+        }
+      }
+    });
+
+    test('segments carry the distance through to what gets stored', () {
+      final plan = gen(input(spw: 4, weeks: 12));
+      final withDistance = plan.sessions.firstWhere(hasDistance);
+      final stored = withDistance.segments
+          .map((g) => g.distanceM)
+          .whereType<int>()
+          .toList();
+      expect(stored, isNotEmpty);
+    });
+  });
 }

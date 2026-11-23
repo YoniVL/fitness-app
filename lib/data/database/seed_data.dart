@@ -804,6 +804,7 @@ Future<int> _insertRowingPlan(
         'drill_key': seg.drillKey,
         'zone': seg.zone,
         'target_watts': seg.targetWatts,
+        'distance_m': seg.distanceM,
       });
     }
   }

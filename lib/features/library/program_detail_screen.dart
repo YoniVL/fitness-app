@@ -7,6 +7,7 @@ import '../../data/repositories/program_repository.dart';
 import '../../domain/models/exercise.dart';
 import '../../domain/models/program.dart';
 import '../../domain/models/rowing_plan.dart';
+import '../../domain/rowing_segments.dart';
 import '../../ui/async_view.dart';
 import '../../ui/confirm_dialog.dart';
 import '../../ui/spacing.dart';
@@ -267,7 +268,7 @@ class _DayCard extends StatelessWidget {
                         child: Text('${s.intensityLabel}'
                             '${s.targetStrokeRate != null ? ' · ${s.targetStrokeRate} SPM' : ''}'),
                       ),
-                      Text(_fmtDuration(s.durationSeconds),
+                      Text(segmentLengthLabel(s, _fmtDuration),
                           style: theme.textTheme.bodyMedium),
                     ],
                   ),
@@ -478,7 +479,7 @@ class _RowSessionCard extends StatelessWidget {
                   Gap.s,
                   Text(
                     [
-                      _segDuration(seg.durationSeconds),
+                      segmentLengthLabel(seg, _segDuration),
                       if (seg.targetStrokeRate != null)
                         '${seg.targetStrokeRate} SPM',
                     ].join(' · '),

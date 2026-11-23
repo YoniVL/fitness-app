@@ -15,9 +15,14 @@ class GeneratedRowSegment {
     this.drillKey,
     this.zone,
     this.targetWatts,
+    this.distanceM,
   });
 
+  /// For a distance block ([distanceM]) only an estimate.
   final int durationSeconds;
+
+  /// Set when the block ends on the metres rowed instead of on the clock.
+  final int? distanceM;
   final int? targetSpm;
   final String intensityLabel;
   final bool isRest;
@@ -31,6 +36,7 @@ class GeneratedRowSegment {
   factory GeneratedRowSegment.fromBlock(RowBlock b, {double? ftpWatts}) =>
       GeneratedRowSegment(
         durationSeconds: b.seconds,
+        distanceM: b.meters,
         targetSpm: b.spm,
         intensityLabel: b.label,
         isRest: b.isRest,
@@ -201,22 +207,30 @@ class RowingPlanGenerator {
           _pickWorkout(types[slot], targetMinutes,
               slotKey: '$slot-${types[slot].name}',
               lastPick: lastPick,
-              goal: input.goal),
+              goal: input.goal,
+              // A deload week stays timed so it can be scaled down freely.
+              preferDistance: !deload && _wantsDistance(w, slot)),
       ];
       bool isFlex(RowSessionType t) =>
           t != RowSessionType.herstel && t != RowSessionType.test;
+      // A distance session can't be stretched either — its length is set by the
+      // metres — so, like recovery and test, it is carved out of the weekly
+      // budget and the flexible sessions take up the rest.
+      final byDistance = [for (final p in picks) workoutHasDistance(p)];
+      bool fixedSlot(int slot) => !isFlex(types[slot]) || byDistance[slot];
       final weeklyTarget = targetMinutes * types.length;
-      final flexCount = types.where(isFlex).length;
+      final flexCount =
+          [for (var i = 0; i < types.length; i++) if (!fixedSlot(i)) i].length;
       final fixedMin = [
         for (var s = 0; s < types.length; s++)
-          if (!isFlex(types[s])) picks[s].approxMinutes.toDouble(),
+          if (fixedSlot(s)) picks[s].approxMinutes.toDouble(),
       ].fold<double>(0, (a, b) => a + b);
       final perFlex =
           flexCount == 0 ? 0.0 : (weeklyTarget - fixedMin) / flexCount;
 
       List<List<RowBlock>> blocksFor(double correction) => [
             for (var slot = 0; slot < types.length; slot++)
-              if (!isFlex(types[slot]))
+              if (fixedSlot(slot))
                 picks[slot].blocks(input.level, 1.0)
               else
                 picks[slot].blocks(
@@ -341,12 +355,20 @@ class RowingPlanGenerator {
     return lo + (hi - lo) * (0.15 + 0.7 * t);
   }
 
+  /// The slots meant for a distance session ("6 km at r21", "4 × 2.000 m")
+  /// instead of a timed one: one in three, moving along with the week so it
+  /// isn't always the same day of the plan. Whether it happens also depends on
+  /// the slot's type having a distance workout that fits the week (recovery and
+  /// technique have none) — in practice about a quarter of the sessions.
+  bool _wantsDistance(int week, int slot) => (week + slot) % 3 == 0;
+
   RowWorkout _pickWorkout(
     RowSessionType type,
     double targetMinutes, {
     required String slotKey,
     required Map<String, String> lastPick,
     required RowingGoal goal,
+    bool preferDistance = false,
   }) {
     // Benchmarks are fixed so week 1 and the last week compare like for like.
     if (type == RowSessionType.test) {
@@ -354,8 +376,23 @@ class RowingPlanGenerator {
       return workoutById(id) ?? workoutsOfType(type).first;
     }
 
-    final all = workoutsOfType(type).toList();
+    var all = workoutsOfType(type).toList();
     if (all.isEmpty) return workoutsOfType(RowSessionType.endurance).first;
+    // Distance sessions have a set length, so they only come in the slots meant
+    // for one, and only when their length fits the week's per-session target;
+    // every other slot stays timed.
+    final distance = all.where(workoutHasDistance).toList();
+    final timed = all.where((w) => !workoutHasDistance(w)).toList();
+    final fitting = distance
+        .where((w) =>
+            w.approxMinutes >= targetMinutes * 0.65 &&
+            w.approxMinutes <= targetMinutes * 1.4)
+        .toList();
+    if (preferDistance && fitting.isNotEmpty) {
+      all = fitting;
+    } else if (timed.isNotEmpty) {
+      all = timed;
+    }
     all.sort((a, b) => (a.approxMinutes - targetMinutes)
         .abs()
         .compareTo((b.approxMinutes - targetMinutes).abs()));

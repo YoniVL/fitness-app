@@ -192,6 +192,8 @@ class _Body extends ConsumerWidget {
     // and the (derived) tempo goes into the grid.
     final hasMeter = ref.watch(rowingHasPowerMeterProvider).valueOrNull ?? false;
     final targetSpm = seg == null ? null : segmentTargetSpm(seg, ftp);
+    final metersPerStroke = ref.watch(rowingMetersPerStrokeProvider).valueOrNull ??
+        kDefaultMetersPerStroke;
 
     return Column(
       children: [
@@ -204,6 +206,18 @@ class _Body extends ConsumerWidget {
           status: status,
           onStatusTap: () => showConnectRowerSheet(context, ref),
         ),
+        if (seg != null && seg.isDistance)
+          _DistanceBlockBar(
+            done: state.segmentDistanceM,
+            total: seg.distanceM!,
+            // Time left at the current stroke rate (metres left / speed).
+            etaSeconds: (live?.strokeRate ?? 0) >= 1
+                ? (seg.distanceM! - state.segmentDistanceM)
+                    .clamp(0.0, double.infinity) *
+                    60 /
+                    ((live!.strokeRate!) * metersPerStroke)
+                : null,
+          ),
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -316,6 +330,61 @@ class _TopBar extends StatelessWidget {
               padding: const EdgeInsets.all(4),
               child: _StatusChip(status: status),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The progress of a distance block: metres rowed of the block, a bar, and what
+/// is left (with an estimated time at the current stroke rate).
+class _DistanceBlockBar extends StatelessWidget {
+  const _DistanceBlockBar({
+    required this.done,
+    required this.total,
+    required this.etaSeconds,
+  });
+
+  final double done;
+  final int total;
+  final double? etaSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = context.palette;
+    final left = (total - done).clamp(0, total).round();
+    final eta = etaSeconds;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.line)),
+      ),
+      child: Row(
+        children: [
+          Text('BLOK',
+              style: theme.textTheme.labelSmall?.copyWith(
+                  color: p.accent, letterSpacing: 1.3, fontSize: 10)),
+          const SizedBox(width: 12),
+          Text('${done.round().clamp(0, total)} / ${blockDistanceLabel(total)}',
+              style: AppTheme.numeric(size: 16, color: p.ink)
+                  .copyWith(letterSpacing: 0)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: (done / total).clamp(0.0, 1.0),
+              minHeight: 6,
+              color: p.accent,
+              backgroundColor: p.line,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            'NOG ${blockDistanceLabel(left).toUpperCase()}'
+            '${eta != null && eta.isFinite ? ' · ~${hmsLabel(Duration(seconds: eta.round()))}' : ''}',
+            style: theme.textTheme.labelSmall?.copyWith(
+                color: p.mute, letterSpacing: 0.8, fontSize: 10),
           ),
         ],
       ),

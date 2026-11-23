@@ -20,6 +20,7 @@ String encodeRowSegments(List<ProgramRowSegment> segs) => jsonEncode([
           'drill': s.drillKey,
           'zone': s.zone,
           'w': s.targetWatts,
+          'm': s.distanceM,
         }
     ]);
 
@@ -38,6 +39,7 @@ List<ProgramRowSegment> decodeRowSegments(String json) {
         drillKey: list[i]['drill'] as String?,
         zone: list[i]['zone'] as String?,
         targetWatts: (list[i]['w'] as num?)?.toDouble(),
+        distanceM: (list[i]['m'] as num?)?.toInt(),
       ),
   ];
 }

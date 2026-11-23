@@ -59,6 +59,23 @@ const double kDefaultMetersPerStroke = 9.06;
 const double kTrainerPaceMetersPerStroke = 6.25;
 const double kTrainerDisplayMetersPerStroke = 4.93;
 
+/// How long [meters] takes at [spm] strokes per minute (20 when unknown),
+/// covering [metersPerStroke] per stroke. Only an estimate — distance blocks end
+/// on metres, not on this — used for the profile widths and the minutes shown
+/// for a plan.
+int estimateSeconds(int meters, int? spm,
+    {double metersPerStroke = kDefaultMetersPerStroke}) {
+  final rate = (spm == null || spm < 1) ? 20 : spm;
+  return (meters * 60 / (rate * metersPerStroke)).round();
+}
+
+/// A block's length: `500 m`, `2 km`, `1,5 km`.
+String blockDistanceLabel(int meters) {
+  if (meters < 1000) return '$meters m';
+  if (meters % 1000 == 0) return '${meters ~/ 1000} km';
+  return '${(meters / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
+}
+
 /// The split (seconds per 500 m) at [strokeRate] strokes per minute covering
 /// [metersPerStroke] metres each. Null below 1 spm (no rowing → no split).
 double? paceFromStrokes(double? strokeRate, double metersPerStroke) {

@@ -1,5 +1,6 @@
 import 'models/program.dart';
 import 'models/rowing_plan.dart';
+import 'rowing_format.dart' show estimateSeconds;
 
 /// Intensity zone of a block — drives the colour of the interval profile and a
 /// rough stroke-rate band.
@@ -14,9 +15,25 @@ class RowBlock {
     required this.label,
     this.isRest = false,
     this.drillKey,
+    this.meters,
   });
 
+  /// A block rowed over [meters] instead of for a set time. [seconds] becomes
+  /// the estimate at [spm] (see `estimateSeconds`).
+  factory RowBlock.distance(
+    int meters, {
+    required int spm,
+    RowIntensity intensity = RowIntensity.steady,
+    required String label,
+  }) =>
+      RowBlock(estimateSeconds(meters, spm),
+          spm: spm, intensity: intensity, label: label, meters: meters);
+
+  /// Seconds for a timed block; the estimate for a distance block.
   final int seconds;
+
+  /// Set for a distance block — it ends on the metres rowed, not on the clock.
+  final int? meters;
   final int? spm;
   final RowIntensity intensity;
   final String label;
@@ -34,6 +51,27 @@ class RowBlock {
     if (spm <= 29) return RowIntensity.hard;
     return RowIntensity.max;
   }
+}
+
+/// N × (distance / rest), numbered, with warm-up + cool-down.
+List<RowBlock> _distReps(
+  int reps, {
+  required int meters,
+  required int restSec,
+  required int spm,
+  required RowIntensity intensity,
+  required String workLabel,
+  int wuMin = 3,
+  int cdMin = 2,
+}) {
+  final out = <RowBlock>[_wu(wuMin)];
+  for (var i = 0; i < reps; i++) {
+    out.add(RowBlock.distance(meters,
+        spm: spm, intensity: intensity, label: '$workLabel ${i + 1}/$reps'));
+    if (i < reps - 1) out.add(_rest(restSec));
+  }
+  out.add(_cd(cdMin));
+  return out;
 }
 
 /// A named, reusable rowing workout. [blocks] builds the concrete blocks scaled
@@ -208,14 +246,44 @@ final List<RowWorkout> rowWorkouts = [
     name: '5.000 m · gelijkmatig',
     type: RowSessionType.endurance,
     focus: 'Vaste afstand op endurance-tempo.',
-    approxMinutes: 24,
+    approxMinutes: 31,
     blocks: (l, b) => [
       _wu(3),
-      RowBlock(1140,
+      RowBlock.distance(5000,
           spm: 20 + _lvl(l),
           intensity: RowIntensity.steady,
           label: '5.000 m'),
       _cd(2),
+    ],
+  ),
+  RowWorkout(
+    id: 'end_6k',
+    name: '6.000 m · gelijkmatig',
+    type: RowSessionType.endurance,
+    focus: 'Zes kilometer op een rustig, constant tempo.',
+    approxMinutes: 37,
+    blocks: (l, b) => [
+      _wu(3),
+      RowBlock.distance(6000,
+          spm: 20 + _lvl(l),
+          intensity: RowIntensity.steady,
+          label: '6.000 m'),
+      _cd(2),
+    ],
+  ),
+  RowWorkout(
+    id: 'end_8k',
+    name: '8.000 m · gelijkmatig',
+    type: RowSessionType.endurance,
+    focus: 'Acht kilometer op gespreksniveau.',
+    approxMinutes: 49,
+    blocks: (l, b) => [
+      _wu(4),
+      RowBlock.distance(8000,
+          spm: 20 + _lvl(l),
+          intensity: RowIntensity.steady,
+          label: '8.000 m'),
+      _cd(3),
     ],
   ),
   RowWorkout(
@@ -260,10 +328,10 @@ final List<RowWorkout> rowWorkouts = [
     name: '10.000 m · gelijkmatig',
     type: RowSessionType.endurance,
     focus: 'Grote afstand op een rustig, constant tempo.',
-    approxMinutes: 46,
+    approxMinutes: 60,
     blocks: (l, b) => [
       _wu(4),
-      RowBlock(2280,
+      RowBlock.distance(10000,
           spm: 20 + _lvl(l),
           intensity: RowIntensity.steady,
           label: '10.000 m'),
@@ -347,22 +415,68 @@ final List<RowWorkout> rowWorkouts = [
     name: '4 × 2.000 m / 3:30',
     type: RowSessionType.drempel,
     focus: 'Afstandsblokken rond 2k-tempo + 8 sec.',
-    approxMinutes: 44,
-    blocks: (l, b) => _reps(4,
-        workSec: 480 - _lvl(l) * 20,
+    approxMinutes: 48,
+    blocks: (l, b) => _distReps(4,
+        meters: 2000,
         restSec: 210,
         spm: 26 + _lvl(l),
         intensity: RowIntensity.threshold,
         workLabel: '2.000 m'),
   ),
   RowWorkout(
+    id: 'thr_3x2000',
+    name: '3 × 2.000 m / 3 min',
+    type: RowSessionType.drempel,
+    focus: 'Drie lange afstandsblokken op drempeltempo.',
+    approxMinutes: 37,
+    blocks: (l, b) => _distReps(3,
+        meters: 2000,
+        restSec: 180,
+        spm: 25 + _lvl(l),
+        intensity: RowIntensity.threshold,
+        workLabel: '2.000 m'),
+  ),
+  RowWorkout(
+    id: 'thr_6x1000',
+    name: '6 × 1.000 m / 90 s',
+    type: RowSessionType.drempel,
+    focus: 'Zes kilometerblokken met korte rust.',
+    approxMinutes: 38,
+    blocks: (l, b) => _distReps(6,
+        meters: 1000,
+        restSec: 90,
+        spm: 26 + _lvl(l),
+        intensity: RowIntensity.threshold,
+        workLabel: '1.000 m'),
+  ),
+  RowWorkout(
+    id: 'thr_2x4000',
+    name: '2 × 4.000 m / 4 min',
+    type: RowSessionType.drempel,
+    focus: 'Twee lange afstandsblokken net onder wedstrijdtempo.',
+    approxMinutes: 46,
+    blocks: (l, b) => [
+      _wu(4),
+      RowBlock.distance(4000,
+          spm: 24 + _lvl(l),
+          intensity: RowIntensity.threshold,
+          label: '4.000 m 1/2'),
+      _rest(240),
+      RowBlock.distance(4000,
+          spm: 24 + _lvl(l),
+          intensity: RowIntensity.threshold,
+          label: '4.000 m 2/2'),
+      _cd(3),
+    ],
+  ),
+  RowWorkout(
     id: 'thr_3x3000',
     name: '3 × 3.000 m / 5 min',
     type: RowSessionType.drempel,
     focus: 'Lange afstandsblokken, gelijkmatig hard.',
-    approxMinutes: 48,
-    blocks: (l, b) => _reps(3,
-        workSec: 720 - _lvl(l) * 30,
+    approxMinutes: 55,
+    blocks: (l, b) => _distReps(3,
+        meters: 3000,
         restSec: 300,
         spm: 24 + _lvl(l),
         intensity: RowIntensity.threshold,
@@ -423,9 +537,9 @@ final List<RowWorkout> rowWorkouts = [
     name: '8 × 250 m / 1:30',
     type: RowSessionType.intervalKort,
     focus: 'Korte, scherpe stukjes met veel rust.',
-    approxMinutes: 26,
-    blocks: (l, b) => _reps(8,
-        workSec: 55 - _lvl(l) * 3,
+    approxMinutes: 23,
+    blocks: (l, b) => _distReps(8,
+        meters: 250,
         restSec: 90,
         spm: 28 + _lvl(l),
         intensity: RowIntensity.hard,
@@ -488,22 +602,35 @@ final List<RowWorkout> rowWorkouts = [
     name: '8 × 500 m / 2 min',
     type: RowSessionType.intervalKort,
     focus: 'Pete Plan-klassieker rond 5k-tempo.',
-    approxMinutes: 32,
-    blocks: (l, b) => _reps((6 + b * 2).round(),
-        workSec: 110 - _lvl(l) * 5,
+    approxMinutes: 34,
+    blocks: (l, b) => _distReps((6 + b * 2).round(),
+        meters: 500,
         restSec: 120,
         spm: 28 + _lvl(l),
         intensity: RowIntensity.hard,
         workLabel: '500 m'),
   ),
   RowWorkout(
+    id: 'sh_6x750',
+    name: '6 × 750 m / 2:30',
+    type: RowSessionType.intervalKort,
+    focus: 'Tussen de 500 en de kilometer: lang genoeg om te pijnigen.',
+    approxMinutes: 35,
+    blocks: (l, b) => _distReps(6,
+        meters: 750,
+        restSec: 150,
+        spm: 28 + _lvl(l),
+        intensity: RowIntensity.hard,
+        workLabel: '750 m'),
+  ),
+  RowWorkout(
     id: 'sh_4x1000',
     name: '4 × 1.000 m / 3 min',
     type: RowSessionType.intervalKort,
     focus: 'Wedstrijdgericht rond 2k + 4 sec.',
-    approxMinutes: 30,
-    blocks: (l, b) => _reps(4,
-        workSec: 235 - _lvl(l) * 10,
+    approxMinutes: 29,
+    blocks: (l, b) => _distReps(4,
+        meters: 1000,
         restSec: 180,
         spm: 28 + _lvl(l),
         intensity: RowIntensity.hard,
@@ -523,6 +650,19 @@ final List<RowWorkout> rowWorkouts = [
         spm: 26 + _lvl(l),
         intensity: RowIntensity.hard,
         workLabel: 'Interval'),
+  ),
+  RowWorkout(
+    id: 'lo_4x1500',
+    name: '4 × 1.500 m / 3 min',
+    type: RowSessionType.intervalLang,
+    focus: 'Lange afstandsblokken, VO2-gericht.',
+    approxMinutes: 39,
+    blocks: (l, b) => _distReps(4,
+        meters: 1500,
+        restSec: 180,
+        spm: 26 + _lvl(l),
+        intensity: RowIntensity.hard,
+        workLabel: '1.500 m'),
   ),
   RowWorkout(
     id: 'lo_5x3',
@@ -622,16 +762,18 @@ final List<RowWorkout> rowWorkouts = [
     name: 'Piramide 250-500-750-500-250 m',
     type: RowSessionType.piramide,
     focus: 'Afstandsladder met evenveel rust als werk.',
-    approxMinutes: 26,
+    approxMinutes: 22,
     blocks: (l, b) {
-      final secs = [55, 110, 165, 110, 55];
+      const meters = [250, 500, 750, 500, 250];
       final out = <RowBlock>[_wu(3)];
-      for (var i = 0; i < secs.length; i++) {
-        out.add(RowBlock(secs[i] - _lvl(l) * 3,
+      for (var i = 0; i < meters.length; i++) {
+        final block = RowBlock.distance(meters[i],
             spm: 27 + _lvl(l),
             intensity: RowIntensity.hard,
-            label: '${[250, 500, 750, 500, 250][i]} m'));
-        if (i < secs.length - 1) out.add(_rest(secs[i]));
+            label: '${meters[i]} m');
+        out.add(block);
+        // Equal rest to the (estimated) work, in whole seconds.
+        if (i < meters.length - 1) out.add(_rest(block.seconds));
       }
       out.add(_cd(2));
       return out;
@@ -762,9 +904,9 @@ final List<RowWorkout> rowWorkouts = [
     name: '6 × 250 m kracht r22 / 2 min',
     type: RowSessionType.krachtStroken,
     focus: 'Zware halen op een lage slag, veel rust.',
-    approxMinutes: 24,
-    blocks: (l, b) => _reps(6,
-        workSec: 60,
+    approxMinutes: 23,
+    blocks: (l, b) => _distReps(6,
+        meters: 250,
         restSec: 120,
         spm: 21 + _lvl(l),
         intensity: RowIntensity.hard,
@@ -777,9 +919,9 @@ final List<RowWorkout> rowWorkouts = [
     name: '8 × 100 m / 1 min',
     type: RowSessionType.intervalKort,
     focus: 'Volle sprints, volledig herstel.',
-    approxMinutes: 18,
-    blocks: (l, b) => _reps(8,
-        workSec: 22 - _lvl(l),
+    approxMinutes: 15,
+    blocks: (l, b) => _distReps(8,
+        meters: 100,
         restSec: 60,
         spm: 32 + _lvl(l),
         intensity: RowIntensity.max,
@@ -790,9 +932,9 @@ final List<RowWorkout> rowWorkouts = [
     name: '4 × 250 m / 3 min',
     type: RowSessionType.intervalKort,
     focus: 'Sprintafstanden met bijna volledig herstel.',
-    approxMinutes: 20,
-    blocks: (l, b) => _reps(4,
-        workSec: 48 - _lvl(l) * 3,
+    approxMinutes: 18,
+    blocks: (l, b) => _distReps(4,
+        meters: 250,
         restSec: 180,
         spm: 32 + _lvl(l),
         intensity: RowIntensity.max,
@@ -973,6 +1115,11 @@ final List<RowWorkout> rowWorkouts = [
     ],
   ),
 ];
+
+/// Whether any block of [w] is rowed over a distance. Cheap: the blocks are
+/// built at a fixed level and build factor.
+bool workoutHasDistance(RowWorkout w) =>
+    w.blocks(ProgramLevel.medium, 1.0).any((b) => b.meters != null);
 
 Iterable<RowWorkout> workoutsOfType(RowSessionType type) =>
     rowWorkouts.where((w) => w.type == type);

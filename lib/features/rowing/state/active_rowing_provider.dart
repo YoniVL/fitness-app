@@ -11,6 +11,7 @@ import '../../../domain/models/rowing.dart';
 import '../../../domain/models/workout_session.dart';
 import '../../../domain/rowing_format.dart';
 import '../../../domain/rowing_ftp.dart';
+import '../../../domain/rowing_segments.dart';
 import '../rower_service.dart';
 import '../rowing_cues.dart';
 
@@ -88,6 +89,7 @@ class ActiveRowingState {
     this.segmentIndex = 0,
     this.elapsed = Duration.zero,
     this.segmentElapsed = Duration.zero,
+    this.segmentDistanceM = 0,
     this.live,
     this.pausedReason = PauseReason.none,
   });
@@ -103,6 +105,9 @@ class ActiveRowingState {
   final int segmentIndex;
   final Duration elapsed;
   final Duration segmentElapsed;
+
+  /// Metres rowed since the current block began — what a distance block counts.
+  final double segmentDistanceM;
   final RowerSnapshot? live;
   final PauseReason pausedReason;
 
@@ -119,7 +124,12 @@ class ActiveRowingState {
     for (var i = 0; i < segmentIndex && i < segments.length; i++) {
       before += segments[i].durationSeconds;
     }
-    return ((before + segmentElapsed.inSeconds) / total).clamp(0.0, 1.0);
+    // A distance block advances with the metres rowed, over its estimated length.
+    final seg = currentSegment;
+    final inBlock = seg != null && seg.isDistance
+        ? seg.durationSeconds * (segmentDistanceM / seg.distanceM!).clamp(0.0, 1.0)
+        : segmentElapsed.inSeconds.toDouble();
+    return ((before + inBlock) / total).clamp(0.0, 1.0);
   }
 
   ProgramRowSegment? get currentSegment =>
@@ -136,22 +146,40 @@ class ActiveRowingState {
     return r.isNegative ? Duration.zero : r;
   }
 
+  /// Metres left in the current block when it is a distance block, else null.
+  double? get segmentRemainingDistanceM {
+    final s = currentSegment;
+    if (s == null || !s.isDistance) return null;
+    final left = s.distanceM! - segmentDistanceM;
+    return left < 0 ? 0 : left;
+  }
+
+  /// The current block has run its course — time for a timed block, metres for a
+  /// distance block.
+  bool get currentSegmentComplete {
+    final s = currentSegment;
+    return s != null &&
+        segmentComplete(s,
+            elapsedSeconds: segmentElapsed.inSeconds, distanceM: segmentDistanceM);
+  }
+
   double get plannedTotalSeconds =>
       segments.fold(0, (sum, s) => sum + s.durationSeconds).toDouble();
 
-  /// A planned session whose last segment has run its full duration — time to
-  /// wrap up and (for an FTP test) show the result. Free rows never complete on
-  /// their own.
+  /// A planned session whose last segment has run its course (its full duration,
+  /// or its full distance) — time to wrap up and (for an FTP test) show the
+  /// result. Free rows never complete on their own.
   bool get plannedSessionComplete =>
       segments.isNotEmpty &&
       pausedReason != PauseReason.notStarted &&
       segmentIndex >= segments.length - 1 &&
-      segmentElapsed.inSeconds >= (currentSegment?.durationSeconds ?? 0);
+      currentSegmentComplete;
 
   ActiveRowingState copyWith({
     int? segmentIndex,
     Duration? elapsed,
     Duration? segmentElapsed,
+    double? segmentDistanceM,
     RowerSnapshot? live,
     PauseReason? pausedReason,
   }) =>
@@ -163,6 +191,7 @@ class ActiveRowingState {
         segmentIndex: segmentIndex ?? this.segmentIndex,
         elapsed: elapsed ?? this.elapsed,
         segmentElapsed: segmentElapsed ?? this.segmentElapsed,
+        segmentDistanceM: segmentDistanceM ?? this.segmentDistanceM,
         live: live ?? this.live,
         pausedReason: pausedReason ?? this.pausedReason,
       );
@@ -197,10 +226,13 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
   RowerSnapshot? _lastRaw;
   RowingMeter _meter = RowingMeter();
 
-  /// A personal correction on top of the trainer's own reported split — see
-  /// [SettingsRepository.rowingPaceCorrectionPercent]. Fetched once per
-  /// session in [_startEngine] since [_onSnapshot] is a synchronous callback.
+  /// Metres per stroke for distance and tempo — see
+  /// [SettingsRepository.rowingMetersPerStroke]. Fetched once per session in
+  /// [_startEngine] since [_onSnapshot] is a synchronous callback.
   double _metersPerStroke = kDefaultMetersPerStroke;
+
+  /// The session distance at which the current block began.
+  double _segStartDistance = 0;
 
   /// The segment index we've already played the pre-switch beep for.
   int _preBeepedFor = -1;
@@ -231,38 +263,41 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
         ? Duration(milliseconds: checkpointMs)
         : DateTime.now().difference(session.startedAt);
 
-    // Walk the segment cursor forward to match the elapsed time.
-    var idx = 0;
-    var acc = Duration.zero;
-    for (var i = 0; i < segments.length; i++) {
-      final segDur = Duration(seconds: segments[i].durationSeconds);
-      if (acc + segDur > elapsed) {
-        idx = i;
-        break;
-      }
-      acc += segDur;
-      idx = i;
-    }
+    // Walk the segment cursor forward to where the session got to: by time for a
+    // timed block, by the metres rowed (read back from the samples) for a
+    // distance block.
+    final samples = db?.samples ?? const <RowingSample>[];
+    final distanceNow = samples.isEmpty ? 0.0 : (samples.last.distanceM ?? 0);
+    final cursor = locateSegment(
+      segments,
+      [
+        for (final x in samples)
+          if (x.distanceM != null) (tMs: x.tOffsetMs, distanceM: x.distanceM!),
+      ],
+      elapsed,
+      distanceNow,
+    );
 
     final state = ActiveRowingState(
       session: session,
       rowingSessionId: db?.rowing.id ?? 0,
       segments: segments,
       kind: db?.rowing.kind,
-      segmentIndex: idx,
+      segmentIndex: cursor.index,
       elapsed: elapsed,
-      segmentElapsed: elapsed - acc,
+      segmentElapsed: Duration(seconds: cursor.elapsedSeconds),
+      segmentDistanceM: distanceNow - cursor.startDistanceM,
       pausedReason: PauseReason.notStarted,
     );
     await _startEngine();
     // Carry the pre-restart distance/energy forward.
-    final samples = db?.samples ?? const <RowingSample>[];
     if (samples.isNotEmpty) {
       _meter.seed(
         distanceM: samples.last.distanceM ?? 0,
         energyKcal: samples.last.energyKcal ?? 0,
       );
     }
+    _segStartDistance = cursor.startDistanceM;
     return state;
   }
 
@@ -354,6 +389,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     _lastDataAt = null;
     _lastMoveAt = null;
     _meter = RowingMeter();
+    _segStartDistance = 0;
     _sub = _rower.snapshots.listen(_onSnapshot);
     _rower.connect();
   }
@@ -400,7 +436,11 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
       reason = PauseReason.none;
     }
     if (reason == PauseReason.none) _meter.addStrokes(strokes, _metersPerStroke);
-    state = AsyncData(s.copyWith(live: _merged(), pausedReason: reason));
+    state = AsyncData(s.copyWith(
+      live: _merged(),
+      pausedReason: reason,
+      segmentDistanceM: _meter.distanceM - _segStartDistance,
+    ));
   }
 
   void _tick() {
@@ -428,19 +468,23 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
 
     var elapsed = s.elapsed + const Duration(seconds: 1);
     var segElapsed = s.segmentElapsed + const Duration(seconds: 1);
+    var segDist = _meter.distanceM - _segStartDistance;
     var idx = s.segmentIndex;
 
     final seg = s.currentSegment;
     if (seg != null &&
-        segElapsed.inSeconds >= seg.durationSeconds &&
-        !s.onLastSegment) {
+        !s.onLastSegment &&
+        segmentComplete(seg,
+            elapsedSeconds: segElapsed.inSeconds, distanceM: segDist)) {
       idx += 1;
       segElapsed = Duration.zero;
+      _segStartDistance = _meter.distanceM;
+      segDist = 0;
       _cues.onSwitch();
     } else if (seg != null &&
         !s.onLastSegment &&
         _preBeepedFor != idx &&
-        seg.durationSeconds - segElapsed.inSeconds <= 10) {
+        _nearEnd(seg, segElapsed.inSeconds, segDist)) {
       _preBeepedFor = idx;
       _cues.preSwitch();
     }
@@ -449,6 +493,7 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     state = AsyncData(s.copyWith(
       elapsed: elapsed,
       segmentElapsed: segElapsed,
+      segmentDistanceM: segDist,
       segmentIndex: idx,
       live: merged,
     ));
@@ -457,6 +502,14 @@ class ActiveRowingController extends AsyncNotifier<ActiveRowingState?> {
     if (elapsed.inSeconds % 10 == 0) {
       _rowing.checkpointElapsed(s.session.id, elapsed);
     }
+  }
+
+  /// About ten seconds from the end of [seg]: by the clock for a timed block, by
+  /// the live stroke rate for a distance block (metres left ÷ current speed).
+  bool _nearEnd(ProgramRowSegment seg, int elapsedSeconds, double distanceM) {
+    if (!seg.isDistance) return seg.durationSeconds - elapsedSeconds <= 10;
+    final speed = (_lastRaw?.strokeRate ?? 0) * _metersPerStroke / 60;
+    return speed > 0 && (seg.distanceM! - distanceM) <= speed * 10;
   }
 
   /// The app went to the background — pause and stay paused until the user
